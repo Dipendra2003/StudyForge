@@ -238,6 +238,7 @@ export const codeGenerationSchema = z.object({
   problem: z.string().min(10, "Please describe your problem in more detail"),
   language: z.enum(["python", "javascript", "java", "c++", "typescript"]),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+  context: z.string().optional(),
 });
 
 // Export types

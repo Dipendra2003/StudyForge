@@ -38,6 +38,22 @@ export const useAuth = () => {
   return useContext(AuthContext);
 };
 
+// HomePage component to redirect users based on authentication status
+function HomePage() {
+  const { isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
+  
+  useEffect(() => {
+    if (isAuthenticated) {
+      setLocation("/dashboard");
+    } else {
+      setLocation("/login");
+    }
+  }, [isAuthenticated, setLocation]);
+  
+  return null;
+}
+
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
@@ -57,23 +73,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <PrivateRoute path="/dashboard" component={Dashboard} />
-      <Route path="/">
-        {/* Redirect to dashboard if authenticated, otherwise to login */}
-        {() => {
-          const { isAuthenticated } = useAuth();
-          const [, setLocation] = useLocation();
-          
-          useEffect(() => {
-            if (isAuthenticated) {
-              setLocation("/dashboard");
-            } else {
-              setLocation("/login");
-            }
-          }, [isAuthenticated, setLocation]);
-          
-          return null;
-        }}
-      </Route>
+      <Route path="/" component={HomePage} />
     </Switch>
   );
 }
