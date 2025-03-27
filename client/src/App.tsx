@@ -16,6 +16,10 @@ import DocumentSummarization from "@/pages/DocumentSummarization";
 import Flashcards from "@/pages/Flashcards";
 import StudyPlanner from "@/pages/StudyPlanner";
 import QuizMode from "@/pages/QuizMode";
+import About from "@/pages/About";
+import Policy from "@/pages/Policy";
+import Terms from "@/pages/Terms";
+import Pricing from "@/pages/Pricing";
 
 interface User {
   id: number;
@@ -79,6 +83,10 @@ function Router() {
       <PrivateRoute path="/flashcards" component={Flashcards} />
       <PrivateRoute path="/study-planner" component={StudyPlanner} />
       <PrivateRoute path="/quiz-mode" component={QuizMode} />
+      <Route path="/about" component={About} />
+      <Route path="/privacy-policy" component={Policy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/pricing" component={Pricing} />
       <Route path="/" component={HomePage} />
     </Switch>
   );
