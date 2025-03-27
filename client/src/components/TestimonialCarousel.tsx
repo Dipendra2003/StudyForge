@@ -1,62 +1,50 @@
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-
-// Sample testimonials data
-const testimonials = [
-  {
-    id: 1,
-    name: "Maya S.",
-    role: "Computer Science Student",
-    content: "Jadoo 2.0 helped me understand complex algorithms when I was struggling. The code generation feature is a game-changer for programming assignments!",
-    avatar: "M" // First letter of name for avatar
-  },
-  {
-    id: 2,
-    name: "James T.",
-    role: "Medical Student",
-    content: "I use Jadoo's document summarization daily for my medical texts. It saves me hours of reading while highlighting the most important concepts.",
-    avatar: "J"
-  },
-  {
-    id: 3,
-    name: "Priya K.",
-    role: "High School Student",
-    content: "The MCQ generator and flashcards helped me ace my exams. I love how it adapts to my learning style and focuses on areas where I need more practice.",
-    avatar: "P"
-  },
-  {
-    id: 4,
-    name: "David L.",
-    role: "Engineering Graduate",
-    content: "The study planner feature is incredible. It helped me organize my preparation for my final exams and maintain a consistent study schedule.",
-    avatar: "D"
-  },
-  {
-    id: 5,
-    name: "Sofia R.",
-    role: "Language Arts Teacher",
-    content: "I recommend Jadoo 2.0 to all my students. It's like having a personal tutor available 24/7 that can help with any subject.",
-    avatar: "S"
-  }
-];
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, ArrowRight, Star, Quote } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function TestimonialCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [autoplay, setAutoplay] = useState(true);
 
-  // Auto-play functionality
-  useEffect(() => {
-    if (!isPaused) {
-      const interval = setInterval(() => {
-        nextTestimonial();
-      }, 5000);
-      
-      return () => clearInterval(interval);
+  const testimonials = [
+    {
+      name: "Sophia Chen",
+      role: "Computer Science Student",
+      message: "Jadoo 2.0 transformed how I study programming. The code generation feature helped me understand complex algorithms I was struggling with. I improved my grades dramatically this semester!",
+      rating: 5,
+      image: "https://randomuser.me/api/portraits/women/44.jpg"
+    },
+    {
+      name: "Marcus Johnson",
+      role: "Medical Student",
+      message: "Studying for medical exams became so much easier with Jadoo. The flashcard feature and personalized quizzes helped me memorize complex terminology. This tool is a lifesaver!",
+      rating: 5,
+      image: "https://randomuser.me/api/portraits/men/32.jpg"
+    },
+    {
+      name: "Aisha Patel",
+      role: "Physics Major",
+      message: "I was struggling with quantum mechanics concepts until I started using Jadoo 2.0. The way it explains complex topics in simple language and generates relevant practice problems is amazing.",
+      rating: 4,
+      image: "https://randomuser.me/api/portraits/women/65.jpg"
+    },
+    {
+      name: "David Wilson",
+      role: "Law Student",
+      message: "The document summarization feature has been invaluable for condensing lengthy case studies and legal documents. Jadoo 2.0 helped me prepare for my bar exam more efficiently.",
+      rating: 5,
+      image: "https://randomuser.me/api/portraits/men/22.jpg"
+    },
+    {
+      name: "Emma Rodriguez",
+      role: "High School Student",
+      message: "As a student with dyslexia, I struggled with traditional studying methods. Jadoo's voice interaction and summarization tools have made learning accessible and enjoyable for me.",
+      rating: 5,
+      image: "https://randomuser.me/api/portraits/women/90.jpg"
     }
-  }, [currentIndex, isPaused]);
+  ];
 
   const nextTestimonial = () => {
     setDirection(1);
@@ -68,133 +56,131 @@ export default function TestimonialCarousel() {
     setCurrentIndex((prevIndex) => (prevIndex - 1 + testimonials.length) % testimonials.length);
   };
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (autoplay) {
+      interval = setInterval(() => {
+        nextTestimonial();
+      }, 5000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentIndex, autoplay]);
+
   const variants = {
-    enter: (direction: number) => {
-      return {
-        x: direction > 0 ? 1000 : -1000,
-        opacity: 0
-      };
-    },
+    enter: (direction: number) => ({
+      x: direction > 0 ? 300 : -300,
+      opacity: 0
+    }),
     center: {
-      zIndex: 1,
       x: 0,
       opacity: 1
     },
-    exit: (direction: number) => {
-      return {
-        zIndex: 0,
-        x: direction < 0 ? 1000 : -1000,
-        opacity: 0
-      };
-    }
+    exit: (direction: number) => ({
+      x: direction < 0 ? 300 : -300,
+      opacity: 0
+    })
   };
 
-  // Calculate visible testimonials (current one and two on either side for desktop)
-  const visibleTestimonials = [
-    testimonials[currentIndex],
-    testimonials[(currentIndex + 1) % testimonials.length],
-    testimonials[(currentIndex + 2) % testimonials.length]
-  ];
-
   return (
-    <section className="py-16 bg-gradient-to-br from-white to-gray-100">
-      <div className="container mx-auto px-6">
-        <h2 className="text-3xl font-bold text-center mb-12">
-          What Our <span className="text-primary">Users</span> Say
-        </h2>
+    <section className="py-20 px-4 relative overflow-hidden">
+      <div className="absolute top-10 left-10 text-primary/10 opacity-50">
+        <Quote size={120} strokeWidth={1} />
+      </div>
+      <div className="absolute bottom-10 right-10 text-primary/10 opacity-50 transform rotate-180">
+        <Quote size={120} strokeWidth={1} />
+      </div>
+
+      <div className="max-w-6xl mx-auto relative">
+        <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">What Our Users Say</h2>
         
         <div 
-          className="relative max-w-6xl mx-auto" 
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
+          className="relative overflow-hidden py-6"
+          onMouseEnter={() => setAutoplay(false)}
+          onMouseLeave={() => setAutoplay(true)}
         >
-          <div className="hidden md:flex justify-center gap-6">
-            {visibleTestimonials.map((testimonial, index) => (
-              <Card 
-                key={testimonial.id} 
-                className={`w-full max-w-md transition-all duration-300 ${index === 0 ? 'opacity-100 scale-100' : 'opacity-70 scale-95'}`}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
-                      {testimonial.avatar}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">{testimonial.name}</h3>
-                      <p className="text-gray-500 text-sm mb-3">{testimonial.role}</p>
-                      <p className="text-gray-700">{testimonial.content}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={currentIndex}
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 }
+              }}
+              className="bg-card border rounded-2xl shadow-lg p-6 md:p-8 lg:p-10 flex flex-col md:flex-row gap-8 items-center"
+            >
+              <div className="flex-shrink-0">
+                <div className="h-28 w-28 md:h-32 md:w-32 lg:h-40 lg:w-40 rounded-full overflow-hidden border-4 border-primary/20 shadow-xl">
+                  <img 
+                    src={testimonials[currentIndex].image} 
+                    alt={testimonials[currentIndex].name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex-grow">
+                <div className="flex gap-1 mb-2">
+                  {[...Array(testimonials[currentIndex].rating)].map((_, i) => (
+                    <Star key={i} className="fill-yellow-400 text-yellow-400" size={20} />
+                  ))}
+                  {[...Array(5 - testimonials[currentIndex].rating)].map((_, i) => (
+                    <Star key={i + testimonials[currentIndex].rating} className="text-gray-300" size={20} />
+                  ))}
+                </div>
+                
+                <p className="text-lg md:text-xl italic mb-6">"{testimonials[currentIndex].message}"</p>
+                
+                <div>
+                  <h3 className="font-bold text-lg md:text-xl">{testimonials[currentIndex].name}</h3>
+                  <p className="text-muted-foreground">{testimonials[currentIndex].role}</p>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
           
-          {/* Mobile view - single testimonial with animation */}
-          <div className="md:hidden">
-            <AnimatePresence initial={false} custom={direction}>
-              <motion.div
-                key={currentIndex}
-                custom={direction}
-                variants={variants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{
-                  x: { type: "spring", stiffness: 300, damping: 30 },
-                  opacity: { duration: 0.2 }
-                }}
-                className="w-full"
-              >
-                <Card className="w-full">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="h-12 w-12 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
-                        {testimonials[currentIndex].avatar}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-lg">{testimonials[currentIndex].name}</h3>
-                        <p className="text-gray-500 text-sm mb-3">{testimonials[currentIndex].role}</p>
-                        <p className="text-gray-700">{testimonials[currentIndex].content}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-          
-          {/* Navigation buttons */}
-          <div className="flex justify-center gap-4 mt-6">
-            <button 
+          <div className="flex justify-center gap-2 mt-8">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="rounded-full" 
               onClick={prevTestimonial}
-              className="p-2 rounded-full bg-white shadow-md hover:bg-gray-100 transition-colors"
-              aria-label="Previous testimonial"
             >
               <ArrowLeft size={18} />
-            </button>
-            <div className="flex items-center gap-2">
-              {testimonials.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    setDirection(index > currentIndex ? 1 : -1);
-                    setCurrentIndex(index);
-                  }}
-                  className={`h-2 rounded-full transition-all ${
-                    currentIndex === index ? "w-6 bg-primary" : "w-2 bg-gray-300"
-                  }`}
-                  aria-label={`Go to testimonial ${index + 1}`}
-                />
-              ))}
-            </div>
-            <button 
+            </Button>
+            
+            {testimonials.map((_, index) => (
+              <Button
+                key={index}
+                variant="ghost"
+                size="icon"
+                className={`w-3 h-3 rounded-full p-0 min-w-0 ${
+                  currentIndex === index 
+                    ? "bg-primary" 
+                    : "bg-primary/20"
+                }`}
+                onClick={() => {
+                  setDirection(index > currentIndex ? 1 : -1);
+                  setCurrentIndex(index);
+                }}
+              />
+            ))}
+            
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="rounded-full" 
               onClick={nextTestimonial}
-              className="p-2 rounded-full bg-white shadow-md hover:bg-gray-100 transition-colors"
-              aria-label="Next testimonial"
             >
               <ArrowRight size={18} />
-            </button>
+            </Button>
           </div>
         </div>
       </div>

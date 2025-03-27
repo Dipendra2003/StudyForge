@@ -1,76 +1,67 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 export default function DynamicBackground() {
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [windowSize, setWindowSize] = useState<{ width: number; height: number }>({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0,
+  });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  const gradientStyles = {
+    background: `
+      radial-gradient(
+        circle at ${mousePosition.x}px ${mousePosition.y}px,
+        rgba(139, 92, 246, 0.15) 0%,
+        rgba(59, 130, 246, 0.1) 25%,
+        rgba(16, 185, 129, 0.05) 50%,
+        rgba(0, 0, 0, 0) 70%
+      )
+    `,
+  };
+
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-gray-50"></div>
-      
-      {/* Animated gradient circles */}
+    <>
       <motion.div
-        className="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-primary/10 blur-3xl"
+        className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none"
         animate={{
-          x: [0, 30, 0],
-          y: [0, 40, 0],
-          scale: [1, 1.1, 1],
+          background: [
+            'radial-gradient(circle at 25% 25%, rgba(79, 70, 229, 0.15) 0%, rgba(0, 0, 0, 0) 50%)',
+            'radial-gradient(circle at 75% 25%, rgba(236, 72, 153, 0.15) 0%, rgba(0, 0, 0, 0) 50%)',
+            'radial-gradient(circle at 75% 75%, rgba(16, 185, 129, 0.15) 0%, rgba(0, 0, 0, 0) 50%)',
+            'radial-gradient(circle at 25% 75%, rgba(139, 92, 246, 0.15) 0%, rgba(0, 0, 0, 0) 50%)',
+            'radial-gradient(circle at 25% 25%, rgba(79, 70, 229, 0.15) 0%, rgba(0, 0, 0, 0) 50%)',
+          ],
         }}
         transition={{
           duration: 20,
           repeat: Infinity,
-          ease: "easeInOut"
+          ease: "linear",
         }}
       />
-      
-      <motion.div
-        className="absolute bottom-0 right-1/4 w-96 h-96 rounded-full bg-emerald-500/10 blur-3xl"
-        animate={{
-          x: [0, -30, 0],
-          y: [0, -40, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{
-          duration: 25,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
+      <div
+        className="fixed inset-0 z-[-1] pointer-events-none"
+        style={gradientStyles}
       />
-      
-      <motion.div
-        className="absolute top-1/3 right-1/3 w-64 h-64 rounded-full bg-amber-500/10 blur-3xl"
-        animate={{
-          x: [0, 50, 0],
-          y: [0, -30, 0],
-          scale: [1, 1.1, 1],
-        }}
-        transition={{
-          duration: 15,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      
-      <motion.div
-        className="absolute bottom-1/4 left-1/3 w-72 h-72 rounded-full bg-sky-500/10 blur-3xl opacity-70"
-        animate={{
-          x: [0, -40, 0],
-          y: [0, 30, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{
-          duration: 18,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      
-      {/* Subtle grid pattern overlay */}
-      <div 
-        className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none" 
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000000' fill-opacity='1' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E")`,
-          backgroundSize: '40px 40px'
-        }}
-      />
-    </div>
+      <div className="fixed inset-0 z-[-2] bg-gradient-to-br from-background to-background/90 pointer-events-none" />
+    </>
   );
 }

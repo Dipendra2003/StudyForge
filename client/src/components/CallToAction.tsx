@@ -1,5 +1,7 @@
-import { motion } from "framer-motion";
-import AnimatedCTA from "./AnimatedCTA";
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Sparkles, ArrowRight } from 'lucide-react';
+import AnimatedCTA from './AnimatedCTA';
 
 interface CallToActionProps {
   onScrollToWaitlist: () => void;
@@ -7,82 +9,124 @@ interface CallToActionProps {
 
 export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) {
   return (
-    <section className="py-24 relative" id="learn-more">
-      <div className="absolute inset-0 bg-gradient-to-r from-primary to-emerald-500 opacity-90"></div>
-      
-      {/* Abstract background pattern instead of stock photo */}
-      <div className="absolute inset-0 opacity-20">
-        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <pattern id="grid" width="8" height="8" patternUnits="userSpaceOnUse">
-              <path d="M 8 0 L 0 0 0 8" fill="none" stroke="white" strokeWidth="0.5" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
+    <section className="py-20 relative overflow-hidden bg-gradient-to-br from-background via-background/95 to-background">
+      {/* Background decoration */}
+      <div className="absolute inset-0 overflow-hidden">
+        {[...Array(6)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute rounded-full opacity-20 bg-gradient-to-r from-primary to-purple-500"
+            style={{
+              top: `${Math.random() * 100}%`,
+              left: `${Math.random() * 100}%`,
+              width: `${Math.random() * 200 + 50}px`,
+              height: `${Math.random() * 200 + 50}px`,
+            }}
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.1, 0.3, 0.1],
+              x: [0, Math.random() * 100 - 50, 0],
+              y: [0, Math.random() * 100 - 50, 0],
+            }}
+            transition={{
+              duration: 10 + Math.random() * 10,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        ))}
       </div>
       
-      {/* Animated background particles */}
-      <motion.div 
-        className="absolute top-10 right-20 w-24 h-24 rounded-full bg-white opacity-10"
-        animate={{
-          y: [0, -50, 0],
-          x: [0, 30, 0],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{
-          duration: 15,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      
-      <motion.div 
-        className="absolute bottom-20 left-20 w-32 h-32 rounded-full bg-white opacity-10"
-        animate={{
-          y: [0, 60, 0],
-          x: [0, -40, 0],
-          scale: [1, 1.3, 1],
-        }}
-        transition={{
-          duration: 20,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      
-      <div className="container mx-auto px-6 relative z-10">
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7 }}
-          className="max-w-4xl mx-auto text-center text-white"
-        >
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">Ready to transform your learning experience?</h2>
-          <p className="text-xl mb-10 text-white/90">
-            Join hundreds of students already achieving academic success with Jadoo 2.0. Get access to AI-powered study tools and boost your grades.
-          </p>
+      <div className="max-w-5xl mx-auto px-4 relative z-10">
+        <div className="text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+            className="inline-block mb-4"
+          >
+            <div className="bg-primary/10 text-primary rounded-full px-6 py-2 flex items-center gap-2 font-medium">
+              <Sparkles size={18} className="text-primary" />
+              <span>Boost your learning efficiency today</span>
+            </div>
+          </motion.div>
           
-          <div className="flex justify-center">
-            <AnimatedCTA 
-              onClick={onScrollToWaitlist}
-              text="Get Started Now"
-              size="lg"
-              variant="secondary"
-              className="bg-white text-primary font-bold text-lg py-7 px-10 rounded-full shadow-xl"
-            />
-          </div>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.1 }}
+            viewport={{ once: true }}
+            className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
+          >
+            Ready to Transform Your{' '}
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500 font-extrabold">
+              Study Experience?
+            </span>
+          </motion.h2>
           
           <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
-            className="mt-6 text-white/80 text-sm"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-8"
           >
-            No credit card required. Start with our free plan today.
+            Join thousands of students using Jadoo 2.0 to learn faster, retain more, and achieve better results in their studies.
           </motion.p>
-        </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            viewport={{ once: true }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+          >
+            <AnimatedCTA
+              text="Get Started Free"
+              onClick={onScrollToWaitlist}
+              size="lg"
+              className="px-8"
+            />
+            
+            <button
+              onClick={() => window.location.href = '/about'}
+              className="flex items-center gap-2 font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              Learn more about features
+              <ArrowRight size={18} />
+            </button>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            viewport={{ once: true }}
+            className="mt-12 flex flex-wrap justify-center gap-8 text-sm text-muted-foreground"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>No credit card required</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Free plan available</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Cancel anytime</span>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

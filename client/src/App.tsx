@@ -138,12 +138,28 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 // We're using the pre-configured query client from the import at the top of this file
 
 function App() {
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  
+  useEffect(() => {
+    // Check if this is the user's first visit
+    const hasVisitedBefore = localStorage.getItem('jadoo-welcomed');
+    
+    if (!hasVisitedBefore) {
+      setShowWelcomeModal(true);
+      localStorage.setItem('jadoo-welcomed', 'true');
+    }
+  }, []);
+  
+  const handleCloseWelcomeModal = () => {
+    setShowWelcomeModal(false);
+  };
+  
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="jadoo-theme">
         <DynamicBackground />
         <AuthProvider>
-          <WelcomeModal />
+          {showWelcomeModal && <WelcomeModal onClose={handleCloseWelcomeModal} />}
           <Router />
           <Toaster />
         </AuthProvider>

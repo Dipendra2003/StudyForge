@@ -1,194 +1,136 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, BookOpen, Brain, Code, CalendarCheck, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
+import { Link } from 'wouter';
 
-export default function WelcomeModal() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState(0);
+interface WelcomeModalProps {
+  onClose: () => void;
+}
+
+export default function WelcomeModal({ onClose }: WelcomeModalProps) {
+  const [currentStep, setCurrentStep] = useState(0);
   
-  // Check if this is the user's first visit
-  useEffect(() => {
-    const hasVisited = localStorage.getItem('jadoo_welcomed');
-    
-    if (!hasVisited) {
-      // Wait a moment before showing the modal
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, []);
-  
-  const handleClose = () => {
-    setIsOpen(false);
-    localStorage.setItem('jadoo_welcomed', 'true');
-  };
-  
-  const features = [
+  const steps = [
     {
-      icon: <MessageSquare className="h-6 w-6 text-primary" />,
-      title: "AI-Powered Q&A",
-      description: "Ask any study question and get instant answers across multiple subjects."
+      title: "Welcome to Jadoo 2.0",
+      description: "Your AI-powered study assistant that helps you learn smarter, not harder.",
+      icon: "🚀"
     },
     {
-      icon: <FileText className="h-6 w-6 text-emerald-500" />,
+      title: "Smart Q&A",
+      description: "Ask questions in natural language and get accurate, cited answers across multiple subjects.",
+      icon: "💬"
+    },
+    {
       title: "Document Summarization",
-      description: "Upload study materials and get concise summaries and explanations."
+      description: "Upload your study materials and get concise summaries, key points, and flashcards.",
+      icon: "📄"
     },
     {
-      icon: <Brain className="h-6 w-6 text-amber-500" />,
-      title: "Flashcards & MCQs",
-      description: "Generate study cards and quizzes to test your knowledge."
+      title: "Interactive Quizzes",
+      description: "Test your knowledge with AI-generated quizzes adapted to your learning level.",
+      icon: "🧠"
     },
     {
-      icon: <Code className="h-6 w-6 text-blue-500" />,
       title: "Code Generation",
-      description: "Get help with programming problems across various languages."
-    },
-    {
-      icon: <CalendarCheck className="h-6 w-6 text-violet-500" />,
-      title: "Study Planning",
-      description: "Create personalized study schedules based on your goals."
+      description: "Get coding help with explanations for programming assignments and problems.",
+      icon: "💻"
     }
   ];
   
-  const modalVariants = {
-    hidden: { 
-      opacity: 0,
-      scale: 0.9 
-    },
-    visible: { 
-      opacity: 1,
-      scale: 1,
-      transition: { 
-        type: "spring",
-        damping: 25,
-        stiffness: 500
-      }
-    },
-    exit: { 
-      opacity: 0,
-      scale: 0.9,
-      transition: { 
-        duration: 0.2
-      }
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      onClose();
     }
   };
   
-  const slideVariants = {
-    hidden: (direction: number) => ({
-      x: direction > 0 ? 500 : -500,
-      opacity: 0
-    }),
-    visible: {
-      x: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        damping: 30,
-        stiffness: 500
-      }
-    },
-    exit: (direction: number) => ({
-      x: direction > 0 ? -500 : 500,
-      opacity: 0,
-      transition: {
-        duration: 0.2
-      }
-    })
+  const handlePrevious = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
   };
   
-  const [slideDirection, setSlideDirection] = useState(1);
-  
-  const nextStep = () => {
-    setSlideDirection(1);
-    setStep(prev => {
-      if (prev === features.length - 1) {
-        handleClose();
-        return prev;
-      }
-      return prev + 1;
-    });
-  };
-  
-  const prevStep = () => {
-    setSlideDirection(-1);
-    setStep(prev => (prev > 0 ? prev - 1 : prev));
+  const handleSkip = () => {
+    onClose();
   };
   
   return (
     <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <motion.div
-            className="relative bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden"
-            variants={modalVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+      <motion.div
+        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="bg-card max-w-md w-full rounded-xl shadow-xl overflow-hidden relative"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          transition={{ type: "spring", bounce: 0.3 }}
+        >
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute right-2 top-2 z-10"
+            onClick={onClose}
           >
-            <button
-              onClick={handleClose}
-              className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-5 w-5 text-gray-500" />
-            </button>
+            <X size={20} />
+          </Button>
+          
+          <div className="p-6">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="text-center"
+              >
+                <div className="mb-4 text-4xl">{steps[currentStep].icon}</div>
+                <h3 className="text-2xl font-bold mb-2">{steps[currentStep].title}</h3>
+                <p className="text-muted-foreground mb-6">{steps[currentStep].description}</p>
+              </motion.div>
+            </AnimatePresence>
             
-            <div className="p-6 pt-8">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold">
-                  Welcome to <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Jadoo 2.0</span>
-                </h2>
-                <p className="text-gray-600 mt-2">Your AI-powered study assistant</p>
-              </div>
-              
-              <AnimatePresence custom={slideDirection} initial={false}>
-                <motion.div
-                  key={step}
-                  custom={slideDirection}
-                  variants={slideVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="min-h-[200px] flex flex-col items-center justify-center px-4"
-                >
-                  <div className="p-3 rounded-full bg-gray-100 mb-4">
-                    {features[step].icon}
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">{features[step].title}</h3>
-                  <p className="text-gray-600 text-center">{features[step].description}</p>
-                </motion.div>
-              </AnimatePresence>
-              
-              <div className="flex items-center justify-between mt-6">
-                <div className="flex gap-1">
-                  {features.map((_, idx) => (
-                    <div
-                      key={idx}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        idx === step ? "w-6 bg-primary" : "w-1.5 bg-gray-300"
-                      }`}
-                    />
-                  ))}
-                </div>
-                
-                <div className="flex gap-2">
-                  {step > 0 && (
-                    <Button variant="outline" size="sm" onClick={prevStep}>
-                      Back
-                    </Button>
-                  )}
-                  <Button onClick={nextStep}>
-                    {step === features.length - 1 ? "Get Started" : "Next"}
-                  </Button>
-                </div>
-              </div>
+            <div className="flex justify-center mb-4">
+              {steps.map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-1.5 rounded-full mx-1 transition-all duration-300 ${
+                    index === currentStep
+                      ? "w-6 bg-primary"
+                      : "w-2 bg-primary/30"
+                  }`}
+                />
+              ))}
             </div>
-          </motion.div>
-        </div>
-      )}
+            
+            <div className="flex justify-between items-center">
+              {currentStep > 0 ? (
+                <Button variant="ghost" onClick={handlePrevious}>
+                  Back
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={handleSkip}>
+                  Skip
+                </Button>
+              )}
+              
+              {currentStep < steps.length - 1 ? (
+                <Button onClick={handleNext}>Next</Button>
+              ) : (
+                <Link href="/register">
+                  <Button onClick={onClose}>Get Started</Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
     </AnimatePresence>
   );
 }

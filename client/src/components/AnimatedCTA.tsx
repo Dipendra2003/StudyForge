@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface AnimatedCTAProps {
   onClick?: () => void;
@@ -14,55 +14,37 @@ interface AnimatedCTAProps {
 export default function AnimatedCTA({ 
   onClick, 
   text, 
-  className = '',
+  className,
   size = 'default',
   variant = 'default'
 }: AnimatedCTAProps) {
   return (
-    <motion.div
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.98 }}
-      className="relative"
-    >
-      {/* Animated background element */}
-      <motion.div 
-        className="absolute inset-0 rounded-full bg-primary/20 blur-md"
-        initial={{ opacity: 0, scale: 0.8 }}
-        whileHover={{ 
-          opacity: 1, 
-          scale: 1.1,
-          transition: { duration: 0.3 }
+    <div className="relative group">
+      <motion.div
+        className="absolute -inset-1 rounded-lg bg-gradient-to-r from-primary via-violet-500 to-indigo-500 opacity-70 blur group-hover:opacity-100 transition duration-300"
+        initial={{ scale: 0.95 }}
+        animate={{ 
+          scale: [0.95, 1.05, 0.95],
+          rotate: [0, 1, 0, -1, 0],
+        }}
+        transition={{
+          duration: 5,
+          repeat: Infinity,
+          ease: "easeInOut"
         }}
       />
-      
-      {/* Main button */}
       <Button
         onClick={onClick}
         size={size}
         variant={variant}
-        className={`relative z-10 overflow-hidden ${className}`}
+        className={cn(
+          "relative z-10 font-semibold tracking-wide transition-all duration-300",
+          "hover:shadow-lg hover:shadow-primary/25 hover:scale-105 active:scale-95",
+          className
+        )}
       >
-        <span className="relative z-10">{text}</span>
-        
-        {/* Arrow icon with motion */}
-        <motion.span
-          className="inline-block ml-2 relative z-10"
-          initial={{ x: 0 }}
-          whileHover={{ x: 5, transition: { repeat: Infinity, repeatType: "reverse", duration: 0.6 } }}
-        >
-          <ArrowRight className="h-4 w-4" />
-        </motion.span>
-        
-        {/* Animated gradient overlay */}
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-primary/80 to-emerald-500/80 z-0"
-          initial={{ x: '100%' }}
-          whileHover={{ 
-            x: 0,
-            transition: { duration: 0.4, ease: "easeOut" }
-          }}
-        />
+        {text}
       </Button>
-    </motion.div>
+    </div>
   );
 }
