@@ -126,6 +126,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get current user
+  app.get('/api/auth/me', async (req: Request, res: Response) => {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
+      const user = await storage.getUser(req.session.userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Don't return password in response
+      const { password, ...userResponse } = user;
+      
+      return res.status(200).json({ user: userResponse });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
   // ===== Document Management Endpoints =====
   
   // Upload/create document
