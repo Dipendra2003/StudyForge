@@ -1,131 +1,285 @@
-import { pgTable, text, serial, boolean, timestamp, integer, jsonb, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, boolean, timestamp, integer, jsonb, varchar, index, primaryKey, unique, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// ===== STRUCTURED DATA TABLES (PostgreSQL) =====
 
 // User Management
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  username: varchar("username", { length: 50 }).notNull().unique(), // Using varchar with length for better indexing
   password: text("password").notNull(),
-  email: text("email").notNull().unique(),
-  fullName: text("full_name"),
+  email: varchar("email", { length: 100 }).notNull().unique(), // Using varchar with length for better indexing
+  fullName: varchar("full_name", { length: 100 }),
   profilePicture: text("profile_picture"),
-  preferredLanguage: text("preferred_language").default("en"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  preferredLanguage: varchar("preferred_language", { length: 10 }).default("en"),
+  role: varchar("role", { length: 20 }).default("user").notNull(), // For role-based access control
+  lastLogin: timestamp("last_login"), // Track login times for security
+  isActive: boolean("is_active").default(true), // For account activation/deactivation
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Waitlist table removed - focusing on core application functionality
+// Authentication records (keeps track of sessions, login attempts, etc.)
+export const authentication = pgTable("authentication", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: varchar("token", { length: 255 }),
+  provider: varchar("provider", { length: 20 }).default("local").notNull(), // For OAuth integration (local, google, etc.)
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("auth_user_id_idx").on(table.userId),
+    tokenIdx: index("auth_token_idx").on(table.token),
+  }
+});
 
 // Study Sessions and Notes
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  title: text("title").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
   content: text("content"),
   fileUrl: text("file_url"),
-  fileType: text("file_type"),
+  fileType: varchar("file_type", { length: 20 }),
   summary: text("summary"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isPrivate: boolean("is_private").default(true), // For potential document sharing
+  status: varchar("status", { length: 20 }).default("active"), // For document status (active, archived, deleted)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("doc_user_id_idx").on(table.userId),
+    titleIdx: index("doc_title_idx").on(table.title), // For search by title
+    statusIdx: index("doc_status_idx").on(table.status), // For quick filtering by status
+  }
 });
 
 // Flashcards created from documents
 export const flashcards = pgTable("flashcards", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  documentId: integer("document_id"),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
   tags: text("tags").array(),
+  difficulty: varchar("difficulty", { length: 10 }).default("medium"),
+  repetitionInterval: integer("repetition_interval").default(1), // For spaced repetition
+  easeFactor: integer("ease_factor").default(250), // For SM-2 algorithm (times 100)
   lastReviewed: timestamp("last_reviewed"),
   nextReviewDate: timestamp("next_review_date"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("fc_user_id_idx").on(table.userId),
+    docIdIdx: index("fc_doc_id_idx").on(table.documentId),
+    reviewDateIdx: index("fc_review_date_idx").on(table.nextReviewDate), // For retrieving due cards
+  }
 });
 
 // MCQs for quizzes
 export const mcqs = pgTable("mcqs", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  documentId: integer("document_id"),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
   options: text("options").array().notNull(),
   correctOption: integer("correct_option").notNull(),
   explanation: text("explanation"),
-  difficulty: text("difficulty").notNull().default("medium"),
-  category: text("category"),
-  createdAt: timestamp("created_at").defaultNow(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
+  category: varchar("category", { length: 50 }),
+  isPublic: boolean("is_public").default(false), // For sharing questions in a question bank
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("mcq_user_id_idx").on(table.userId),
+    docIdIdx: index("mcq_doc_id_idx").on(table.documentId),
+    difficultyIdx: index("mcq_difficulty_idx").on(table.difficulty), // For adaptive quizzes
+    categoryIdx: index("mcq_category_idx").on(table.category), // For subject-specific quizzes
+  }
 });
 
-// User's quiz attempts
+// User's quiz sessions and attempts
 export const quizAttempts = pgTable("quiz_attempts", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   score: integer("score").notNull(),
   totalQuestions: integer("total_questions").notNull(),
-  questionsData: jsonb("questions_data"),
-  createdAt: timestamp("created_at").defaultNow(),
+  correctAnswers: integer("correct_answers").notNull(),
+  timeSpent: integer("time_spent"), // In seconds
+  questionsData: jsonb("questions_data"), // Contains question IDs and user answers
+  category: varchar("category", { length: 50 }),
+  difficulty: varchar("difficulty", { length: 10 }),
+  completed: boolean("completed").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("qa_user_id_idx").on(table.userId),
+    createdAtIdx: index("qa_created_at_idx").on(table.createdAt), // For time-based analytics
+  }
 });
 
-// AI generated code snippets
-export const codeSnippets = pgTable("code_snippets", {
+// Individual question attempts within a quiz
+export const questionAttempts = pgTable("question_attempts", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  title: text("title").notNull(),
-  problem: text("problem"),
-  code: text("code").notNull(),
-  language: text("language").notNull(),
-  explanation: text("explanation"),
-  createdAt: timestamp("created_at").defaultNow(),
+  quizAttemptId: integer("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  questionId: integer("question_id").notNull(), // MCQ or other question ID
+  userAnswer: integer("user_answer"), // User's selected option
+  isCorrect: boolean("is_correct").notNull(),
+  timeSpent: integer("time_spent"), // Time spent on this question in seconds
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    quizIdIdx: index("qst_quiz_id_idx").on(table.quizAttemptId),
+    questionIdIdx: index("qst_question_id_idx").on(table.questionId),
+  }
 });
 
 // Study planning
 export const studyPlans = pgTable("study_plans", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  title: text("title").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   scheduleData: jsonb("schedule_data"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
   completedPercentage: integer("completed_percentage").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  status: varchar("status", { length: 20 }).default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("sp_user_id_idx").on(table.userId),
+    statusIdx: index("sp_status_idx").on(table.status),
+    dateRangeIdx: index("sp_date_range_idx").on(table.startDate, table.endDate), // Optimize date range queries
+  }
 });
 
-// Chat history for AI interactions
-export const chatHistory = pgTable("chat_history", {
+// Study sessions tracking
+export const studySessions = pgTable("study_sessions", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  sessionId: text("session_id").notNull(),
-  messages: jsonb("messages").notNull(),
-  subject: text("subject"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  studyPlanId: integer("study_plan_id").references(() => studyPlans.id, { onDelete: 'set null' }),
+  duration: integer("duration").notNull(), // Duration in minutes
+  subject: varchar("subject", { length: 100 }),
+  notes: text("notes"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("ss_user_id_idx").on(table.userId),
+    planIdIdx: index("ss_plan_id_idx").on(table.studyPlanId),
+    dateIdx: index("ss_date_idx").on(table.startTime), // For analytics by day/week/month
+  }
 });
 
 // User badges and achievements
 export const achievements = pgTable("achievements", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  badge: text("badge").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  badge: varchar("badge", { length: 50 }).notNull(),
   description: text("description"),
-  earnedAt: timestamp("earned_at").defaultNow(),
+  level: integer("level").default(1), // For leveled achievements
+  earnedAt: timestamp("earned_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("ach_user_id_idx").on(table.userId),
+    badgeIdx: index("ach_badge_idx").on(table.badge), // For leaderboards by achievement
+  }
 });
 
 // User statistics and progress tracking
 export const userStats = pgTable("user_stats", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().unique(),
-  totalStudyTime: integer("total_study_time").default(0),
+  userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  totalStudyTime: integer("total_study_time").default(0), // In minutes
   quizzesCompleted: integer("quizzes_completed").default(0),
-  averageScore: integer("average_score").default(0),
+  averageScore: integer("average_score").default(0), // Score * 100 for precision
   documentsUploaded: integer("documents_uploaded").default(0),
   flashcardsCreated: integer("flashcards_created").default(0),
+  flashcardsReviewed: integer("flashcards_reviewed").default(0),
+  correctFlashcards: integer("correct_flashcards").default(0),
+  incorrectFlashcards: integer("incorrect_flashcards").default(0),
   codeSnippetsGenerated: integer("code_snippets_generated").default(0),
   questionsAsked: integer("questions_asked").default(0),
   streakDays: integer("streak_days").default(0),
-  lastActive: timestamp("last_active").defaultNow(),
+  longestStreak: integer("longest_streak").default(0),
+  xpPoints: integer("xp_points").default(0), // For gamification
+  level: integer("level").default(1), // User level based on XP
+  lastActive: timestamp("last_active").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("us_user_id_idx").on(table.userId),
+    levelIdx: index("us_level_idx").on(table.level), // For leaderboards
+    streakIdx: index("us_streak_idx").on(table.streakDays), // For streaks leaderboard
+  }
+});
+
+// ===== MONGODB REFERENCE TABLES =====
+// These tables store references to MongoDB documents for hybrid storage architecture
+
+// Chat references (MongoDB references stored in PostgreSQL)
+export const chatHistory = pgTable("chat_history", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: varchar("session_id", { length: 100 }).notNull(),
+  mongoSessionId: varchar("mongo_session_id", { length: 24 }).notNull(), // MongoDB ObjectId reference
+  subject: varchar("subject", { length: 100 }),
+  messages: jsonb("messages").notNull(), // Only most recent messages for preview
+  messageCount: integer("message_count").default(0).notNull(),
+  lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("chat_user_id_idx").on(table.userId),
+    sessionIdIdx: index("chat_session_id_idx").on(table.sessionId),
+    mongoIdIdx: index("chat_mongo_id_idx").on(table.mongoSessionId),
+    lastMessageIdx: index("chat_last_msg_idx").on(table.lastMessageAt),
+  }
+});
+
+// Document Summary references (MongoDB references stored in PostgreSQL)
+export const summaryReferences = pgTable("summary_references", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  mongoSummaryId: varchar("mongo_summary_id", { length: 24 }).notNull(), // MongoDB ObjectId reference
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("sum_user_id_idx").on(table.userId),
+    documentIdIdx: index("sum_doc_id_idx").on(table.documentId),
+  }
+});
+
+// Code snippet references (MongoDB references stored in PostgreSQL)
+export const codeSnippets = pgTable("code_snippets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mongoSnippetId: varchar("mongo_snippet_id", { length: 24 }).notNull(), // MongoDB ObjectId reference
+  title: varchar("title", { length: 255 }).notNull(),
+  problem: text("problem"),
+  code: text("code").notNull(),
+  language: varchar("language", { length: 20 }).notNull(),
+  explanation: text("explanation"),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("cs_user_id_idx").on(table.userId),
+    langIdx: index("cs_language_idx").on(table.language), // For language-specific code snippets
+    titleIdx: index("cs_title_idx").on(table.title), // For title search
+  }
 });
 
 // Define insertion schemas
@@ -168,18 +322,27 @@ export const insertMcqSchema = createInsertSchema(mcqs).pick({
 
 export const insertCodeSnippetSchema = createInsertSchema(codeSnippets).pick({
   userId: true,
+  mongoSnippetId: true,
   title: true,
   problem: true,
   code: true,
   language: true,
   explanation: true,
+  tags: true,
 });
 
 export const insertChatHistorySchema = createInsertSchema(chatHistory).pick({
   userId: true,
   sessionId: true,
-  messages: true,
+  mongoSessionId: true,
   subject: true,
+  messages: true,
+});
+
+export const insertSummaryReferenceSchema = createInsertSchema(summaryReferences).pick({
+  userId: true,
+  documentId: true,
+  mongoSummaryId: true,
 });
 
 export const insertStudyPlanSchema = createInsertSchema(studyPlans).pick({
@@ -241,6 +404,9 @@ export type CodeSnippet = typeof codeSnippets.$inferSelect;
 
 export type InsertChatHistory = z.infer<typeof insertChatHistorySchema>;
 export type ChatHistory = typeof chatHistory.$inferSelect;
+
+export type InsertSummaryReference = z.infer<typeof insertSummaryReferenceSchema>;
+export type SummaryReference = typeof summaryReferences.$inferSelect;
 
 export type InsertStudyPlan = z.infer<typeof insertStudyPlanSchema>;
 export type StudyPlan = typeof studyPlans.$inferSelect;
