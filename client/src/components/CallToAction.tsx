@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import AnimatedCTA from "./AnimatedCTA";
 
 interface CallToActionProps {
   onScrollToWaitlist: () => void;
@@ -22,6 +22,35 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
         </svg>
       </div>
       
+      {/* Animated background particles */}
+      <motion.div 
+        className="absolute top-10 right-20 w-24 h-24 rounded-full bg-white opacity-10"
+        animate={{
+          y: [0, -50, 0],
+          x: [0, 30, 0],
+          scale: [1, 1.2, 1],
+        }}
+        transition={{
+          duration: 15,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      />
+      
+      <motion.div 
+        className="absolute bottom-20 left-20 w-32 h-32 rounded-full bg-white opacity-10"
+        animate={{
+          y: [0, 60, 0],
+          x: [0, -40, 0],
+          scale: [1, 1.3, 1],
+        }}
+        transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      />
+      
       <div className="container mx-auto px-6 relative z-10">
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
@@ -34,14 +63,25 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
           <p className="text-xl mb-10 text-white/90">
             Join hundreds of students already achieving academic success with Jadoo 2.0. Get access to AI-powered study tools and boost your grades.
           </p>
-          <Button 
-            onClick={onScrollToWaitlist}
-            variant="secondary"
-            size="lg"
-            className="bg-white text-primary font-bold text-lg py-7 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1"
+          
+          <div className="flex justify-center">
+            <AnimatedCTA 
+              onClick={onScrollToWaitlist}
+              text="Get Started Now"
+              size="lg"
+              variant="secondary"
+              className="bg-white text-primary font-bold text-lg py-7 px-10 rounded-full shadow-xl"
+            />
+          </div>
+          
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="mt-6 text-white/80 text-sm"
           >
-            Get Started Now
-          </Button>
+            No credit card required. Start with our free plan today.
+          </motion.p>
         </motion.div>
       </div>
     </section>

@@ -4,6 +4,7 @@ import Features from "@/components/Features";
 import Benefits from "@/components/Benefits";
 import CallToAction from "@/components/CallToAction";
 import FAQSection from "@/components/FAQSection";
+import TestimonialCarousel from "@/components/TestimonialCarousel";
 import Footer from "@/components/Footer";
 import { useRef } from "react";
 
@@ -40,9 +41,13 @@ export default function Home() {
           <Benefits />
         </section>
         
+        <TestimonialCarousel />
+        
         <section ref={faqRef} id="faq">
           <FAQSection />
         </section>
+        
+        <CallToAction onScrollToWaitlist={() => window.location.href = '/register'} />
       </main>
       
       <Footer />

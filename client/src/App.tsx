@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 // Import pre-configured query client
 import queryClient from "@/lib/queryClient";
+import DynamicBackground from "@/components/DynamicBackground";
+import WelcomeModal from "@/components/WelcomeModal";
 
 // Pages
 import Login from "@/pages/Login";
@@ -139,7 +141,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="jadoo-theme">
+        <DynamicBackground />
         <AuthProvider>
+          <WelcomeModal />
           <Router />
           <Toaster />
         </AuthProvider>
