@@ -1,0 +1,88 @@
+ (Jadoo v2.0 😄) with Code Generator
+Prompt:
+"Develop an AI-powered study assistant that provides intelligent learning support by answering queries, summarizing PDFs, generating MCQs, interacting via voice, and even generating code snippets for programming problems. The chatbot should offer personalized learning paths, adaptive difficulty, and multi-language support, making studying more interactive and efficient."
+
+🔹 Key Features:
+✅ AI-Powered Q&A:
+
+Instant answers to subject-related questions across multiple domains.
+
+Step-by-step solutions for mathematical and logical problems.
+
+Fetches relevant resources from Wikipedia, Google Scholar, and research papers.
+
+✅ PDF Summarization & Smart Notes:
+
+Upload PDFs and get AI-generated summaries with key highlights.
+
+Converts summaries into flashcards for quick revision.
+
+Supports extraction of important definitions, formulas, and key concepts.
+
+✅ MCQ Generator & Quiz Mode:
+
+Generates MCQs from uploaded PDFs, notes, or manual input.
+
+Adaptive difficulty based on past performance.
+
+Provides detailed explanations for both correct and incorrect answers.
+
+✅ Voice Interaction & AI Tutor Mode:
+
+Hands-free learning with AI-powered voice assistant.
+
+Text-to-speech and speech-to-text conversion.
+
+AI tutor guides users through complex topics in an interactive way.
+
+✅ 🚀 AI Code Generator (New Feature!)
+
+Generates code snippets for programming problems (Python, Java, C++, JavaScript).
+
+Auto-corrects errors and provides optimized solutions.
+
+Supports syntax explanations and debugging assistance.
+
+Runs test cases and suggests improvements.
+
+✅ Smart Study Planner & Reminders:
+
+AI-based scheduling for study sessions.
+
+Sends reminders and tracks progress.
+
+Pomodoro Timer for focused study sessions.
+
+✅ Multi-Language Support & Accessibility:
+
+Supports English, Hindi, and other regional languages.
+
+Dark mode and screen reader support for better accessibility.
+
+✅ Integration with External Study Resources:
+
+Fetches explanations from Khan Academy, Wikipedia, and Google Scholar.
+
+API integrations with coding platforms like LeetCode, Codeforces, and HackerRank.
+
+✅ Collaborative Learning & Community Support:
+
+AI-powered discussion forums for study groups.
+
+Users can share notes, MCQs, and coding challenges.
+
+✅ Gamification & AI Rewards System:
+
+Earn badges and points for completing quizzes and coding challenges.
+
+AI tracks progress and suggests personalized learning paths.
+
+🔹 Tech Stack:
+🖥 Frontend: React.js (Next.js) + Tailwind CSS (for UI)
+🛠 Backend: Node.js + Express.js
+📦 Database: MongoDB / Firebase (to store user progress)
+🤖 AI/ML: OpenAI API (for NLP, Q&A), TensorFlow.js (for adaptive learning models)
+📄 Document Processing: PyMuPDF / PDF.js (for summarization)
+🎤 Voice Integration: Web Speech API / Whisper AI
+💻 Code Generation: OpenAI Codex / GPT-4 API (for AI-driven code writing)
+📚 External APIs: Wikipedia API, Google Search API, LeetCode API, Codeforces API

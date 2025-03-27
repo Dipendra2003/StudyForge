@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { Link } from "wouter";
 
 interface HeroProps {
-  onScrollToWaitlist: () => void;
+  onScrollToFeatures?: () => void;
 }
 
-export default function Hero({ onScrollToWaitlist }: HeroProps) {
+export default function Hero({ onScrollToFeatures }: HeroProps) {
   return (
     <section className="pt-32 pb-24 relative overflow-hidden" id="hero">
       {/* Background elements */}
@@ -30,13 +31,14 @@ export default function Hero({ onScrollToWaitlist }: HeroProps) {
               Our revolutionary product combines AI, intuitive design, and seamless integration to boost your productivity by up to 200%.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button 
-                onClick={onScrollToWaitlist}
-                className="bg-gradient-to-r from-primary to-emerald-500 text-white font-bold py-6 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 text-center"
-                size="lg"
-              >
-                Join the Waitlist
-              </Button>
+              <Link href="/login">
+                <Button 
+                  className="bg-gradient-to-r from-primary to-emerald-500 text-white font-bold py-6 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 text-center"
+                  size="lg"
+                >
+                  Get Started
+                </Button>
+              </Link>
               <Button 
                 variant="outline" 
                 className="bg-white text-primary border border-primary font-bold py-6 px-8 rounded-full hover:bg-primary/5 transition-all text-center"
@@ -69,7 +71,7 @@ export default function Hero({ onScrollToWaitlist }: HeroProps) {
                 </svg>
               </div>
               <p className="ml-4 text-sm">
-                <span className="font-semibold">500+</span> people already joined the waitlist
+                <span className="font-semibold">500+</span> students boosting their learning with Jadoo
               </p>
             </div>
           </motion.div>

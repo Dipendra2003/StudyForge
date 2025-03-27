@@ -15,15 +15,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Waitlist for marketing
-export const waitlistEntries = pgTable("waitlist_entries", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  company: text("company"),
-  consent: boolean("consent").notNull().default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// Waitlist table removed - focusing on core application functionality
 
 // Study Sessions and Notes
 export const documents = pgTable("documents", {
@@ -145,12 +137,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   preferredLanguage: true,
 });
 
-export const insertWaitlistSchema = createInsertSchema(waitlistEntries).pick({
-  name: true,
-  email: true,
-  company: true,
-  consent: true,
-});
+// Waitlist insertion schema removed
 
 export const insertDocumentSchema = createInsertSchema(documents).pick({
   userId: true,
@@ -204,14 +191,7 @@ export const insertStudyPlanSchema = createInsertSchema(studyPlans).pick({
   endDate: true,
 });
 
-// Extended schema with validation for forms
-export const waitlistFormSchema = insertWaitlistSchema.extend({
-  email: z.string().email("Please enter a valid email address"),
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  consent: z.boolean().refine(val => val === true, {
-    message: "You must consent to receive updates"
-  })
-});
+// Extended schema with validation for forms - waitlist form removed
 
 export const userRegistrationSchema = insertUserSchema.extend({
   email: z.string().email("Please enter a valid email address"),
@@ -245,8 +225,7 @@ export const codeGenerationSchema = z.object({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-export type InsertWaitlist = z.infer<typeof insertWaitlistSchema>;
-export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
+// Waitlist types removed
 
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Document = typeof documents.$inferSelect;

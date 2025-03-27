@@ -4,7 +4,6 @@ import Features from "@/components/Features";
 import Benefits from "@/components/Benefits";
 import CallToAction from "@/components/CallToAction";
 import FAQSection from "@/components/FAQSection";
-import WaitlistForm from "@/components/WaitlistForm";
 import Footer from "@/components/Footer";
 import { useRef } from "react";
 
@@ -12,14 +11,12 @@ export default function Home() {
   const featuresRef = useRef<HTMLElement>(null);
   const benefitsRef = useRef<HTMLElement>(null);
   const faqRef = useRef<HTMLElement>(null);
-  const waitlistRef = useRef<HTMLElement>(null);
   
   const scrollToSection = (section: string) => {
     const refs: Record<string, React.RefObject<HTMLElement>> = {
       features: featuresRef,
       benefits: benefitsRef,
-      faq: faqRef,
-      waitlist: waitlistRef
+      faq: faqRef
     };
     
     const ref = refs[section];
@@ -33,7 +30,7 @@ export default function Home() {
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow">
-        <Hero onScrollToWaitlist={() => scrollToSection('waitlist')} />
+        <Hero onScrollToFeatures={() => scrollToSection('features')} />
         
         <section ref={featuresRef} id="features">
           <Features />
@@ -43,14 +40,8 @@ export default function Home() {
           <Benefits />
         </section>
         
-        <CallToAction onScrollToWaitlist={() => scrollToSection('waitlist')} />
-        
         <section ref={faqRef} id="faq">
           <FAQSection />
-        </section>
-        
-        <section ref={waitlistRef} id="waitlist">
-          <WaitlistForm />
         </section>
       </main>
       

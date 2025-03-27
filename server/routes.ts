@@ -2,7 +2,6 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
-  insertWaitlistSchema, 
   userRegistrationSchema, 
   insertUserSchema,
   insertDocumentSchema,
@@ -46,43 +45,6 @@ function authenticate(req: Request, res: Response, next: NextFunction) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // ===== Waitlist Endpoints =====
-  app.post('/api/waitlist', async (req: Request, res: Response) => {
-    try {
-      // Validate input
-      const validatedData = insertWaitlistSchema.parse(req.body);
-      
-      // Check if email already exists
-      const existingEntry = await storage.getWaitlistEntryByEmail(validatedData.email);
-      if (existingEntry) {
-        return res.status(409).json({ 
-          message: "This email is already on our waitlist." 
-        });
-      }
-      
-      // Add to waitlist
-      const entry = await storage.createWaitlistEntry(validatedData);
-      
-      // Return success response
-      return res.status(201).json({
-        message: "Successfully joined the waitlist",
-        entry
-      });
-    } catch (error) {
-      return handleApiError(error, res);
-    }
-  });
-
-  // Get waitlist stats (count only)
-  app.get('/api/waitlist/stats', async (_req: Request, res: Response) => {
-    try {
-      const count = await storage.getWaitlistCount();
-      return res.status(200).json({ count });
-    } catch (error) {
-      return handleApiError(error, res);
-    }
-  });
-
   // ===== Authentication Endpoints =====
   
   // User registration
