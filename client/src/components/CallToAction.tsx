@@ -30,9 +30,9 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
           transition={{ duration: 0.7 }}
           className="max-w-4xl mx-auto text-center text-white"
         >
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">Ready to revolutionize your workflow?</h2>
+          <h2 className="text-3xl md:text-5xl font-bold mb-6">Ready to transform your learning experience?</h2>
           <p className="text-xl mb-10 text-white/90">
-            Join thousands of forward-thinking professionals already on our waitlist. Early adopters will receive exclusive benefits and pricing.
+            Join hundreds of students already achieving academic success with Jadoo 2.0. Get access to AI-powered study tools and boost your grades.
           </p>
           <Button 
             onClick={onScrollToWaitlist}
@@ -40,7 +40,7 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             size="lg"
             className="bg-white text-primary font-bold text-lg py-7 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1"
           >
-            Reserve Your Spot
+            Get Started Now
           </Button>
         </motion.div>
       </div>

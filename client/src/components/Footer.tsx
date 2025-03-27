@@ -6,11 +6,11 @@ export default function Footer() {
           <div className="col-span-1 md:col-span-2">
             <div className="text-2xl font-bold mb-4 text-white">
               <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
-                Innovate<span className="text-white">X</span>
+                Jadoo<span className="text-white">2.0</span>
               </span>
             </div>
             <p className="text-gray-400 mb-6 max-w-md">
-              Our revolutionary platform is designed to transform how you work, collaborate, and achieve your goals.
+              Our AI-powered study assistant is designed to transform how you learn, understand complex topics, and achieve academic success.
             </p>
             <div className="flex space-x-4">
               <a href="#" className="text-gray-400 hover:text-white transition-colors">
@@ -48,7 +48,7 @@ export default function Footer() {
         
         <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-500 text-sm">
-            &copy; {new Date().getFullYear()} InnovateX. All rights reserved.
+            &copy; {new Date().getFullYear()} Jadoo2.0. All rights reserved.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a href="#" className="text-gray-500 hover:text-gray-400 text-sm">Privacy Policy</a>

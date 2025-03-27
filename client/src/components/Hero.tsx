@@ -25,10 +25,10 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
               Coming Soon
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
-              Transform Your <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Workflow</span> Like Never Before
+              Your AI Study <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Assistant</span> For Success
             </h1>
             <p className="text-lg text-gray-600 mb-8 max-w-lg">
-              Our revolutionary product combines AI, intuitive design, and seamless integration to boost your productivity by up to 200%.
+              Jadoo 2.0 combines advanced AI capabilities to help you learn faster, understand deeper, and study smarter with personalized assistance.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/login">
@@ -71,7 +71,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                 </svg>
               </div>
               <p className="ml-4 text-sm">
-                <span className="font-semibold">500+</span> students boosting their learning with Jadoo
+                <span className="font-semibold">500+</span> students improving their grades with Jadoo 2.0
               </p>
             </div>
           </motion.div>
@@ -135,7 +135,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
               <div className="absolute -bottom-4 -right-4 bg-white p-4 rounded-xl shadow-lg">
                 <div className="flex items-center gap-2">
                   <div className="h-4 w-4 rounded-full bg-emerald-500"></div>
-                  <p className="font-semibold text-gray-800">200% Productivity Boost</p>
+                  <p className="font-semibold text-gray-800">AI-Powered Learning</p>
                 </div>
               </div>
             </div>

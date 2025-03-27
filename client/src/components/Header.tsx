@@ -26,7 +26,7 @@ export default function Header({ onNavigate }: HeaderProps) {
           <div className="flex items-center">
             <div className="text-2xl font-bold">
               <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
-                Innovate<span className="text-black">X</span>
+                Jadoo<span className="text-black dark:text-white">2.0</span>
               </span>
             </div>
           </div>
@@ -54,10 +54,10 @@ export default function Header({ onNavigate }: HeaderProps) {
           
           <div>
             <Button 
-              onClick={() => onNavigate('waitlist')} 
+              onClick={() => onNavigate('features')} 
               className="hidden md:inline-flex bg-primary hover:bg-primary/90 text-white font-medium rounded-full shadow-md hover:shadow-lg transition-all transform hover:-translate-y-1"
             >
-              Join Waitlist
+              Get Started
             </Button>
             <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -111,12 +111,12 @@ export default function Header({ onNavigate }: HeaderProps) {
                 </button>
                 <Button 
                   onClick={() => {
-                    onNavigate('waitlist');
+                    onNavigate('features');
                     setMobileMenuOpen(false);
                   }} 
                   className="bg-primary hover:bg-primary/90 text-white font-medium w-full rounded-full shadow-md hover:shadow-lg transition-all"
                 >
-                  Join Waitlist
+                  Get Started
                 </Button>
               </nav>
             </div>

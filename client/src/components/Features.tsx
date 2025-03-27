@@ -2,34 +2,34 @@ import { motion } from "framer-motion";
 
 const features = [
   {
-    icon: "bolt",
-    title: "AI-Powered Automation",
-    description: "Let our smart algorithms handle repetitive tasks while you focus on what matters most."
+    icon: "brain",
+    title: "AI-Powered Q&A",
+    description: "Get instant answers to subject-related questions across multiple domains including science, math, history, and programming."
   },
   {
-    icon: "users",
-    title: "Seamless Collaboration",
-    description: "Work together in real-time with your team, no matter where they are located."
+    icon: "file-alt",
+    title: "Document Summarization",
+    description: "Upload study materials and get concise summaries, key points, and explanations tailored to your learning style."
   },
   {
-    icon: "chart-line",
-    title: "Advanced Analytics",
-    description: "Gain insights with comprehensive data visualization and reporting tools."
+    icon: "question-circle",
+    title: "MCQ Generation",
+    description: "Generate practice quizzes with multiple-choice questions to test your knowledge and improve retention."
   },
   {
-    icon: "mobile-alt",
-    title: "Cross-Platform Access",
-    description: "Access your workspace from any device with our responsive web and mobile apps."
+    icon: "microphone-alt",
+    title: "Voice Interaction",
+    description: "Speak your questions and get audio responses for a hands-free learning experience while multitasking."
   },
   {
-    icon: "shield-alt",
-    title: "Enterprise-Grade Security",
-    description: "Rest easy with our bank-level encryption and secure data storage protocols."
+    icon: "code",
+    title: "Code Generation",
+    description: "Get help with programming problems across various languages with step-by-step explanations and comments."
   },
   {
-    icon: "plug",
-    title: "Seamless Integrations",
-    description: "Connect with your favorite tools without missing a beat in your workflow."
+    icon: "calendar-check",
+    title: "Study Planning",
+    description: "Create personalized study schedules based on your goals, learning pace, and upcoming exams."
   }
 ];
 
@@ -59,9 +59,9 @@ export default function Features() {
           transition={{ duration: 0.5 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Powerful Features</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">AI Study Tools</h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Designed with your needs in mind, our product delivers exceptional value through these key features.
+            Jadoo 2.0 offers powerful learning assistance with these cutting-edge features designed to enhance your study experience.
           </p>
         </motion.div>
         

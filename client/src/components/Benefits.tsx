@@ -2,24 +2,24 @@ import { motion } from "framer-motion";
 
 const benefits = [
   {
-    icon: "clock",
-    title: "Save Valuable Time",
-    description: "Reduce time spent on manual tasks by up to 75%, freeing you to focus on high-impact work."
+    icon: "graduation-cap",
+    title: "Accelerated Learning",
+    description: "Master complex subjects faster with AI-generated explanations and summaries tailored to your learning style."
   },
   {
-    icon: "dollar-sign",
-    title: "Reduce Operational Costs",
-    description: "Cut expenses by streamlining processes and eliminating redundant tools."
+    icon: "tachometer-alt",
+    title: "Improved Productivity",
+    description: "Focus on understanding concepts rather than searching for information. Study smarter, not harder."
   },
   {
-    icon: "lightbulb",
-    title: "Boost Team Creativity",
-    description: "Empower your team to innovate with tools that enhance collaboration and idea sharing."
+    icon: "chart-line",
+    title: "Better Academic Performance",
+    description: "Practice with custom-generated exercises and receive personalized feedback to improve your grades."
   },
   {
-    icon: "check-circle",
-    title: "Improve Decision Making",
-    description: "Make better choices with data-driven insights and actionable recommendations."
+    icon: "book-reader",
+    title: "Personalized Education",
+    description: "Enjoy learning adapted to your pace, preferences, and knowledge gaps for a truly personalized experience."
   }
 ];
 
@@ -34,9 +34,9 @@ export default function Benefits() {
           transition={{ duration: 0.5 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Why You'll Love It</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Transform Your Learning</h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Our innovative product delivers tangible benefits that transform the way you work.
+            Jadoo 2.0 revolutionizes the way you study, helping you achieve academic excellence with less stress and more efficiency.
           </p>
         </motion.div>
         
