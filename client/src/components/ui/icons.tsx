@@ -1,122 +1,63 @@
 import {
-  AlertCircle,
-  ArrowRight,
-  Award,
-  Book,
   BookOpen,
   Calendar,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  CircleUser,
   Clock,
   Code,
-  Coffee,
-  Cog,
-  Computer,
-  Copy,
-  CreditCard,
-  Disc,
-  Download,
-  File,
   FileQuestion,
   FileText,
-  Gift,
-  GraduationCap,
-  HelpCircle,
   Home,
-  Image,
-  Layers,
-  Layout,
-  List,
-  Loader2,
   LogOut,
-  Mail,
+  LucideProps,
   Menu,
   MessageCircle,
   MessageSquare,
   Moon,
-  Pencil,
-  Plus,
-  Search,
   Settings,
   Sparkles,
-  Square,
-  Star,
   Sun,
-  Timer,
-  Trash,
+  Award,
+  Copy,
+  Book,
   User,
-  Wand2,
-  X,
-  type LucideIcon,
-  type LucideProps,
+  Loader2,
 } from "lucide-react";
-import { forwardRef } from "react";
+import { ComponentType } from "react";
 
-export const Icons = {
-  logo: Book,
-  close: X,
-  spinner: Loader2,
-  chevronLeft: ChevronLeft,
-  chevronRight: ChevronRight,
-  chevronDown: ChevronDown,
-  trash: Trash,
-  post: FileText,
-  page: File,
-  media: Image,
-  settings: Settings,
-  billing: CreditCard,
-  ellipsis: Disc,
-  add: Plus,
-  warning: AlertCircle,
-  user: User,
-  arrowRight: ArrowRight,
-  help: HelpCircle,
-  star: Star,
-  graduation: GraduationCap,
-  code: Code,
-  copy: Copy,
-  moon: Moon,
-  sun: Sun,
-  laptop: Computer,
-  layout: Layout,
-  list: List,
-  search: Search,
-  coffee: Coffee,
-  wand: Wand2,
-  check: Check,
+type IconsType = Record<string, ComponentType<LucideProps>>;
+
+export const Icons: IconsType & { spinner: ComponentType<LucideProps> } = {
+  // Navigation icons
+  home: Home,
   messageCircle: MessageCircle,
   messageSquare: MessageSquare,
-  home: Home,
   fileText: FileText,
+  bookOpen: BookOpen,
   fileQuestion: FileQuestion,
+  code: Code,
   calendar: Calendar,
-  layers: Layers,
+  settings: Settings,
+  user: User,
+  logout: LogOut,
+  
+  // UI icons
+  menu: Menu,
+  sun: Sun,
+  moon: Moon,
+  sparkles: Sparkles,
+  
+  // Dashboard icons
   award: Award,
   clock: Clock,
-  bookOpen: BookOpen,
+  page: FileText,
+  
+  // Action icons
+  copy: Copy,
   book: Book,
-  logout: LogOut,
-  mail: Mail,
-  pencil: Pencil,
-  square: Square,
-  sparkles: Sparkles,
-  download: Download,
-  gift: Gift,
-  timer: Timer,
-  menu: Menu,
+  
+  // Default user icon
+  circleUser: CircleUser,
+  
+  // Spinner icon for loading states
+  spinner: Loader2,
 };
-
-export type Icon = keyof typeof Icons;
-
-interface IconProps extends LucideProps {
-  name: Icon;
-}
-
-export const Icon = forwardRef<SVGSVGElement, IconProps>(
-  ({ name, ...props }, ref) => {
-    const Icon = Icons[name] as LucideIcon;
-    return <Icon ref={ref} {...props} />;
-  }
-);

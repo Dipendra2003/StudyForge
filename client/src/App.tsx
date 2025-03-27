@@ -1,13 +1,16 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { Route, Switch, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
+// Import pre-configured query client
+import queryClient from "@/lib/queryClient";
 
 // Pages
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
+import CodeGenerator from "@/pages/CodeGenerator";
 
 interface User {
   id: number;
@@ -73,6 +76,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <PrivateRoute path="/dashboard" component={Dashboard} />
+      <PrivateRoute path="/code-generator" component={CodeGenerator} />
       <Route path="/" component={HomePage} />
     </Switch>
   );
@@ -119,14 +123,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Initialize QueryClient
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+// We're using the pre-configured query client from the import at the top of this file
 
 function App() {
   return (

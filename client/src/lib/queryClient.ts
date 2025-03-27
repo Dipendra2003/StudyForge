@@ -1,45 +1,97 @@
 import { QueryClient } from "@tanstack/react-query";
 
-// Create a client
+interface ApiRequestOptions {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  data?: any;
+  params?: Record<string, string | number | boolean | undefined | null>;
+  headers?: Record<string, string>;
+}
+
+export async function apiRequest<T = any>(
+  endpoint: string,
+  options: ApiRequestOptions = {}
+): Promise<T> {
+  const { method = "GET", data, params, headers = {} } = options;
+
+  // Build query string for GET requests
+  let url = endpoint;
+  if (params) {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        queryParams.append(key, String(value));
+      }
+    });
+    const queryString = queryParams.toString();
+    if (queryString) {
+      url = `${url}${url.includes("?") ? "&" : "?"}${queryString}`;
+    }
+  }
+
+  // Setup request options
+  const requestOptions: RequestInit = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    credentials: "include",
+  };
+
+  // Add body for non-GET requests
+  if (method !== "GET" && data !== undefined) {
+    requestOptions.body = JSON.stringify(data);
+  }
+
+  // Make the request
+  const response = await fetch(url, requestOptions);
+
+  // Handle errors
+  if (!response.ok) {
+    let errorMessage: string;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || `API request failed with status ${response.status}`;
+    } catch (e) {
+      errorMessage = `API request failed with status ${response.status}`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  // Return the data
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json();
+  }
+  
+  return response.text() as unknown as T;
+}
+
+// Utility functions for common operations
+export const apiGet = <T>(endpoint: string, options?: Omit<ApiRequestOptions, "method">) => 
+  apiRequest<T>(endpoint, { ...options, method: "GET" });
+
+export const apiPost = <T>(endpoint: string, data?: any, options?: Omit<ApiRequestOptions, "method" | "data">) => 
+  apiRequest<T>(endpoint, { ...options, method: "POST", data });
+
+export const apiPut = <T>(endpoint: string, data?: any, options?: Omit<ApiRequestOptions, "method" | "data">) => 
+  apiRequest<T>(endpoint, { ...options, method: "PUT", data });
+
+export const apiPatch = <T>(endpoint: string, data?: any, options?: Omit<ApiRequestOptions, "method" | "data">) => 
+  apiRequest<T>(endpoint, { ...options, method: "PATCH", data });
+
+export const apiDelete = <T>(endpoint: string, options?: Omit<ApiRequestOptions, "method">) => 
+  apiRequest<T>(endpoint, { ...options, method: "DELETE" });
+
+// Export a pre-configured QueryClient instance
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60, // 1 minute
+      staleTime: 1000 * 60 * 5, // 5 minutes
       retry: 1,
       refetchOnWindowFocus: false,
     },
   },
 });
 
-type ApiRequestOptions = {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-};
-
-export async function apiRequest(url: string, options: ApiRequestOptions = {}) {
-  const defaultOptions: ApiRequestOptions = {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  };
-
-  const mergedOptions = {
-    ...defaultOptions,
-    ...options,
-    headers: {
-      ...defaultOptions.headers,
-      ...options.headers,
-    },
-  };
-
-  return fetch(url, mergedOptions as RequestInit);
-}
-
-export function apiRequestErrorHandler(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'An unknown error occurred';
-}
+export default queryClient;
