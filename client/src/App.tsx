@@ -12,6 +12,10 @@ import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import CodeGenerator from "@/pages/CodeGenerator";
 import Chat from "@/pages/Chat";
+import DocumentSummarization from "@/pages/DocumentSummarization";
+import Flashcards from "@/pages/Flashcards";
+import StudyPlanner from "@/pages/StudyPlanner";
+import QuizMode from "@/pages/QuizMode";
 
 interface User {
   id: number;
@@ -71,6 +75,10 @@ function Router() {
       <PrivateRoute path="/dashboard" component={Dashboard} />
       <PrivateRoute path="/code-generator" component={CodeGenerator} />
       <PrivateRoute path="/chat" component={Chat} />
+      <PrivateRoute path="/document-summarization" component={DocumentSummarization} />
+      <PrivateRoute path="/flashcards" component={Flashcards} />
+      <PrivateRoute path="/study-planner" component={StudyPlanner} />
+      <PrivateRoute path="/quiz-mode" component={QuizMode} />
       <Route path="/" component={HomePage} />
     </Switch>
   );

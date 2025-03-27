@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 interface ApiRequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   data?: any;
+  body?: any; // Add body option for direct body passing
   params?: Record<string, string | number | boolean | undefined | null>;
   headers?: Record<string, string>;
 }
@@ -11,7 +12,7 @@ export async function apiRequest<T = any>(
   endpoint: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const { method = "GET", data, params, headers = {} } = options;
+  const { method = "GET", data, body, params, headers = {} } = options;
 
   // Build query string for GET requests
   let url = endpoint;
@@ -39,8 +40,14 @@ export async function apiRequest<T = any>(
   };
 
   // Add body for non-GET requests
-  if (method !== "GET" && data !== undefined) {
-    requestOptions.body = JSON.stringify(data);
+  if (method !== "GET") {
+    if (body !== undefined) {
+      // Use body directly if provided
+      requestOptions.body = body;
+    } else if (data !== undefined) {
+      // Otherwise use data and stringify it
+      requestOptions.body = JSON.stringify(data);
+    }
   }
 
   // Make the request

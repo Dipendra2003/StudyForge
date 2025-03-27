@@ -1,249 +1,242 @@
-import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/App";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { 
-  Book, 
-  BookOpen, 
-  Code, 
-  Layout, 
-  LogOut, 
-  Menu, 
-  MessageSquare, 
-  Moon, 
-  Sun, 
-  X 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { ThemeToggle } from "../theme-toggle";
+import {
+  Home,
+  BookOpen,
+  FileText,
+  MessageSquare,
+  Code,
+  Calendar,
+  HelpCircle,
+  User,
+  LogOut,
+  Menu,
+  ChevronRight,
+  ClipboardList,
+  Settings,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useTheme } from "@/components/theme-provider";
 
+// Define the DashboardLayout props type
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [, navigate] = useLocation();
+  const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
-  const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
   const [location] = useLocation();
+  const [isMobile, setIsMobile] = useState(false);
 
+  // Navigation links config
+  const navLinks = [
+    { icon: Home, label: "Dashboard", path: "/dashboard" },
+    { icon: MessageSquare, label: "Chat Assistant", path: "/chat" },
+    { icon: FileText, label: "Document Summarization", path: "/document-summarization" },
+    { icon: BookOpen, label: "Flashcards", path: "/flashcards" },
+    { icon: ClipboardList, label: "Quiz Mode", path: "/quiz-mode" },
+    { icon: Code, label: "Code Generator", path: "/code-generator" },
+    { icon: Calendar, label: "Study Planner", path: "/study-planner" },
+  ];
+
+  // Update isMobile state based on window width
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    handleResize(); // Set initial value
+    window.addEventListener("resize", handleResize);
+    
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  // Handle logout
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
-      
+
       if (response.ok) {
         logout();
-        navigate('/login');
-        toast({
-          title: "Logged out successfully",
-          description: "You have been logged out of your account",
-        });
+        setLocation("/login");
       } else {
-        toast({
-          variant: "destructive",
-          title: "Logout failed",
-          description: "Failed to log out. Please try again.",
-        });
+        console.error("Logout failed");
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Network error",
-        description: "Failed to connect to the server. Please check your internet connection.",
-      });
+      console.error("Logout error:", error);
     }
   };
 
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
+  // Determine if a nav link is active
+  const isActive = (path: string) => {
+    return location === path;
   };
-
-  const getInitials = (name: string) => {
-    if (!name) return "U";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .substring(0, 2);
-  };
-
-  const navItems = [
-    { 
-      path: "/dashboard", 
-      label: "Dashboard", 
-      icon: <Layout className="h-5 w-5" /> 
-    },
-    { 
-      path: "/chat", 
-      label: "AI Chat", 
-      icon: <MessageSquare className="h-5 w-5" /> 
-    },
-    { 
-      path: "/documents", 
-      label: "Documents", 
-      icon: <BookOpen className="h-5 w-5" /> 
-    },
-    { 
-      path: "/flashcards", 
-      label: "Flashcards", 
-      icon: <Book className="h-5 w-5" /> 
-    },
-    { 
-      path: "/code-generator", 
-      label: "Code Generator", 
-      icon: <Code className="h-5 w-5" /> 
-    },
-  ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Sidebar (desktop) */}
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar for desktop */}
       <aside className="hidden md:flex flex-col w-64 border-r bg-card">
-        <div className="p-4 border-b">
-          <h1 className="text-2xl font-bold text-primary">Jadoo</h1>
-          <p className="text-sm text-muted-foreground">AI Study Assistant</p>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <Link 
-              key={item.path} 
-              href={item.path}
-              className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                location === item.path
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-            >
-              {item.icon}
-              <span className="ml-3">{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-        
-        <div className="p-4 border-t">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.profilePicture} alt={user?.username} />
-                <AvatarFallback>{getInitials(user?.fullName || user?.username || "")}</AvatarFallback>
-              </Avatar>
-              <div className="ml-3">
-                <p className="text-sm font-medium">{user?.fullName || user?.username}</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
+        <div className="p-6">
+          <Link href="/">
+            <div className="flex items-center space-x-2 cursor-pointer">
+              <span className="font-bold text-2xl text-primary">Jadoo</span>
+              <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded">v2.0</span>
             </div>
-            <Button variant="ghost" size="icon" onClick={toggleTheme}>
-              {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-          <Button 
-            variant="outline" 
-            className="w-full mt-4" 
-            onClick={handleLogout}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Log out
-          </Button>
+          </Link>
+        </div>
+        <nav className="flex-1 overflow-y-auto py-4">
+          <ul className="space-y-1 px-2">
+            {navLinks.map((link) => (
+              <li key={link.path}>
+                <Link href={link.path}>
+                  <Button
+                    variant={isActive(link.path) ? "default" : "ghost"}
+                    className={`w-full justify-start ${
+                      isActive(link.path) ? "bg-primary" : ""
+                    }`}
+                  >
+                    <link.icon className="mr-2 h-4 w-4" />
+                    {link.label}
+                  </Button>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="p-4 border-t">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start">
+                <User className="mr-2 h-4 w-4" />
+                {user?.fullName || user?.username || "User"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Help
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
-      
-      {/* Mobile header */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="md:hidden flex items-center justify-between p-4 border-b">
-          <div className="flex items-center">
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
-              <Menu className="h-5 w-5" />
-            </Button>
-            <h1 className="ml-3 text-xl font-bold text-primary">Jadoo</h1>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="icon" onClick={toggleTheme}>
-              {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.profilePicture} alt={user?.username} />
-              <AvatarFallback>{getInitials(user?.fullName || user?.username || "")}</AvatarFallback>
-            </Avatar>
-          </div>
-        </header>
-        
-        {/* Mobile menu (overlay) */}
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
-            <div className="fixed top-0 left-0 w-64 h-full bg-background p-4 shadow-lg overflow-y-auto">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xl font-bold text-primary">Jadoo</h2>
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)}>
-                  <X className="h-5 w-5" />
-                </Button>
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header for mobile */}
+        <header className="md:hidden border-b px-4 py-3 bg-card">
+          <div className="flex items-center justify-between">
+            <Link href="/">
+              <div className="flex items-center space-x-2 cursor-pointer">
+                <span className="font-bold text-xl text-primary">Jadoo</span>
+                <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded">v2.0</span>
               </div>
+            </Link>
+
+            <div className="flex items-center space-x-2">
+              <ThemeToggle />
               
-              <div className="mb-6">
-                <div className="flex items-center">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.profilePicture} alt={user?.username} />
-                    <AvatarFallback>{getInitials(user?.fullName || user?.username || "")}</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-3">
-                    <p className="font-medium">{user?.fullName || user?.username}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-64 px-0">
+                  <SheetHeader className="px-6 py-4">
+                    <SheetTitle className="text-left">
+                      <div className="flex items-center">
+                        <span className="font-bold text-xl text-primary">Jadoo</span>
+                        <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded ml-2">v2.0</span>
+                      </div>
+                    </SheetTitle>
+                    <SheetDescription className="text-left">
+                      AI-powered study assistant
+                    </SheetDescription>
+                  </SheetHeader>
+                  <nav className="px-2 mt-4">
+                    <ul className="space-y-1">
+                      {navLinks.map((link) => (
+                        <li key={link.path}>
+                          <Link href={link.path}>
+                            <Button
+                              variant={isActive(link.path) ? "default" : "ghost"}
+                              className={`w-full justify-start ${
+                                isActive(link.path) ? "bg-primary" : ""
+                              }`}
+                            >
+                              <link.icon className="mr-2 h-4 w-4" />
+                              {link.label}
+                            </Button>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </nav>
+                  <div className="px-2 py-4 mt-auto border-t">
+                    <div className="flex items-center px-3 py-2">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>{user?.fullName || user?.username || "User"}</span>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </Button>
                   </div>
-                </div>
-              </div>
-              
-              <nav className="space-y-1">
-                {navItems.map((item) => (
-                  <Link 
-                    key={item.path} 
-                    href={item.path}
-                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      location === item.path
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted"
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.label}</span>
-                  </Link>
-                ))}
-              </nav>
-              
-              <div className="mt-6 pt-6 border-t">
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Log out
-                </Button>
-              </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
-        )}
-        
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        </header>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+          {children}
+        </main>
       </div>
     </div>
   );
