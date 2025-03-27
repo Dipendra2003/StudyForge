@@ -1,12 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiPost } from "@/lib/queryClient";
 import type { InsertWaitlist } from "@shared/schema";
 
 export function useWaitlist() {
   const submitMutation = useMutation({
     mutationFn: async (data: InsertWaitlist) => {
-      const response = await apiRequest('POST', '/api/waitlist', data);
-      return response.json();
+      return apiPost('/api/waitlist', data);
     }
   });
 

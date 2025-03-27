@@ -11,6 +11,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import CodeGenerator from "@/pages/CodeGenerator";
+import Chat from "@/pages/Chat";
 
 interface User {
   id: number;
@@ -42,19 +43,11 @@ export const useAuth = () => {
 };
 
 // HomePage component to redirect users based on authentication status
+// Import the Home page (landing page)
+import Home from "@/pages/Home";
+
 function HomePage() {
-  const { isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
-  
-  useEffect(() => {
-    if (isAuthenticated) {
-      setLocation("/dashboard");
-    } else {
-      setLocation("/login");
-    }
-  }, [isAuthenticated, setLocation]);
-  
-  return null;
+  return <Home />;
 }
 
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
@@ -77,6 +70,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <PrivateRoute path="/dashboard" component={Dashboard} />
       <PrivateRoute path="/code-generator" component={CodeGenerator} />
+      <PrivateRoute path="/chat" component={Chat} />
       <Route path="/" component={HomePage} />
     </Switch>
   );
