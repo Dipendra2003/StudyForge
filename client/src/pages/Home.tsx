@@ -1,0 +1,60 @@
+import Header from "@/components/Header";
+import Hero from "@/components/Hero";
+import Features from "@/components/Features";
+import Benefits from "@/components/Benefits";
+import CallToAction from "@/components/CallToAction";
+import FAQSection from "@/components/FAQSection";
+import WaitlistForm from "@/components/WaitlistForm";
+import Footer from "@/components/Footer";
+import { useRef } from "react";
+
+export default function Home() {
+  const featuresRef = useRef<HTMLElement>(null);
+  const benefitsRef = useRef<HTMLElement>(null);
+  const faqRef = useRef<HTMLElement>(null);
+  const waitlistRef = useRef<HTMLElement>(null);
+  
+  const scrollToSection = (section: string) => {
+    const refs: Record<string, React.RefObject<HTMLElement>> = {
+      features: featuresRef,
+      benefits: benefitsRef,
+      faq: faqRef,
+      waitlist: waitlistRef
+    };
+    
+    const ref = refs[section];
+    if (ref.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
+      <Header onNavigate={scrollToSection} />
+      
+      <main className="flex-grow">
+        <Hero onScrollToWaitlist={() => scrollToSection('waitlist')} />
+        
+        <section ref={featuresRef} id="features">
+          <Features />
+        </section>
+        
+        <section ref={benefitsRef} id="benefits">
+          <Benefits />
+        </section>
+        
+        <CallToAction onScrollToWaitlist={() => scrollToSection('waitlist')} />
+        
+        <section ref={faqRef} id="faq">
+          <FAQSection />
+        </section>
+        
+        <section ref={waitlistRef} id="waitlist">
+          <WaitlistForm />
+        </section>
+      </main>
+      
+      <Footer />
+    </div>
+  );
+}
