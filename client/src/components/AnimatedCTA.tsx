@@ -19,7 +19,7 @@ export default function AnimatedCTA({
   variant = 'default'
 }: AnimatedCTAProps) {
   return (
-    <div className="relative group">
+    <div className="relative group w-full sm:w-auto">
       <motion.div
         className="absolute -inset-1 rounded-lg bg-gradient-to-r from-primary via-violet-500 to-indigo-500 opacity-70 blur group-hover:opacity-100 transition duration-300"
         initial={{ scale: 0.95 }}
@@ -38,7 +38,7 @@ export default function AnimatedCTA({
         size={size}
         variant={variant}
         className={cn(
-          "relative z-10 font-semibold tracking-wide transition-all duration-300",
+          "relative z-10 font-semibold tracking-wide transition-all duration-300 w-full sm:w-auto",
           "hover:shadow-lg hover:shadow-primary/25 hover:scale-105 active:scale-95",
           className
         )}

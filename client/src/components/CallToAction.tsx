@@ -46,8 +46,8 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             viewport={{ once: true }}
             className="inline-block mb-4"
           >
-            <div className="bg-primary/10 text-primary rounded-full px-6 py-2 flex items-center gap-2 font-medium">
-              <Sparkles size={18} className="text-primary" />
+            <div className="bg-primary/10 text-primary rounded-full px-4 sm:px-6 py-2 flex items-center gap-1 sm:gap-2 text-sm sm:text-base font-medium">
+              <Sparkles size={16} className="text-primary hidden xs:block" />
               <span>Boost your learning efficiency today</span>
             </div>
           </motion.div>
@@ -57,10 +57,10 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1 }}
             viewport={{ once: true }}
-            className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
+            className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 tracking-tight"
           >
             Ready to Transform Your{' '}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500 font-extrabold">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500 font-extrabold block sm:inline">
               Study Experience?
             </span>
           </motion.h2>
@@ -70,7 +70,7 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
             viewport={{ once: true }}
-            className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-8"
+            className="text-muted-foreground text-base sm:text-lg md:text-xl max-w-2xl mx-auto mb-6 sm:mb-8 px-2 sm:px-0"
           >
             Join thousands of students using Jadoo 2.0 to learn faster, retain more, and achieve better results in their studies.
           </motion.p>
@@ -103,24 +103,24 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
             viewport={{ once: true }}
-            className="mt-12 flex flex-wrap justify-center gap-8 text-sm text-muted-foreground"
+            className="mt-8 sm:mt-12 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-muted-foreground"
           >
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <svg className="h-4 w-4 sm:h-5 sm:w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>No credit card required</span>
             </div>
             
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <svg className="h-4 w-4 sm:h-5 sm:w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>Free plan available</span>
             </div>
             
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <svg className="h-4 w-4 sm:h-5 sm:w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>Cancel anytime</span>

@@ -114,10 +114,10 @@ export default function TestimonialCarousel() {
                 x: { type: "spring", stiffness: 300, damping: 30 },
                 opacity: { duration: 0.2 }
               }}
-              className="bg-card border rounded-2xl shadow-lg p-6 md:p-8 lg:p-10 flex flex-col md:flex-row gap-8 items-center"
+              className="bg-card border rounded-2xl shadow-lg p-6 md:p-8 lg:p-10 flex flex-col md:flex-row gap-6 md:gap-8 items-center"
             >
-              <div className="flex-shrink-0">
-                <div className="h-28 w-28 md:h-32 md:w-32 lg:h-40 lg:w-40 rounded-full overflow-hidden border-4 border-primary/20 shadow-xl">
+              <div className="flex-shrink-0 mx-auto md:mx-0 mb-4 md:mb-0">
+                <div className="h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 lg:h-40 lg:w-40 rounded-full overflow-hidden border-4 border-primary/20 shadow-xl">
                   <img 
                     src={testimonials[currentIndex].image} 
                     alt={testimonials[currentIndex].name}
@@ -126,21 +126,21 @@ export default function TestimonialCarousel() {
                 </div>
               </div>
               
-              <div className="flex-grow">
-                <div className="flex gap-1 mb-2">
+              <div className="flex-grow text-center md:text-left">
+                <div className="flex gap-1 mb-2 justify-center md:justify-start">
                   {[...Array(testimonials[currentIndex].rating)].map((_, i) => (
-                    <Star key={i} className="fill-yellow-400 text-yellow-400" size={20} />
+                    <Star key={i} className="fill-yellow-400 text-yellow-400" size={18} />
                   ))}
                   {[...Array(5 - testimonials[currentIndex].rating)].map((_, i) => (
-                    <Star key={i + testimonials[currentIndex].rating} className="text-gray-300" size={20} />
+                    <Star key={i + testimonials[currentIndex].rating} className="text-gray-300" size={18} />
                   ))}
                 </div>
                 
-                <p className="text-lg md:text-xl italic mb-6">"{testimonials[currentIndex].message}"</p>
+                <p className="text-base sm:text-lg md:text-xl italic mb-4 md:mb-6">"{testimonials[currentIndex].message}"</p>
                 
                 <div>
-                  <h3 className="font-bold text-lg md:text-xl">{testimonials[currentIndex].name}</h3>
-                  <p className="text-muted-foreground">{testimonials[currentIndex].role}</p>
+                  <h3 className="font-bold text-base sm:text-lg md:text-xl">{testimonials[currentIndex].name}</h3>
+                  <p className="text-muted-foreground text-sm sm:text-base">{testimonials[currentIndex].role}</p>
                 </div>
               </div>
             </motion.div>

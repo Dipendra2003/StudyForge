@@ -60,13 +60,13 @@ export default function WelcomeModal({ onClose }: WelcomeModalProps) {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 sm:p-6"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
         <motion.div
-          className="bg-card max-w-md w-full rounded-xl shadow-xl overflow-hidden relative"
+          className="bg-card max-w-[340px] sm:max-w-md w-full rounded-xl shadow-xl overflow-hidden relative"
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
@@ -90,9 +90,9 @@ export default function WelcomeModal({ onClose }: WelcomeModalProps) {
                 exit={{ opacity: 0, x: -20 }}
                 className="text-center"
               >
-                <div className="mb-4 text-4xl">{steps[currentStep].icon}</div>
-                <h3 className="text-2xl font-bold mb-2">{steps[currentStep].title}</h3>
-                <p className="text-muted-foreground mb-6">{steps[currentStep].description}</p>
+                <div className="mb-3 sm:mb-4 text-3xl sm:text-4xl">{steps[currentStep].icon}</div>
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">{steps[currentStep].title}</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">{steps[currentStep].description}</p>
               </motion.div>
             </AnimatePresence>
             
