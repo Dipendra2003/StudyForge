@@ -9,7 +9,7 @@
   }
 
   body {
-    @apply antialiased bg-background text-foreground;
+    @apply antialiased bg-white dark:bg-slate-950 text-foreground;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
