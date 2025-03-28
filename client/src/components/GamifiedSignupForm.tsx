@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { Options as ConfettiOptions } from "canvas-confetti";
+import OnboardingCharacter from "./OnboardingCharacter";
 import { 
   User, 
   Mail, 
@@ -648,7 +649,14 @@ export default function GamifiedSignupForm() {
   const stepInfo = getStepInfo();
   
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      {/* Onboarding Character */}
+      <OnboardingCharacter 
+        currentStep={currentStep} 
+        completedSteps={completedSteps} 
+        totalSteps={totalSteps} 
+      />
+      
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center gap-2 justify-center mb-2">
