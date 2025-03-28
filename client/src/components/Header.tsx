@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation } from "wouter";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface HeaderProps {
   onNavigate: (section: string) => void;
@@ -65,7 +66,8 @@ export default function Header({ onNavigate }: HeaderProps) {
             </Link>
           </nav>
           
-          <div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button 
               onClick={() => {
                 if (isHomePage) {
@@ -160,6 +162,11 @@ export default function Header({ onNavigate }: HeaderProps) {
                 >
                   Terms
                 </Link>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm text-gray-600">Theme</span>
+                  <ThemeToggle />
+                </div>
+                
                 <Button 
                   onClick={() => {
                     window.location.href = '/register';
