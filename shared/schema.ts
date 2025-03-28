@@ -1,12 +1,12 @@
-import { pgTable, text, serial, boolean, timestamp, integer, jsonb, varchar, index, primaryKey, unique, foreignKey } from "drizzle-orm/pg-core";
+import { mysqlTable, text, int, boolean, timestamp, json, varchar, index, primaryKey, unique, foreignKey } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// ===== STRUCTURED DATA TABLES (PostgreSQL) =====
+// ===== STRUCTURED DATA TABLES (MySQL) =====
 
 // User Management
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+export const users = mysqlTable("users", {
+  id: int().autoincrement().primaryKey(),
   username: varchar("username", { length: 50 }).notNull().unique(), // Using varchar with length for better indexing
   password: text("password").notNull(),
   email: varchar("email", { length: 100 }).notNull().unique(), // Using varchar with length for better indexing
@@ -21,9 +21,9 @@ export const users = pgTable("users", {
 });
 
 // Authentication records (keeps track of sessions, login attempts, etc.)
-export const authentication = pgTable("authentication", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const authentication = mysqlTable("authentication", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: varchar("token", { length: 255 }),
   provider: varchar("provider", { length: 20 }).default("local").notNull(), // For OAuth integration (local, google, etc.)
   refreshToken: text("refresh_token"),
@@ -39,9 +39,9 @@ export const authentication = pgTable("authentication", {
 });
 
 // Study Sessions and Notes
-export const documents = pgTable("documents", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const documents = mysqlTable("documents", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content"),
   fileUrl: text("file_url"),
@@ -60,16 +60,16 @@ export const documents = pgTable("documents", {
 });
 
 // Flashcards created from documents
-export const flashcards = pgTable("flashcards", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
+export const flashcards = mysqlTable("flashcards", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: int("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
-  tags: jsonb("tags"), // Stored as JSON array in PostgreSQL
+  tags: json("tags"), // Stored as JSON array in MySQL
   difficulty: varchar("difficulty", { length: 10 }).default("medium"),
-  repetitionInterval: integer("repetition_interval").default(1), // For spaced repetition
-  easeFactor: integer("ease_factor").default(250), // For SM-2 algorithm (times 100)
+  repetitionInterval: int("repetition_interval").default(1), // For spaced repetition
+  easeFactor: int("ease_factor").default(250), // For SM-2 algorithm (times 100)
   lastReviewed: timestamp("last_reviewed"),
   nextReviewDate: timestamp("next_review_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -82,13 +82,13 @@ export const flashcards = pgTable("flashcards", {
 });
 
 // MCQs for quizzes
-export const mcqs = pgTable("mcqs", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
+export const mcqs = mysqlTable("mcqs", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: int("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
-  options: jsonb("options").notNull(), // Stored as JSON array in PostgreSQL
-  correctOption: integer("correct_option").notNull(),
+  options: json("options").notNull(), // Stored as JSON array in MySQL
+  correctOption: int("correct_option").notNull(),
   explanation: text("explanation"),
   difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
   category: varchar("category", { length: 50 }),
@@ -104,14 +104,14 @@ export const mcqs = pgTable("mcqs", {
 });
 
 // User's quiz sessions and attempts
-export const quizAttempts = pgTable("quiz_attempts", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  score: integer("score").notNull(),
-  totalQuestions: integer("total_questions").notNull(),
-  correctAnswers: integer("correct_answers").notNull(),
-  timeSpent: integer("time_spent"), // In seconds
-  questionsData: jsonb("questions_data"), // Contains question IDs and user answers
+export const quizAttempts = mysqlTable("quiz_attempts", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  score: int("score").notNull(),
+  totalQuestions: int("total_questions").notNull(),
+  correctAnswers: int("correct_answers").notNull(),
+  timeSpent: int("time_spent"), // In seconds
+  questionsData: json("questions_data"), // Contains question IDs and user answers
   category: varchar("category", { length: 50 }),
   difficulty: varchar("difficulty", { length: 10 }),
   completed: boolean("completed").default(true),
@@ -124,13 +124,13 @@ export const quizAttempts = pgTable("quiz_attempts", {
 });
 
 // Individual question attempts within a quiz
-export const questionAttempts = pgTable("question_attempts", {
-  id: serial("id").primaryKey(),
-  quizAttemptId: integer("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
-  questionId: integer("question_id").notNull(), // MCQ or other question ID
-  userAnswer: integer("user_answer"), // User's selected option
+export const questionAttempts = mysqlTable("question_attempts", {
+  id: int().autoincrement().primaryKey(),
+  quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  questionId: int("question_id").notNull(), // MCQ or other question ID
+  userAnswer: int("user_answer"), // User's selected option
   isCorrect: boolean("is_correct").notNull(),
-  timeSpent: integer("time_spent"), // Time spent on this question in seconds
+  timeSpent: int("time_spent"), // Time spent on this question in seconds
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -140,15 +140,15 @@ export const questionAttempts = pgTable("question_attempts", {
 });
 
 // Study planning
-export const studyPlans = pgTable("study_plans", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const studyPlans = mysqlTable("study_plans", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  scheduleData: jsonb("schedule_data"),
+  scheduleData: json("schedule_data"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
-  completedPercentage: integer("completed_percentage").default(0),
+  completedPercentage: int("completed_percentage").default(0),
   status: varchar("status", { length: 20 }).default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -161,11 +161,11 @@ export const studyPlans = pgTable("study_plans", {
 });
 
 // Study sessions tracking
-export const studySessions = pgTable("study_sessions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  studyPlanId: integer("study_plan_id").references(() => studyPlans.id, { onDelete: 'set null' }),
-  duration: integer("duration").notNull(), // Duration in minutes
+export const studySessions = mysqlTable("study_sessions", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  studyPlanId: int("study_plan_id").references(() => studyPlans.id, { onDelete: 'set null' }),
+  duration: int("duration").notNull(), // Duration in minutes
   subject: varchar("subject", { length: 100 }),
   notes: text("notes"),
   startTime: timestamp("start_time").notNull(),
@@ -180,12 +180,12 @@ export const studySessions = pgTable("study_sessions", {
 });
 
 // User badges and achievements
-export const achievements = pgTable("achievements", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const achievements = mysqlTable("achievements", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   badge: varchar("badge", { length: 50 }).notNull(),
   description: text("description"),
-  level: integer("level").default(1), // For leveled achievements
+  level: int("level").default(1), // For leveled achievements
   earnedAt: timestamp("earned_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -195,23 +195,23 @@ export const achievements = pgTable("achievements", {
 });
 
 // User statistics and progress tracking
-export const userStats = pgTable("user_stats", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
-  totalStudyTime: integer("total_study_time").default(0), // In minutes
-  quizzesCompleted: integer("quizzes_completed").default(0),
-  averageScore: integer("average_score").default(0), // Score * 100 for precision
-  documentsUploaded: integer("documents_uploaded").default(0),
-  flashcardsCreated: integer("flashcards_created").default(0),
-  flashcardsReviewed: integer("flashcards_reviewed").default(0),
-  correctFlashcards: integer("correct_flashcards").default(0),
-  incorrectFlashcards: integer("incorrect_flashcards").default(0),
-  codeSnippetsGenerated: integer("code_snippets_generated").default(0),
-  questionsAsked: integer("questions_asked").default(0),
-  streakDays: integer("streak_days").default(0),
-  longestStreak: integer("longest_streak").default(0),
-  xpPoints: integer("xp_points").default(0), // For gamification
-  level: integer("level").default(1), // User level based on XP
+export const userStats = mysqlTable("user_stats", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  totalStudyTime: int("total_study_time").default(0), // In minutes
+  quizzesCompleted: int("quizzes_completed").default(0),
+  averageScore: int("average_score").default(0), // Score * 100 for precision
+  documentsUploaded: int("documents_uploaded").default(0),
+  flashcardsCreated: int("flashcards_created").default(0),
+  flashcardsReviewed: int("flashcards_reviewed").default(0),
+  correctFlashcards: int("correct_flashcards").default(0),
+  incorrectFlashcards: int("incorrect_flashcards").default(0),
+  codeSnippetsGenerated: int("code_snippets_generated").default(0),
+  questionsAsked: int("questions_asked").default(0),
+  streakDays: int("streak_days").default(0),
+  longestStreak: int("longest_streak").default(0),
+  xpPoints: int("xp_points").default(0), // For gamification
+  level: int("level").default(1), // User level based on XP
   lastActive: timestamp("last_active").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => {
@@ -225,15 +225,15 @@ export const userStats = pgTable("user_stats", {
 // ===== MONGODB REFERENCE TABLES =====
 // These tables store references to MongoDB documents for hybrid storage architecture
 
-// Chat references (MongoDB references stored in PostgreSQL)
-export const chatHistory = pgTable("chat_history", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+// Chat references (MongoDB references stored in MySQL)
+export const chatHistory = mysqlTable("chat_history", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   sessionId: varchar("session_id", { length: 100 }).notNull(),
   mongoSessionId: varchar("mongo_session_id", { length: 24 }).notNull(), // MongoDB ObjectId reference
   subject: varchar("subject", { length: 100 }),
-  messages: jsonb("messages").notNull(), // Only most recent messages for preview
-  messageCount: integer("message_count").default(0).notNull(),
+  messages: json("messages").notNull(), // Only most recent messages for preview
+  messageCount: int("message_count").default(0).notNull(),
   lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -246,11 +246,11 @@ export const chatHistory = pgTable("chat_history", {
   }
 });
 
-// Document Summary references (MongoDB references stored in PostgreSQL)
-export const summaryReferences = pgTable("summary_references", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+// Document Summary references (MongoDB references stored in MySQL)
+export const summaryReferences = mysqlTable("summary_references", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: int("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
   mongoSummaryId: varchar("mongo_summary_id", { length: 24 }).notNull(), // MongoDB ObjectId reference
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -261,17 +261,17 @@ export const summaryReferences = pgTable("summary_references", {
   }
 });
 
-// Code snippet references (MongoDB references stored in PostgreSQL)
-export const codeSnippets = pgTable("code_snippets", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+// Code snippet references (MongoDB references stored in MySQL)
+export const codeSnippets = mysqlTable("code_snippets", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   mongoSnippetId: varchar("mongo_snippet_id", { length: 24 }).notNull(), // MongoDB ObjectId reference
   title: varchar("title", { length: 255 }).notNull(),
   problem: text("problem"),
   code: text("code").notNull(),
   language: varchar("language", { length: 20 }).notNull(),
   explanation: text("explanation"),
-  tags: jsonb("tags"), // Stored as JSON array in PostgreSQL
+  tags: json("tags"), // Stored as JSON array in MySQL
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => {
@@ -283,72 +283,72 @@ export const codeSnippets = pgTable("code_snippets", {
 });
 
 // Define insertion schemas
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  email: true,
-  fullName: true,
-  preferredLanguage: true,
+export const insertUserSchema = createInsertSchema(users, {
+  username: z.string(),
+  password: z.string(),
+  email: z.string(),
+  fullName: z.string().optional(),
+  preferredLanguage: z.string().optional(),
 });
 
 // Waitlist insertion schema removed
 
-export const insertDocumentSchema = createInsertSchema(documents).pick({
-  userId: true,
-  title: true,
-  content: true,
-  fileUrl: true,
-  fileType: true,
+export const insertDocumentSchema = createInsertSchema(documents, {
+  userId: z.number(),
+  title: z.string(),
+  content: z.string().optional(),
+  fileUrl: z.string().optional(),
+  fileType: z.string().optional(),
 });
 
-export const insertFlashcardSchema = createInsertSchema(flashcards).pick({
-  userId: true,
-  documentId: true,
-  question: true,
-  answer: true,
+export const insertFlashcardSchema = createInsertSchema(flashcards, {
+  userId: z.number(),
+  documentId: z.number(),
+  question: z.string(),
+  answer: z.string(),
 });
 
-export const insertMcqSchema = createInsertSchema(mcqs).pick({
-  userId: true,
-  documentId: true,
-  question: true,
-  correctOption: true,
-  explanation: true,
-  difficulty: true,
-  category: true,
+export const insertMcqSchema = createInsertSchema(mcqs, {
+  userId: z.number(),
+  documentId: z.number(),
+  question: z.string(),
+  correctOption: z.string(),
+  explanation: z.string(),
+  difficulty: z.string(),
+  category: z.string(),
 });
 
-export const insertCodeSnippetSchema = createInsertSchema(codeSnippets).pick({
-  userId: true,
-  mongoSnippetId: true,
-  title: true,
-  problem: true,
-  code: true,
-  language: true,
-  explanation: true,
+export const insertCodeSnippetSchema = createInsertSchema(codeSnippets, {
+  userId: z.number(),
+  mongoSnippetId: z.string(),
+  title: z.string(),
+  problem: z.string(),
+  code: z.string(),
+  language: z.string(),
+  explanation: z.string(),
 });
 
-export const insertChatHistorySchema = createInsertSchema(chatHistory).pick({
-  userId: true,
-  sessionId: true,
-  mongoSessionId: true,
-  subject: true,
-  messages: true,
+export const insertChatHistorySchema = createInsertSchema(chatHistory, {
+  userId: z.number(),
+  sessionId: z.string(),
+  mongoSessionId: z.string(),
+  subject: z.string(),
+  messages: z.string(),
 });
 
-export const insertSummaryReferenceSchema = createInsertSchema(summaryReferences).pick({
-  userId: true,
-  documentId: true,
-  mongoSummaryId: true,
+export const insertSummaryReferenceSchema = createInsertSchema(summaryReferences, {
+  userId: z.number(),
+  documentId: z.number(),
+  mongoSummaryId: z.string(),
 });
 
-export const insertStudyPlanSchema = createInsertSchema(studyPlans).pick({
-  userId: true,
-  title: true,
-  description: true,
-  scheduleData: true,
-  startDate: true,
-  endDate: true,
+export const insertStudyPlanSchema = createInsertSchema(studyPlans, {
+  userId: z.number(),
+  title: z.string(),
+  description: z.string(),
+  scheduleData: z.string(),
+  startDate: z.date(),
+  endDate: z.date(),
 });
 
 // Extended schema with validation for forms - waitlist form removed

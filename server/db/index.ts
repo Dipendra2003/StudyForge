@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/mysql2';
+import mysql from 'mysql2/promise';
 import mongoose from 'mongoose';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
@@ -20,10 +20,22 @@ import {
 // Load environment variables
 dotenv.config();
 
-// PostgreSQL Connection (for structured data)
-const connectionString = process.env.DATABASE_URL;
-const client = postgres(connectionString as string);
-export const db = drizzle(client);
+// MySQL Connection (for structured data)
+const connectMySQL = async () => {
+  try {
+    const connectionString = process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/jadoo';
+    const connection = await mysql.createConnection(connectionString);
+    log('MySQL connection established', 'database');
+    return connection;
+  } catch (error) {
+    log(`MySQL connection error: ${error}`, 'database');
+    throw error;
+  }
+};
+
+// Initialize connection placeholder - will be set in initializeDatabases
+let mysqlConnection: any = null;
+export let db: any = null;
 
 // MongoDB Connection (for unstructured AI-generated content)
 export const connectMongoDB = async () => {
@@ -76,9 +88,11 @@ export const initializeDatabases = async () => {
   try {
     log('Initializing database connections...', 'database');
     
-    // PostgreSQL is already initialized with drizzle
+    // Connect to MySQL for structured data
+    mysqlConnection = await connectMySQL();
+    db = drizzle(mysqlConnection);
     
-    // Connect to MongoDB
+    // Connect to MongoDB for unstructured data
     await connectMongoDB();
     
     // Connect to Redis (for caching)
