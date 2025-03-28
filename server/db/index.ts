@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/mysql2';
-import mysql from 'mysql2/promise';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import mongoose from 'mongoose';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
@@ -20,21 +20,25 @@ import {
 // Load environment variables
 dotenv.config();
 
-// MySQL Connection (for structured data)
-const connectMySQL = async () => {
+// PostgreSQL Connection (for structured data)
+const connectPostgres = async () => {
   try {
-    const connectionString = process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/jadoo';
-    const connection = await mysql.createConnection(connectionString);
-    log('MySQL connection established', 'database');
-    return connection;
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+    
+    const client = postgres(connectionString, { max: 10 });
+    log('PostgreSQL connection established', 'database');
+    return client;
   } catch (error) {
-    log(`MySQL connection error: ${error}`, 'database');
+    log(`PostgreSQL connection error: ${error}`, 'database');
     throw error;
   }
 };
 
 // Initialize connection placeholder - will be set in initializeDatabases
-let mysqlConnection: any = null;
+let pgConnection: any = null;
 export let db: any = null;
 
 // MongoDB Connection (for unstructured AI-generated content)
@@ -85,20 +89,41 @@ export {
 
 // Initialize all database connections
 export const initializeDatabases = async () => {
+  let mongoConnection = null;
+  let redisClient = null;
+  
   try {
     log('Initializing database connections...', 'database');
     
-    // Connect to MySQL for structured data
-    mysqlConnection = await connectMySQL();
-    db = drizzle(mysqlConnection);
+    // Connect to PostgreSQL for structured data (required)
+    try {
+      pgConnection = await connectPostgres();
+      db = drizzle(pgConnection);
+      log('PostgreSQL connection established successfully', 'database');
+    } catch (error) {
+      log(`PostgreSQL connection error: ${error}`, 'database');
+      throw error; // PostgreSQL is required, so we rethrow
+    }
     
-    // Connect to MongoDB for unstructured data
-    await connectMongoDB();
+    // Connect to MongoDB for unstructured data (optional)
+    try {
+      mongoConnection = await connectMongoDB();
+      log('MongoDB connection established successfully', 'database');
+    } catch (error) {
+      log(`MongoDB connection error: ${error}, continuing with limited functionality`, 'database');
+      // We don't rethrow as MongoDB is optional
+    }
     
-    // Connect to Redis (for caching)
-    const redisClient = await connectRedis();
+    // Connect to Redis (for caching) (optional)
+    try {
+      redisClient = await connectRedis();
+      log('Redis connection established successfully', 'database');
+    } catch (error) {
+      log(`Redis connection error: ${error}, continuing without caching`, 'database');
+      // We don't rethrow as Redis is optional
+    }
     
-    log('All database connections established successfully', 'database');
+    log('Database initialization completed', 'database');
     return { 
       db, 
       mongoose, 
@@ -111,7 +136,7 @@ export const initializeDatabases = async () => {
       }
     };
   } catch (error) {
-    log(`Database initialization error: ${error}`, 'database');
+    log(`Critical database initialization error: ${error}`, 'database');
     throw error;
   }
 };

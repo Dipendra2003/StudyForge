@@ -1,12 +1,12 @@
-import { mysqlTable, text, int, boolean, timestamp, json, varchar, index, primaryKey, unique, foreignKey } from "drizzle-orm/mysql-core";
+import { pgTable, text, integer, boolean, timestamp, jsonb, varchar, index, primaryKey, unique, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // ===== STRUCTURED DATA TABLES (MySQL) =====
 
 // User Management
-export const users = mysqlTable("users", {
-  id: int().autoincrement().primaryKey(),
+export const users = pgTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   username: varchar("username", { length: 50 }).notNull().unique(), // Using varchar with length for better indexing
   password: text("password").notNull(),
   email: varchar("email", { length: 100 }).notNull().unique(), // Using varchar with length for better indexing
@@ -14,10 +14,10 @@ export const users = mysqlTable("users", {
   profilePicture: text("profile_picture"),
   preferredLanguage: varchar("preferred_language", { length: 10 }).default("en"),
   role: varchar("role", { length: 20 }).default("user").notNull(), // For role-based access control
-  lastLogin: timestamp("last_login"), // Track login times for security
+  lastLogin: timestamp("last_login", { mode: 'date' }), // Track login times for security
   isActive: boolean("is_active").default(true), // For account activation/deactivation
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
 });
 
 // Authentication records (keeps track of sessions, login attempts, etc.)
