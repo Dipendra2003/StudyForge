@@ -5,8 +5,8 @@ import { z } from "zod";
 // ===== STRUCTURED DATA TABLES (MySQL) =====
 
 // User Management
-export const users = pgTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const users = mysqlTable("users", {
+  id: int("id").autoincrement().primaryKey(),
   username: varchar("username", { length: 50 }).notNull().unique(), // Using varchar with length for better indexing
   password: text("password").notNull(),
   email: varchar("email", { length: 100 }).notNull().unique(), // Using varchar with length for better indexing
