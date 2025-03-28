@@ -20,11 +20,11 @@
     animation: pulsate 2s ease-in-out infinite alternate;
     transition: transform 0.3s ease-in-out;
   }
-  
+
   .speech-bubble:hover {
     transform: scale(1.05);
   }
-  
+
   @keyframes pulsate {
     0% {
       box-shadow: 0 0 0 0 rgba(var(--primary), 0.1);
