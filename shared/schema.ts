@@ -66,7 +66,7 @@ export const flashcards = pgTable("flashcards", {
   documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
-  tags: text("tags").array(),
+  tags: jsonb("tags"), // Stored as JSON array in PostgreSQL
   difficulty: varchar("difficulty", { length: 10 }).default("medium"),
   repetitionInterval: integer("repetition_interval").default(1), // For spaced repetition
   easeFactor: integer("ease_factor").default(250), // For SM-2 algorithm (times 100)
@@ -87,7 +87,7 @@ export const mcqs = pgTable("mcqs", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
-  options: text("options").array().notNull(),
+  options: jsonb("options").notNull(), // Stored as JSON array in PostgreSQL
   correctOption: integer("correct_option").notNull(),
   explanation: text("explanation"),
   difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
@@ -271,7 +271,7 @@ export const codeSnippets = pgTable("code_snippets", {
   code: text("code").notNull(),
   language: varchar("language", { length: 20 }).notNull(),
   explanation: text("explanation"),
-  tags: text("tags").array(),
+  tags: jsonb("tags"), // Stored as JSON array in PostgreSQL
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => {
@@ -306,14 +306,12 @@ export const insertFlashcardSchema = createInsertSchema(flashcards).pick({
   documentId: true,
   question: true,
   answer: true,
-  tags: true,
 });
 
 export const insertMcqSchema = createInsertSchema(mcqs).pick({
   userId: true,
   documentId: true,
   question: true,
-  options: true,
   correctOption: true,
   explanation: true,
   difficulty: true,
@@ -328,7 +326,6 @@ export const insertCodeSnippetSchema = createInsertSchema(codeSnippets).pick({
   code: true,
   language: true,
   explanation: true,
-  tags: true,
 });
 
 export const insertChatHistorySchema = createInsertSchema(chatHistory).pick({
