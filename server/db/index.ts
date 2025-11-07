@@ -1,58 +1,33 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import mongoose from 'mongoose';
+import { drizzle } from 'drizzle-orm/mysql2';
+import mysql from 'mysql2/promise';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
 import { log } from '../vite';
 
-// Import MongoDB models
-import { 
-  ChatHistory as ChatHistoryModel, 
-  Summary as SummaryModel, 
-  CodeSnippet as CodeSnippetModel,
-  CachedResponse as CachedResponseModel,
-  ChatHistoryDocument,
-  SummaryDocument, 
-  CodeSnippetDocument,
-  CachedResponseDocument
-} from './mongodb/models';
-
 // Load environment variables
 dotenv.config();
 
-// PostgreSQL Connection (for structured data)
-const connectPostgres = async () => {
+// MySQL Connection (for all data)
+const connectMySQL = async () => {
   try {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
     
-    const client = postgres(connectionString, { max: 10 });
-    log('PostgreSQL connection established', 'database');
-    return client;
+    const connection = await mysql.createConnection(connectionString);
+    log('MySQL connection established', 'database');
+    return connection;
   } catch (error) {
-    log(`PostgreSQL connection error: ${error}`, 'database');
+    log(`MySQL connection error: ${error}`, 'database');
     throw error;
   }
 };
 
 // Initialize connection placeholder - will be set in initializeDatabases
-let pgConnection: any = null;
+let mysqlConnection: any = null;
 export let db: any = null;
 
-// MongoDB Connection (for unstructured AI-generated content)
-export const connectMongoDB = async () => {
-  try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/jadoo_unstructured';
-    await mongoose.connect(mongoURI);
-    log('MongoDB connection established', 'database');
-    return mongoose.connection;
-  } catch (error) {
-    log(`MongoDB connection error: ${error}`, 'database');
-    throw error;
-  }
-};
 
 // Redis Connection (for caching)
 export const connectRedis = async () => {
@@ -75,43 +50,22 @@ export const connectRedis = async () => {
   }
 };
 
-// Export MongoDB models for use in the application
-export {
-  ChatHistoryModel,
-  SummaryModel,
-  CodeSnippetModel,
-  CachedResponseModel,
-  ChatHistoryDocument,
-  SummaryDocument,
-  CodeSnippetDocument,
-  CachedResponseDocument
-};
 
 // Initialize all database connections
 export const initializeDatabases = async () => {
-  let mongoConnection = null;
   let redisClient = null;
   
   try {
     log('Initializing database connections...', 'database');
     
-    // Connect to PostgreSQL for structured data (required)
+    // Connect to MySQL for all data (required)
     try {
-      pgConnection = await connectPostgres();
-      db = drizzle(pgConnection);
-      log('PostgreSQL connection established successfully', 'database');
+      mysqlConnection = await connectMySQL();
+      db = drizzle(mysqlConnection);
+      log('MySQL connection established successfully', 'database');
     } catch (error) {
-      log(`PostgreSQL connection error: ${error}`, 'database');
-      throw error; // PostgreSQL is required, so we rethrow
-    }
-    
-    // Connect to MongoDB for unstructured data (optional)
-    try {
-      mongoConnection = await connectMongoDB();
-      log('MongoDB connection established successfully', 'database');
-    } catch (error) {
-      log(`MongoDB connection error: ${error}, continuing with limited functionality`, 'database');
-      // We don't rethrow as MongoDB is optional
+      log(`MySQL connection error: ${error}`, 'database');
+      throw error; // MySQL is required, so we rethrow
     }
     
     // Connect to Redis (for caching) (optional)
@@ -126,14 +80,7 @@ export const initializeDatabases = async () => {
     log('Database initialization completed', 'database');
     return { 
       db, 
-      mongoose, 
-      redisClient,
-      models: {
-        ChatHistoryModel,
-        SummaryModel,
-        CodeSnippetModel,
-        CachedResponseModel
-      }
+      redisClient
     };
   } catch (error) {
     log(`Critical database initialization error: ${error}`, 'database');
