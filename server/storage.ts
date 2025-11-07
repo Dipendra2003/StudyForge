@@ -1,6 +1,5 @@
 import { 
   users, type User, type InsertUser, 
-  waitlistEntries, type WaitlistEntry, type InsertWaitlist,
   documents, type Document, type InsertDocument,
   flashcards, type Flashcard, type InsertFlashcard,
   mcqs, type Mcq, type InsertMcq,
@@ -18,11 +17,6 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
-  
-  // Waitlist methods
-  createWaitlistEntry(entry: InsertWaitlist): Promise<WaitlistEntry>;
-  getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined>;
-  getWaitlistCount(): Promise<number>;
   
   // Document methods
   createDocument(document: InsertDocument): Promise<Document>;
@@ -75,7 +69,6 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
-  private waitlist: Map<number, WaitlistEntry>;
   private documents: Map<number, Document>;
   private flashcards: Map<number, Flashcard>;
   private mcqs: Map<number, Mcq>;
@@ -87,7 +80,6 @@ export class MemStorage implements IStorage {
   
   // Track IDs
   currentUserId: number;
-  currentWaitlistId: number;
   currentDocumentId: number;
   currentFlashcardId: number;
   currentMcqId: number;
@@ -100,7 +92,6 @@ export class MemStorage implements IStorage {
   constructor() {
     // Initialize maps
     this.users = new Map();
-    this.waitlist = new Map();
     this.documents = new Map();
     this.flashcards = new Map();
     this.mcqs = new Map();
@@ -112,7 +103,6 @@ export class MemStorage implements IStorage {
     
     // Initialize IDs
     this.currentUserId = 1;
-    this.currentWaitlistId = 1;
     this.currentDocumentId = 1;
     this.currentFlashcardId = 1;
     this.currentMcqId = 1;
@@ -144,11 +134,18 @@ export class MemStorage implements IStorage {
     const id = this.currentUserId++;
     const now = new Date();
     const user: User = { 
-      ...insertUser, 
       id,
+      username: insertUser.username,
+      password: insertUser.password,
+      email: insertUser.email,
+      fullName: insertUser.fullName || null,
+      profilePicture: insertUser.profilePicture || null,
+      preferredLanguage: insertUser.preferredLanguage || null,
+      role: insertUser.role || 'user',
+      lastLogin: null,
+      isActive: true,
       createdAt: now,
-      updatedAt: now,
-      profilePicture: insertUser.profilePicture || null
+      updatedAt: now
     };
     this.users.set(id, user);
     return user;
@@ -168,38 +165,20 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
-  // Waitlist methods
-  async createWaitlistEntry(insertEntry: InsertWaitlist): Promise<WaitlistEntry> {
-    const id = this.currentWaitlistId++;
-    const now = new Date();
-    const entry: WaitlistEntry = { 
-      ...insertEntry, 
-      id, 
-      createdAt: now,
-      company: insertEntry.company || null
-    };
-    this.waitlist.set(id, entry);
-    return entry;
-  }
-  
-  async getWaitlistEntryByEmail(email: string): Promise<WaitlistEntry | undefined> {
-    return Array.from(this.waitlist.values()).find(
-      (entry) => entry.email.toLowerCase() === email.toLowerCase(),
-    );
-  }
-  
-  async getWaitlistCount(): Promise<number> {
-    return this.waitlist.size;
-  }
-  
   // Document methods
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     const id = this.currentDocumentId++;
     const now = new Date();
     const document: Document = {
-      ...insertDocument,
       id,
+      userId: insertDocument.userId,
+      title: insertDocument.title,
+      content: insertDocument.content || null,
+      fileUrl: insertDocument.fileUrl || null,
+      fileType: insertDocument.fileType || null,
       summary: null,
+      isPrivate: insertDocument.isPrivate ?? true,
+      status: insertDocument.status || 'active',
       createdAt: now,
       updatedAt: now
     };
@@ -240,9 +219,15 @@ export class MemStorage implements IStorage {
     const id = this.currentFlashcardId++;
     const now = new Date();
     const flashcard: Flashcard = {
-      ...insertFlashcard,
       id,
-      tags: insertFlashcard.tags || [],
+      userId: insertFlashcard.userId,
+      documentId: insertFlashcard.documentId || null,
+      question: insertFlashcard.question,
+      answer: insertFlashcard.answer,
+      tags: insertFlashcard.tags || null,
+      difficulty: insertFlashcard.difficulty || 'medium',
+      repetitionInterval: insertFlashcard.repetitionInterval || 1,
+      easeFactor: insertFlashcard.easeFactor || 250,
       lastReviewed: null,
       nextReviewDate: null,
       createdAt: now
@@ -289,8 +274,16 @@ export class MemStorage implements IStorage {
     const id = this.currentMcqId++;
     const now = new Date();
     const mcq: Mcq = {
-      ...insertMcq,
       id,
+      userId: insertMcq.userId,
+      documentId: insertMcq.documentId || null,
+      question: insertMcq.question,
+      options: insertMcq.options,
+      correctOption: typeof insertMcq.correctOption === 'string' ? parseInt(insertMcq.correctOption) : insertMcq.correctOption,
+      explanation: insertMcq.explanation || null,
+      difficulty: insertMcq.difficulty,
+      category: insertMcq.category || null,
+      isPublic: insertMcq.isPublic ?? false,
       createdAt: now
     };
     this.mcqs.set(id, mcq);
@@ -341,9 +334,16 @@ export class MemStorage implements IStorage {
     const id = this.currentCodeSnippetId++;
     const now = new Date();
     const snippet: CodeSnippet = {
-      ...insertSnippet,
       id,
-      createdAt: now
+      userId: insertSnippet.userId,
+      title: insertSnippet.title,
+      problem: insertSnippet.problem,
+      code: insertSnippet.code,
+      language: insertSnippet.language,
+      explanation: insertSnippet.explanation,
+      tags: insertSnippet.tags || null,
+      createdAt: now,
+      updatedAt: now
     };
     this.codeSnippets.set(id, snippet);
     return snippet;
@@ -381,8 +381,12 @@ export class MemStorage implements IStorage {
     const id = this.currentChatHistoryId++;
     const now = new Date();
     const history: ChatHistory = {
-      ...insertHistory,
       id,
+      userId: insertHistory.userId,
+      sessionId: insertHistory.sessionId,
+      subject: insertHistory.subject || null,
+      messages: insertHistory.messages || [],
+      lastUpdated: now,
       createdAt: now,
       updatedAt: now
     };
@@ -405,11 +409,13 @@ export class MemStorage implements IStorage {
     if (!history) return undefined;
     
     const messages = Array.isArray(history.messages) ? [...history.messages, message] : [message];
+    const now = new Date();
     
     const updatedHistory = {
       ...history,
       messages,
-      updatedAt: new Date()
+      lastUpdated: now,
+      updatedAt: now
     };
     
     this.chatHistories.set(id, updatedHistory);
@@ -421,9 +427,15 @@ export class MemStorage implements IStorage {
     const id = this.currentStudyPlanId++;
     const now = new Date();
     const plan: StudyPlan = {
-      ...insertPlan,
       id,
+      userId: insertPlan.userId,
+      title: insertPlan.title,
+      description: insertPlan.description || null,
+      scheduleData: insertPlan.scheduleData,
+      startDate: insertPlan.startDate || null,
+      endDate: insertPlan.endDate || null,
       completedPercentage: 0,
+      status: insertPlan.status || 'active',
       createdAt: now,
       updatedAt: now
     };

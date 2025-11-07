@@ -325,7 +325,7 @@ export const insertMcqSchema = createInsertSchema(mcqs, {
   userId: z.number(),
   documentId: z.number(),
   question: z.string(),
-  correctOption: z.string(),
+  correctOption: z.number(),
   explanation: z.string(),
   difficulty: z.string(),
   category: z.string(),
@@ -364,7 +364,7 @@ export const insertStudyPlanSchema = createInsertSchema(studyPlans, {
   userId: z.number(),
   title: z.string(),
   description: z.string(),
-  scheduleData: z.string(),
+  scheduleData: z.any(),
   startDate: z.date(),
   endDate: z.date(),
 });
