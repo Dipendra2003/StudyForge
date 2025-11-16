@@ -25,7 +25,7 @@ export interface CacheOptions {
 export const cacheMiddleware = (options: CacheOptions = {}) => {
   const ttl = options.ttl || 5 * 60 * 1000; // Default 5 minutes
   const keyGenerator = options.keyGenerator || ((req: Request) => {
-    return `${req.method}:${req.path}:${JSON.stringify(req.query)}:${req.user?.id || 'anonymous'}`;
+    return `${req.method}:${req.path}:${JSON.stringify(req.query)}:${(req.user as any)?.id || 'anonymous'}`;
   });
 
   return (req: Request, res: Response, next: NextFunction) => {

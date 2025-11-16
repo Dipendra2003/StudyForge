@@ -45,7 +45,7 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction) {
     
     // Debug logging in development
     if (process.env.NODE_ENV === 'development') {
-      Logger.debug('AUTH', '[jwtAuth] Token check', {
+      Logger.debug(LogCategory.AUTH, '[jwtAuth] Token check', {
         hasAccessToken: !!accessToken,
         hasRefreshToken: !!refreshToken,
         path: req.path,

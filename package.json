@@ -8,8 +8,12 @@
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "test:e2e": "tsx --env-file=.env tests/e2e/auth.e2e.test.ts"
+    "db:studio": "drizzle-kit studio",
+    "test:e2e": "tsx --env-file=.env tests/e2e/auth.e2e.test.ts",
+    "postinstall": "npm run check"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.5",
@@ -44,7 +48,6 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.3",
-    "@replit/vite-plugin-shadcn-theme-json": "^0.0.4",
     "@tanstack/react-query": "^5.60.5",
     "@types/react-window": "^1.8.8",
     "bcrypt": "^5.1.1",
@@ -99,8 +102,6 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
-    "@replit/vite-plugin-cartographer": "^0.0.11",
-    "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
     "@types/bcrypt": "^6.0.0",
     "@types/canvas-confetti": "^1.9.0",
