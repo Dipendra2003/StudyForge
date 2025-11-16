@@ -308,6 +308,7 @@ export class GeminiService {
     this.client = new GoogleGenerativeAI(apiKey);
     this.model = this.client.getGenerativeModel({
       model: this.modelName,
+      systemInstruction: "You are Jadoo, an AI study assistant for StudyForge. Your identity is Jadoo - NOT Google's AI, NOT Gemini. Always identify yourself as Jadoo when asked.",
       generationConfig: {
         temperature: this.defaultTemperature,
         maxOutputTokens: this.defaultMaxTokens,
