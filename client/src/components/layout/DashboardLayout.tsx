@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/App";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -30,10 +31,13 @@ import {
   User,
   LogOut,
   Menu,
+  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Settings,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 // Define the DashboardLayout props type
 interface DashboardLayoutProps {
@@ -41,10 +45,9 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
   const [location] = useLocation();
-  const [isMobile, setIsMobile] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Navigation links config
   const navLinks = [
@@ -57,39 +60,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { icon: Calendar, label: "Study Planner", path: "/study-planner" },
   ];
 
-  // Update isMobile state based on window width
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    handleResize(); // Set initial value
-    window.addEventListener("resize", handleResize);
-    
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-
   // Handle logout
-  const handleLogout = async () => {
-    try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        logout();
-        setLocation("/login");
-      } else {
-        console.error("Logout failed");
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
+  const handleLogout = () => {
+    // Call the logout function from auth context
+    // It handles the API call and state cleanup
+    logout();
   };
 
   // Determine if a nav link is active
@@ -98,73 +73,184 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar for desktop */}
-      <aside className="hidden md:flex flex-col w-64 border-r bg-card">
-        <div className="p-6">
+    <div className="h-screen bg-background flex overflow-hidden">
+      {/* Sidebar for desktop - Fixed position */}
+      <motion.aside
+        initial={false}
+        animate={{
+          width: isSidebarCollapsed ? "80px" : "256px",
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className="hidden md:flex flex-col border-r bg-card relative h-screen"
+      >
+        {/* Toggle Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-6 z-50 h-6 w-6 rounded-full border bg-background shadow-md hover:bg-accent"
+          aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!isSidebarCollapsed}
+        >
+          {isSidebarCollapsed ? (
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          )}
+        </Button>
+
+        {/* Logo */}
+        <div className={cn("p-6 transition-all", isSidebarCollapsed && "px-4")}>
           <Link href="/">
-            <div className="flex items-center space-x-2 cursor-pointer">
-              <span className="font-bold text-2xl text-primary">Jadoo</span>
-              <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded">v2.0</span>
+            <div className="flex items-center space-x-2 cursor-pointer group">
+              <AnimatePresence mode="wait">
+                {isSidebarCollapsed ? (
+                  <motion.span
+                    key="collapsed"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="font-bold text-2xl bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent group-hover:from-primary/80 group-hover:to-primary transition-all"
+                  >
+                    J
+                  </motion.span>
+                ) : (
+                  <motion.div
+                    key="expanded"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center space-x-2"
+                  >
+                    <span className="font-bold text-2xl bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent group-hover:from-primary/80 group-hover:to-primary transition-all">Jadoo</span>
+                    <span className="bg-gradient-to-r from-primary to-primary/80 text-white text-xs px-1.5 py-0.5 rounded shadow-sm">v2.0</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1 px-2">
+
+        {/* Navigation - Scrollable area */}
+        <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" aria-label="Main navigation">
+          <ul className="space-y-1 px-2" role="list">
             {navLinks.map((link) => (
               <li key={link.path}>
                 <Link href={link.path}>
                   <Button
                     variant={isActive(link.path) ? "default" : "ghost"}
-                    className={`w-full justify-start ${
-                      isActive(link.path) ? "bg-primary" : ""
-                    }`}
+                    className={cn(
+                      "w-full transition-all hover:scale-105 active:scale-95",
+                      isSidebarCollapsed ? "justify-center px-2" : "justify-start",
+                      isActive(link.path) && "bg-gradient-to-r from-primary to-primary/80 shadow-md"
+                    )}
+                    title={isSidebarCollapsed ? link.label : undefined}
+                    aria-label={link.label}
+                    aria-current={isActive(link.path) ? "page" : undefined}
                   >
-                    <link.icon className="mr-2 h-4 w-4" />
-                    {link.label}
+                    <link.icon className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} aria-hidden="true" />
+                    <AnimatePresence>
+                      {!isSidebarCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: "auto" }}
+                          exit={{ opacity: 0, width: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          {link.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </Button>
                 </Link>
               </li>
             ))}
           </ul>
         </nav>
-        <div className="p-4 border-t">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start">
-                <User className="mr-2 h-4 w-4" />
-                {user?.fullName || user?.username || "User"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <HelpCircle className="mr-2 h-4 w-4" />
-                Help
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </aside>
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header for mobile */}
-        <header className="md:hidden border-b px-4 py-3 bg-card">
+        {/* User Menu - Fixed at bottom */}
+        <div className="p-4 border-t flex-shrink-0">
+          {isSidebarCollapsed ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-full">
+                  <User className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  {user?.fullName || user?.username || "User"}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <Link href="/profile">
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/settings">
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/help">
+                  <DropdownMenuItem>
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Help
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="w-full justify-start">
+                  <User className="mr-2 h-4 w-4" />
+                  <span className="truncate">{user?.fullName || user?.username || "User"}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <Link href="/profile">
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/settings">
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/help">
+                  <DropdownMenuItem>
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Help
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </motion.aside>
+
+      {/* Main content area - Takes remaining space */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Header for mobile - Fixed at top */}
+        <header className="md:hidden border-b px-4 py-3 bg-card flex-shrink-0 sticky top-0 z-40">
           <div className="flex items-center justify-between">
             <Link href="/">
               <div className="flex items-center space-x-2 cursor-pointer">
@@ -178,12 +264,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Menu className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="hover:bg-accent" aria-label="Open navigation menu">
+                    <Menu className="h-5 w-5" aria-hidden="true" />
+                    <span className="sr-only">Open menu</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-64 px-0">
-                  <SheetHeader className="px-6 py-4">
+                <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 flex flex-col h-full">
+                  <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
                     <SheetTitle className="text-left">
                       <div className="flex items-center">
                         <span className="font-bold text-xl text-primary">Jadoo</span>
@@ -194,38 +281,73 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       AI-powered study assistant
                     </SheetDescription>
                   </SheetHeader>
-                  <nav className="px-2 mt-4">
-                    <ul className="space-y-1">
+                  
+                  {/* Scrollable navigation area */}
+                  <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Mobile navigation">
+                    <ul className="space-y-1" role="list">
                       {navLinks.map((link) => (
                         <li key={link.path}>
-                          <Link href={link.path}>
-                            <Button
-                              variant={isActive(link.path) ? "default" : "ghost"}
-                              className={`w-full justify-start ${
-                                isActive(link.path) ? "bg-primary" : ""
-                              }`}
-                            >
-                              <link.icon className="mr-2 h-4 w-4" />
-                              {link.label}
-                            </Button>
-                          </Link>
+                          <SheetClose asChild>
+                            <Link href={link.path}>
+                              <Button
+                                variant={isActive(link.path) ? "default" : "ghost"}
+                                className={cn(
+                                  "w-full justify-start",
+                                  isActive(link.path) && "bg-gradient-to-r from-primary to-primary/80 shadow-md"
+                                )}
+                                aria-label={link.label}
+                                aria-current={isActive(link.path) ? "page" : undefined}
+                              >
+                                <link.icon className="mr-2 h-4 w-4" aria-hidden="true" />
+                                {link.label}
+                              </Button>
+                            </Link>
+                          </SheetClose>
                         </li>
                       ))}
                     </ul>
                   </nav>
-                  <div className="px-2 py-4 mt-auto border-t">
-                    <div className="flex items-center px-3 py-2">
-                      <User className="mr-2 h-4 w-4" />
-                      <span>{user?.fullName || user?.username || "User"}</span>
+                  
+                  {/* Fixed user menu at bottom */}
+                  <div className="px-3 py-4 border-t flex-shrink-0 space-y-1 bg-card">
+                    <div className="flex items-center px-3 py-2 mb-2 bg-accent/50 rounded-md">
+                      <User className="mr-2 h-4 w-4 text-primary" />
+                      <span className="font-medium truncate text-sm">{user?.fullName || user?.username || "User"}</span>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={handleLogout}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Logout
-                    </Button>
+                    <SheetClose asChild>
+                      <Link href="/profile">
+                        <Button variant="ghost" className="w-full justify-start">
+                          <User className="mr-2 h-4 w-4" />
+                          Profile
+                        </Button>
+                      </Link>
+                    </SheetClose>
+                    <SheetClose asChild>
+                      <Link href="/settings">
+                        <Button variant="ghost" className="w-full justify-start">
+                          <Settings className="mr-2 h-4 w-4" />
+                          Settings
+                        </Button>
+                      </Link>
+                    </SheetClose>
+                    <SheetClose asChild>
+                      <Link href="/help">
+                        <Button variant="ghost" className="w-full justify-start">
+                          <HelpCircle className="mr-2 h-4 w-4" />
+                          Help
+                        </Button>
+                      </Link>
+                    </SheetClose>
+                    <SheetClose asChild>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                        onClick={handleLogout}
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Logout
+                      </Button>
+                    </SheetClose>
                   </div>
                 </SheetContent>
               </Sheet>
@@ -233,8 +355,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </header>
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+        {/* Main content - Scrollable area */}
+        <main id="main-content" className="flex-1 overflow-y-auto overflow-x-hidden bg-background" role="main">
           {children}
         </main>
       </div>

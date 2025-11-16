@@ -28,6 +28,13 @@ import {
   RotateCcw,
   Zap,
   BookOpen,
+  MessageCircle,
+  MessageSquare,
+  FileQuestion,
+  Calendar,
+  Award,
+  Clock,
+  FileIcon,
 } from "lucide-react";
 import React from "react";
 
@@ -59,6 +66,15 @@ export const Icons = {
   book: BookOpen,
   file: File,
   image: Image,
+  messageCircle: MessageCircle,
+  messageSquare: MessageSquare,
+  fileText: FileText,
+  bookOpen: BookOpen,
+  fileQuestion: FileQuestion,
+  calendar: Calendar,
+  award: Award,
+  clock: Clock,
+  page: FileIcon,
   gitHub: (props: React.SVGProps<SVGSVGElement>) => (
     <svg
       aria-hidden="true"

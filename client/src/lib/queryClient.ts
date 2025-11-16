@@ -33,7 +33,6 @@ export async function apiRequest<T = any>(
   const requestOptions: RequestInit = {
     method,
     headers: {
-      "Content-Type": "application/json",
       ...headers,
     },
     credentials: "include",
@@ -42,12 +41,29 @@ export async function apiRequest<T = any>(
   // Add body for non-GET requests
   if (method !== "GET") {
     if (body !== undefined) {
-      // Use body directly if provided
+      // Use body directly if provided (e.g., FormData)
       requestOptions.body = body;
+      // Don't set Content-Type for FormData - browser will set it with boundary
+      if (!(body instanceof FormData)) {
+        requestOptions.headers = {
+          "Content-Type": "application/json",
+          ...requestOptions.headers,
+        };
+      }
     } else if (data !== undefined) {
       // Otherwise use data and stringify it
       requestOptions.body = JSON.stringify(data);
+      requestOptions.headers = {
+        "Content-Type": "application/json",
+        ...requestOptions.headers,
+      };
     }
+  } else {
+    // For GET requests, always set Content-Type
+    requestOptions.headers = {
+      "Content-Type": "application/json",
+      ...requestOptions.headers,
+    };
   }
 
   // Make the request

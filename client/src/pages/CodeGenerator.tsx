@@ -35,9 +35,25 @@ import { Icons } from "@/components/ui/icons";
 // Define the form schema for code generation
 const codeGenerationSchema = z.object({
   problem: z.string().min(10, "Please describe your problem in more detail"),
-  language: z.enum(["python", "javascript", "java", "c++", "typescript"]),
+  language: z.enum([
+    "python", 
+    "javascript", 
+    "java", 
+    "c++", 
+    "typescript",
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "swift",
+    "kotlin",
+    "c#",
+    "r",
+    "sql"
+  ]),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
   context: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 type CodeGenerationFormValues = z.infer<typeof codeGenerationSchema>;
@@ -61,11 +77,14 @@ interface CodeSnippet {
   problem: string;
   language: string;
   explanation: string;
+  tags?: string[] | null;
   createdAt?: Date;
 }
 
 export default function CodeGenerator() {
   const [activeTab, setActiveTab] = useState("generator");
+  const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("all");
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -85,11 +104,31 @@ export default function CodeGenerator() {
     message: string;
   }
 
-  // Get previously generated code snippets
+  // Get previously generated code snippets with filters
   const { data: snippets, isLoading: isLoadingSnippets } = useQuery<CodeSnippetsResponse>({
-    queryKey: ["/api/code-snippets"],
+    queryKey: ["/api/code-snippets", selectedLanguageFilter, selectedTagFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedLanguageFilter !== 'all') {
+        params.append('language', selectedLanguageFilter);
+      }
+      if (selectedTagFilter !== 'all') {
+        params.append('tag', selectedTagFilter);
+      }
+      const queryString = params.toString();
+      const url = `/api/code-snippets${queryString ? `?${queryString}` : ''}`;
+      return apiRequest(url);
+    },
     meta: {
       errorMessage: "Failed to fetch your code snippets"
+    }
+  });
+  
+  // Get available tags
+  const { data: tagsData } = useQuery<{ tags: string[] }>({
+    queryKey: ["/api/code-snippets/tags"],
+    meta: {
+      errorMessage: "Failed to fetch tags"
     }
   });
 
@@ -192,6 +231,15 @@ export default function CodeGenerator() {
                                   <SelectItem value="java">Java</SelectItem>
                                   <SelectItem value="c++">C++</SelectItem>
                                   <SelectItem value="typescript">TypeScript</SelectItem>
+                                  <SelectItem value="go">Go</SelectItem>
+                                  <SelectItem value="rust">Rust</SelectItem>
+                                  <SelectItem value="ruby">Ruby</SelectItem>
+                                  <SelectItem value="php">PHP</SelectItem>
+                                  <SelectItem value="swift">Swift</SelectItem>
+                                  <SelectItem value="kotlin">Kotlin</SelectItem>
+                                  <SelectItem value="c#">C#</SelectItem>
+                                  <SelectItem value="r">R</SelectItem>
+                                  <SelectItem value="sql">SQL</SelectItem>
                                 </SelectContent>
                               </Select>
                               <FormMessage />
@@ -321,7 +369,46 @@ export default function CodeGenerator() {
           <TabsContent value="history" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Your Saved Code Solutions</CardTitle>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <CardTitle>Your Saved Code Solutions</CardTitle>
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <Select value={selectedLanguageFilter} onValueChange={setSelectedLanguageFilter}>
+                      <SelectTrigger className="w-full md:w-[180px]">
+                        <SelectValue placeholder="Filter by language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Languages</SelectItem>
+                        <SelectItem value="javascript">JavaScript</SelectItem>
+                        <SelectItem value="python">Python</SelectItem>
+                        <SelectItem value="java">Java</SelectItem>
+                        <SelectItem value="c++">C++</SelectItem>
+                        <SelectItem value="typescript">TypeScript</SelectItem>
+                        <SelectItem value="go">Go</SelectItem>
+                        <SelectItem value="rust">Rust</SelectItem>
+                        <SelectItem value="ruby">Ruby</SelectItem>
+                        <SelectItem value="php">PHP</SelectItem>
+                        <SelectItem value="swift">Swift</SelectItem>
+                        <SelectItem value="kotlin">Kotlin</SelectItem>
+                        <SelectItem value="c#">C#</SelectItem>
+                        <SelectItem value="r">R</SelectItem>
+                        <SelectItem value="sql">SQL</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
+                      <SelectTrigger className="w-full md:w-[180px]">
+                        <SelectValue placeholder="Filter by tag" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Tags</SelectItem>
+                        {tagsData?.tags?.map((tag) => (
+                          <SelectItem key={tag} value={tag}>
+                            {tag}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingSnippets ? (
@@ -333,18 +420,42 @@ export default function CodeGenerator() {
                     {snippets.snippets.map((snippet: CodeSnippet) => (
                       <Card key={snippet.id} className="overflow-hidden">
                         <CardHeader className="bg-gray-50 dark:bg-gray-900 py-4">
-                          <div className="flex justify-between items-center">
-                            <CardTitle className="text-base font-medium">
-                              {snippet.title}
-                            </CardTitle>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                                {snippet.language}
-                              </span>
-                              <Button variant="ghost" size="icon">
-                                <Icons.copy className="h-4 w-4" />
-                              </Button>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between items-center">
+                              <CardTitle className="text-base font-medium">
+                                {snippet.title}
+                              </CardTitle>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                                  {snippet.language}
+                                </span>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(snippet.code);
+                                    toast({
+                                      title: "Copied to clipboard",
+                                      description: "Code snippet copied successfully",
+                                    });
+                                  }}
+                                >
+                                  <Icons.copy className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
+                            {snippet.tags && Array.isArray(snippet.tags) && snippet.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {snippet.tags.map((tag, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </CardHeader>
                         <CardContent className="pt-4">

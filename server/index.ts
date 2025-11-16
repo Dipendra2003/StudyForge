@@ -1,54 +1,48 @@
+// Load environment variables FIRST before any other imports
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
-import MemoryStore from "memorystore";
+import cookieParser from "cookie-parser";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-
-// Create memory store for sessions
-const MemoryStoreSession = MemoryStore(session);
+import { initializeDatabases } from "./db/index";
+import { initializeStorage } from "./storage";
+import { errorHandler } from "./middleware/errorHandler";
+import { validateEnvOrExit, logEnvironmentConfig } from "./config/validateEnv";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 
-// Setup session middleware
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'jadoo-study-assistant-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  },
-  store: new MemoryStoreSession({
-    checkPeriod: 86400000 // prune expired entries every 24h
-  })
+// Enable compression for all responses - significant performance boost
+app.use(compression({
+  level: 6, // Balanced compression level (0-9)
+  threshold: 1024, // Only compress responses larger than 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
 }));
 
-// Request logging middleware
+// Increase JSON payload limit if needed, but keep reasonable for security
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Setup cookie-parser middleware for JWT authentication
+app.use(cookieParser());
+
+// Optimized request logging middleware - only log slow requests
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
+    // Only log API requests that take longer than 100ms or have errors
+    if (path.startsWith("/api") && (duration > 100 || res.statusCode >= 400)) {
+      const logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       log(logLine);
     }
   });
@@ -58,9 +52,13 @@ app.use((req, res, next) => {
 
 // Cross-origin resource sharing configuration for development
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
+  // In production, set this to your actual domain
+  // IMPORTANT: When using credentials, origin cannot be '*'
+  const origin = req.headers.origin || 'http://localhost:5000';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true'); // Critical for cookies
   
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -69,25 +67,43 @@ app.use((req, res, next) => {
   next();
 });
 
-// Setup OpenAI API key middleware
+// Setup Gemini API key middleware
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  if (process.env.OPENAI_API_KEY) {
-    req.app.locals.openaiApiKey = process.env.OPENAI_API_KEY;
+  if (process.env.GEMINI_API_KEY) {
+    req.app.locals.geminiApiKey = process.env.GEMINI_API_KEY;
   }
   next();
 });
 
 (async () => {
+  // Validate environment variables before starting the server
+  validateEnvOrExit();
+  logEnvironmentConfig();
+
+  // Initialize database connections before starting the server
+  try {
+    log('Initializing database connections...', 'database');
+    await initializeDatabases();
+    log('Database connections initialized successfully', 'database');
+    
+    // Initialize storage layer with MySQL
+    initializeStorage();
+    log('Storage layer initialized with MySQL', 'database');
+    
+    // Start token cleanup service
+    const { tokenCleanupService } = await import('./services/tokenCleanup');
+    tokenCleanupService.start();
+    log('Token cleanup service started', 'security');
+  } catch (error) {
+    console.error('Failed to initialize database connections:', error);
+    console.error('Server cannot start without database connection');
+    process.exit(1);
+  }
+
   const server = await registerRoutes(app);
 
-  // Error handling middleware
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    console.error(err);
-  });
+  // Centralized error handling middleware (must be last)
+  app.use(errorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
@@ -98,15 +114,31 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
+  // Determine port from environment (API_PORT) with default 5000
+  // This lets us run multiple instances on different ports if needed.
+  const port = parseInt(process.env.API_PORT || '5000', 10);
+  // On some platforms (notably Windows) the `reusePort` option is not
+  // supported and will throw ENOTSUP. Avoid passing it on those platforms.
+  const listenOpts: any = {
     port,
     host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  };
+
+  if (process.platform !== 'win32') {
+    // non-Windows platforms can opt into reusePort where supported
+    listenOpts.reusePort = true;
+  }
+
+  server.listen(listenOpts, () => {
+    console.log('\n');
+    console.log('  🚀 Server ready!');
+    console.log('\n');
+    console.log(`  ➜ Local:   \x1b[36mhttp://localhost:${port}\x1b[0m`);
+    console.log(`  ➜ Network: \x1b[36mhttp://127.0.0.1:${port}\x1b[0m`);
+    console.log('\n');
+    if (app.get("env") === "development") {
+      console.log('  ✨ Vite HMR enabled');
+    }
+    console.log('\n');
   });
 })();

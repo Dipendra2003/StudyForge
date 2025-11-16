@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,10 +7,15 @@ import { ThemeProvider } from "@/components/theme-provider";
 import queryClient from "@/lib/queryClient";
 import DynamicBackground from "@/components/DynamicBackground";
 import WelcomeModal from "@/components/WelcomeModal";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 // Pages
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 import Dashboard from "@/pages/Dashboard";
 import CodeGenerator from "@/pages/CodeGenerator";
 import Chat from "@/pages/Chat";
@@ -22,35 +27,11 @@ import About from "@/pages/About";
 import Policy from "@/pages/Policy";
 import Terms from "@/pages/Terms";
 import Pricing from "@/pages/Pricing";
+import Profile from "@/pages/Profile";
+import Settings from "@/pages/Settings";
+import Help from "@/pages/Help";
 
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  fullName?: string;
-  preferredLanguage?: string;
-  profilePicture?: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  login: (userData: User) => void;
-  logout: () => void;
-}
-
-const defaultAuthContext: AuthContextType = {
-  user: null,
-  isAuthenticated: false,
-  login: () => {},
-  logout: () => {},
-};
-
-const AuthContext = createContext<AuthContextType>(defaultAuthContext);
-
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+// Auth context is now imported from @/contexts/AuthContext
 
 // HomePage component to redirect users based on authentication status
 // Import the Home page (landing page)
@@ -61,16 +42,26 @@ function HomePage() {
 }
 
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setLocation("/login");
-    }
-  }, [isAuthenticated, setLocation]);
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
-  return isAuthenticated ? <Component {...rest} /> : null;
+  // Only redirect if not authenticated
+  // This prevents unnecessary re-renders and redirects
+  if (!isAuthenticated) {
+    setLocation("/login");
+    return null;
+  }
+
+  return <Component {...rest} />;
 }
 
 function Router() {
@@ -78,6 +69,9 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <PrivateRoute path="/dashboard" component={Dashboard} />
       <PrivateRoute path="/code-generator" component={CodeGenerator} />
       <PrivateRoute path="/chat" component={Chat} />
@@ -85,6 +79,9 @@ function Router() {
       <PrivateRoute path="/flashcards" component={Flashcards} />
       <PrivateRoute path="/study-planner" component={StudyPlanner} />
       <PrivateRoute path="/quiz-mode" component={QuizMode} />
+      <PrivateRoute path="/profile" component={Profile} />
+      <PrivateRoute path="/settings" component={Settings} />
+      <PrivateRoute path="/help" component={Help} />
       <Route path="/about" component={About} />
       <Route path="/privacy-policy" component={Policy} />
       <Route path="/terms" component={Terms} />
@@ -94,47 +91,7 @@ function Router() {
   );
 }
 
-function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-
-  // Check if user is already logged in on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch("/api/auth/me");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.user) {
-            setUser(data.user);
-            setIsAuthenticated(true);
-          }
-        }
-      } catch (error) {
-        console.error("Authentication check failed:", error);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  const login = (userData: User) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-  };
-
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
+// AuthProvider is now imported from @/contexts/AuthContext
 // We're using the pre-configured query client from the import at the top of this file
 
 function App() {
@@ -155,16 +112,25 @@ function App() {
   };
   
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="system" storageKey="jadoo-theme">
-        <DynamicBackground />
-        <AuthProvider>
-          {showWelcomeModal && <WelcomeModal onClose={handleCloseWelcomeModal} />}
-          <Router />
-          <Toaster />
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider defaultTheme="system" storageKey="jadoo-theme">
+          {/* Skip to main content link for keyboard navigation */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg"
+          >
+            Skip to main content
+          </a>
+          <DynamicBackground />
+          <AuthProvider>
+            {showWelcomeModal && <WelcomeModal onClose={handleCloseWelcomeModal} />}
+            <Router />
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

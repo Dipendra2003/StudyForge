@@ -104,8 +104,14 @@ export default function StudyPlanner() {
   const { data: studyPlans, isLoading, refetch } = useQuery({
     queryKey: ['/api/study-plans'],
     queryFn: async () => {
-      const response = await apiRequest<StudyPlan[]>('/api/study-plans');
-      return response || [];
+      const response = await apiRequest<{ studyPlans: StudyPlan[] } | { data: StudyPlan[] }>('/api/study-plans');
+      // Handle both response formats (direct studyPlans array or paginated response)
+      if (response && 'studyPlans' in response) {
+        return response.studyPlans || [];
+      } else if (response && 'data' in response) {
+        return response.data || [];
+      }
+      return [];
     }
   });
 

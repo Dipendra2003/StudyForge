@@ -16,8 +16,24 @@ export const users = mysqlTable("users", {
   role: varchar("role", { length: 20 }).default("user").notNull(), // For role-based access control
   lastLogin: timestamp("last_login", { mode: 'date' }), // Track login times for security
   isActive: boolean("is_active").default(true), // For account activation/deactivation
+  // Email verification fields (supports both link and OTP)
+  emailVerified: boolean("email_verified").default(false),
+  verificationToken: varchar("verification_token", { length: 255 }), // For link-based verification
+  verificationOtp: varchar("verification_otp", { length: 6 }), // For OTP-based verification
+  verificationTokenExpiry: timestamp("verification_token_expiry", { mode: 'date' }),
+  // Password reset fields (supports both link and OTP)
+  resetToken: varchar("reset_token", { length: 255 }), // For link-based reset
+  resetOtp: varchar("reset_otp", { length: 6 }), // For OTP-based reset
+  resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'date' }),
   createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    usernameIdx: index("users_username_idx").on(table.username),
+    emailIdx: index("users_email_idx").on(table.email),
+    verificationTokenIdx: index("users_verification_token_idx").on(table.verificationToken),
+    resetTokenIdx: index("users_reset_token_idx").on(table.resetToken),
+  }
 });
 
 // Authentication records (keeps track of sessions, login attempts, etc.)
@@ -35,6 +51,24 @@ export const authentication = mysqlTable("authentication", {
   return {
     userIdIdx: index("auth_user_id_idx").on(table.userId),
     tokenIdx: index("auth_token_idx").on(table.token),
+  }
+});
+
+// Refresh tokens table for secure session management
+export const refreshTokens = mysqlTable("refresh_tokens", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: varchar("token", { length: 500 }).notNull().unique(),
+  expiresAt: timestamp("expires_at", { mode: 'date' }).notNull(),
+  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at", { mode: 'date' }),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  userAgent: text("user_agent"),
+}, (table) => {
+  return {
+    userIdIdx: index("rt_user_id_idx").on(table.userId),
+    tokenIdx: index("rt_token_idx").on(table.token),
+    expiresAtIdx: index("rt_expires_at_idx").on(table.expiresAt),
   }
 });
 
@@ -66,7 +100,10 @@ export const flashcards = mysqlTable("flashcards", {
   documentId: int("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
+  questionImage: text("question_image"), // Image for question side
+  answerImage: text("answer_image"), // Image for answer side
   tags: json("tags"), // Stored as JSON array in MySQL
+  category: varchar("category", { length: 50 }), // Category for organization
   difficulty: varchar("difficulty", { length: 10 }).default("medium"),
   repetitionInterval: int("repetition_interval").default(1), // For spaced repetition
   easeFactor: int("ease_factor").default(250), // For SM-2 algorithm (times 100)
@@ -78,6 +115,36 @@ export const flashcards = mysqlTable("flashcards", {
     userIdIdx: index("fc_user_id_idx").on(table.userId),
     docIdIdx: index("fc_doc_id_idx").on(table.documentId),
     reviewDateIdx: index("fc_review_date_idx").on(table.nextReviewDate), // For retrieving due cards
+    categoryIdx: index("fc_category_idx").on(table.userId, table.category), // For category filtering
+  }
+});
+
+// Flashcard decks for organizing flashcards
+export const flashcardDecks = mysqlTable("flashcard_decks", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isPublic: boolean("is_public").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("fd_user_id_idx").on(table.userId),
+  }
+});
+
+// Junction table for many-to-many relationship between decks and flashcards
+export const deckFlashcards = mysqlTable("deck_flashcards", {
+  deckId: int("deck_id").notNull().references(() => flashcardDecks.id, { onDelete: 'cascade' }),
+  flashcardId: int("flashcard_id").notNull().references(() => flashcards.id, { onDelete: 'cascade' }),
+  position: int("position").default(0), // For ordering cards within a deck
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    pk: primaryKey({ columns: [table.deckId, table.flashcardId] }),
+    deckIdIdx: index("df_deck_id_idx").on(table.deckId),
+    flashcardIdIdx: index("df_flashcard_id_idx").on(table.flashcardId),
   }
 });
 
@@ -245,7 +312,7 @@ export const chatHistory = mysqlTable("chat_history", {
 export const summaries = mysqlTable("summaries", {
   id: int().autoincrement().primaryKey(),
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: int("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  documentId: int("document_id").references(() => documents.id, { onDelete: 'cascade' }), // nullable - summaries can exist without documents
   originalText: text("original_text").notNull(),
   summary: text("summary").notNull(),
   keyPoints: json("key_points"), // Array of key points
@@ -295,6 +362,21 @@ export const cachedResponses = mysqlTable("cached_responses", {
   }
 });
 
+// Message feedback (likes, dislikes, etc.)
+export const feedback = mysqlTable("feedback", {
+  id: int().autoincrement().primaryKey(),
+  messageId: int("message_id").notNull(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar("type", { length: 20 }).notNull(), // like, dislike, regenerate
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("fb_user_id_idx").on(table.userId),
+    messageIdIdx: index("fb_message_id_idx").on(table.messageId),
+    typeIdx: index("fb_type_idx").on(table.type),
+  }
+});
+
 // Define insertion schemas
 export const insertUserSchema = createInsertSchema(users, {
   username: z.string(),
@@ -314,21 +396,42 @@ export const insertDocumentSchema = createInsertSchema(documents, {
   fileType: z.string().optional(),
 });
 
-export const insertFlashcardSchema = createInsertSchema(flashcards, {
-  userId: z.number(),
-  documentId: z.number(),
-  question: z.string(),
-  answer: z.string(),
+export const insertFlashcardSchema = z.object({
+  documentId: z.number().optional(),
+  question: z.string().min(1, "Question is required"),
+  answer: z.string().min(1, "Answer is required"),
+  questionImage: z.string().optional(),
+  answerImage: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  category: z.string().max(50).optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+  repetitionInterval: z.number().optional(),
+  easeFactor: z.number().optional(),
+  lastReviewed: z.date().optional(),
+  nextReviewDate: z.date().optional(),
 });
 
-export const insertMcqSchema = createInsertSchema(mcqs, {
+export const insertFlashcardDeckSchema = createInsertSchema(flashcardDecks, {
   userId: z.number(),
-  documentId: z.number(),
-  question: z.string(),
-  correctOption: z.number(),
-  explanation: z.string(),
-  difficulty: z.string(),
-  category: z.string(),
+  name: z.string().min(1, "Deck name is required").max(255),
+  description: z.string().optional(),
+  isPublic: z.boolean().optional(),
+});
+
+export const insertDeckFlashcardSchema = createInsertSchema(deckFlashcards, {
+  deckId: z.number(),
+  flashcardId: z.number(),
+  position: z.number().optional(),
+});
+
+export const insertMcqSchema = z.object({
+  question: z.string().min(1, "Question is required"),
+  options: z.array(z.string()).min(2, "At least 2 options are required"),
+  correctOption: z.number().min(0, "Correct option must be a valid index"),
+  explanation: z.string().optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+  category: z.string().optional(),
+  documentId: z.number().optional(),
 });
 
 export const insertCodeSnippetSchema = createInsertSchema(codeSnippets, {
@@ -349,7 +452,7 @@ export const insertChatHistorySchema = createInsertSchema(chatHistory, {
 
 export const insertSummarySchema = createInsertSchema(summaries, {
   userId: z.number(),
-  documentId: z.number(),
+  documentId: z.number().optional(),
   originalText: z.string(),
   summary: z.string(),
 });
@@ -358,6 +461,12 @@ export const insertCachedResponseSchema = createInsertSchema(cachedResponses, {
   query: z.string(),
   response: z.string(),
   ttl: z.date(),
+});
+
+export const insertFeedbackSchema = createInsertSchema(feedback, {
+  messageId: z.number(),
+  userId: z.number(),
+  type: z.enum(["like", "dislike", "unlike", "undislike", "regenerate", "report"]),
 });
 
 export const insertStudyPlanSchema = createInsertSchema(studyPlans, {
@@ -387,16 +496,33 @@ export const chatMessageSchema = z.object({
   timestamp: z.date().optional().default(() => new Date()),
 });
 
-export const documentUploadSchema = insertDocumentSchema.extend({
+export const documentUploadSchema = insertDocumentSchema.omit({ userId: true }).extend({
   title: z.string().min(1, "Title is required"),
-  fileType: z.enum(["pdf", "txt", "doc", "docx"]),
+  fileType: z.enum(["pdf", "txt", "doc", "docx"]).optional(),
 });
 
 export const codeGenerationSchema = z.object({
   problem: z.string().min(10, "Please describe your problem in more detail"),
-  language: z.enum(["python", "javascript", "java", "c++", "typescript"]),
+  language: z.enum([
+    "python", 
+    "javascript", 
+    "java", 
+    "c++", 
+    "typescript",
+    "go",
+    "rust",
+    "ruby",
+    "php",
+    "swift",
+    "kotlin",
+    "c#",
+    "r",
+    "sql"
+  ]),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
   context: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  category: z.string().optional(),
 });
 
 // Export types
@@ -410,6 +536,28 @@ export type Document = typeof documents.$inferSelect;
 
 export type InsertFlashcard = z.infer<typeof insertFlashcardSchema>;
 export type Flashcard = typeof flashcards.$inferSelect;
+
+export type InsertFlashcardDeck = z.infer<typeof insertFlashcardDeckSchema>;
+export type FlashcardDeck = typeof flashcardDecks.$inferSelect;
+
+export type InsertDeckFlashcard = z.infer<typeof insertDeckFlashcardSchema>;
+export type DeckFlashcard = typeof deckFlashcards.$inferSelect;
+
+// Extended types for deck with cards
+export type DeckWithCards = FlashcardDeck & {
+  cards: Flashcard[];
+  cardCount: number;
+};
+
+// Analytics interface for flashcard statistics
+export interface FlashcardAnalytics {
+  reviewHistory: { date: string; count: number }[];
+  accuracyByCategory: { category: string; accuracy: number; total: number }[];
+  masteryLevels: { level: string; count: number }[];
+  studyStreak: { current: number; longest: number };
+  totalReviews: number;
+  averageAccuracy: number;
+}
 
 export type InsertMcq = z.infer<typeof insertMcqSchema>;
 export type Mcq = typeof mcqs.$inferSelect;
@@ -425,6 +573,9 @@ export type Summary = typeof summaries.$inferSelect;
 
 export type InsertCachedResponse = z.infer<typeof insertCachedResponseSchema>;
 export type CachedResponse = typeof cachedResponses.$inferSelect;
+
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type Feedback = typeof feedback.$inferSelect;
 
 export type InsertStudyPlan = z.infer<typeof insertStudyPlanSchema>;
 export type StudyPlan = typeof studyPlans.$inferSelect;

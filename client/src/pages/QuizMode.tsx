@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import queryClient from "@/lib/queryClient";
+import QuizProgress from "@/components/quiz/QuizProgress";
 import {
   Card,
   CardContent,
@@ -139,8 +140,14 @@ export default function QuizMode() {
   const { data: mcqs, isLoading, refetch } = useQuery({
     queryKey: ['/api/mcqs'],
     queryFn: async () => {
-      const response = await apiRequest<Mcq[]>('/api/mcqs');
-      return response || [];
+      const response = await apiRequest<{ mcqs: Mcq[] } | { data: Mcq[] }>('/api/mcqs');
+      // Handle both response formats (direct mcqs array or paginated response)
+      if (response && 'mcqs' in response) {
+        return response.mcqs || [];
+      } else if (response && 'data' in response) {
+        return response.data || [];
+      }
+      return [];
     }
   });
 
@@ -224,7 +231,7 @@ export default function QuizMode() {
         });
         toast({
           title: "MCQ generated",
-          description: "AI has generated a question for you. Edit if needed before saving.",
+          description: "A question has been generated for you. Edit if needed before saving.",
         });
       }
     },
@@ -348,6 +355,33 @@ export default function QuizMode() {
     }
   };
 
+  // Save quiz attempt mutation
+  const saveQuizAttemptMutation = useMutation({
+    mutationFn: async (attemptData: {
+      score: number;
+      totalQuestions: number;
+      correctAnswers: number;
+      wrongAnswers: number;
+      timeSpent: number;
+      category: string;
+      difficulty: string;
+    }) => {
+      return apiRequest('/api/quiz-attempts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(attemptData),
+      });
+    },
+    onSuccess: () => {
+      console.log("Quiz attempt saved successfully");
+    },
+    onError: (error) => {
+      console.error("Error saving quiz attempt:", error);
+    },
+  });
+
   // Complete quiz
   const completeQuiz = () => {
     if (quizTimer) {
@@ -359,6 +393,18 @@ export default function QuizMode() {
       ...prev,
       isCompleted: true,
     }));
+    
+    // Save quiz attempt to database
+    const score = calculateScore();
+    saveQuizAttemptMutation.mutate({
+      score,
+      totalQuestions: filteredMcqs.length,
+      correctAnswers: quizState.correctAnswers,
+      wrongAnswers: quizState.wrongAnswers,
+      timeSpent: quizState.timeSpent,
+      category: selectedCategory,
+      difficulty: selectedDifficulty,
+    });
     
     setShowResultsDialog(true);
     setIsQuizStarted(false);
@@ -414,7 +460,7 @@ export default function QuizMode() {
                 <div className="grid gap-4 py-4">
                   <div className="flex justify-between">
                     <Label htmlFor="topic" className="mt-2">
-                      Generate with AI:
+                      AI-Powered Generation:
                     </Label>
                     <div className="flex gap-2">
                       <Input
@@ -432,7 +478,7 @@ export default function QuizMode() {
                           } else {
                             toast({
                               title: "Missing topic",
-                              description: "Please enter a topic for AI generation.",
+                              description: "Please enter a topic to generate a question.",
                               variant: "destructive",
                             });
                           }
@@ -549,8 +595,9 @@ export default function QuizMode() {
         </div>
 
         <Tabs defaultValue="take-quiz" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="take-quiz">Take Quiz</TabsTrigger>
+            <TabsTrigger value="progress">Progress</TabsTrigger>
             <TabsTrigger value="question-bank">Question Bank</TabsTrigger>
           </TabsList>
           
@@ -777,6 +824,10 @@ export default function QuizMode() {
                 </CardFooter>
               </Card>
             )}
+          </TabsContent>
+          
+          <TabsContent value="progress">
+            <QuizProgress />
           </TabsContent>
           
           <TabsContent value="question-bank">

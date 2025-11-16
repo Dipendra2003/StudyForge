@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import type { Options as ConfettiOptions } from "canvas-confetti";
@@ -147,6 +148,7 @@ const achievements = [
 export default function GamifiedSignupForm() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   
   // State for tracking steps
@@ -242,15 +244,17 @@ export default function GamifiedSignupForm() {
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Registration failed");
+        throw new Error(responseData.message || "Registration failed");
       }
 
       // Play a big confetti celebration
@@ -260,21 +264,25 @@ export default function GamifiedSignupForm() {
         origin: { y: 0.6 }
       });
       
+      // Log the user in automatically and wait for state update
+      await login(responseData.user);
+      
       toast({
         title: "Registration successful!",
-        description: "Your account has been created. Please log in to continue your learning journey.",
+        description: responseData.emailSent 
+          ? "Welcome to Jadoo! Please check your email to verify your account. You'll need to verify before you can log in again."
+          : "Welcome to Jadoo Study Assistant! Let's start your learning journey.",
       });
       
-      // Navigate to login after a brief delay to show the celebration
+      // Navigate to email verification page after state is updated
       setTimeout(() => {
-        navigate("/login");
+        navigate("/verify-email");
       }, 2000);
     } catch (error) {
-      console.error("Registration error:", error);
       toast({
         variant: "destructive",
         title: "Registration failed",
-        description: error instanceof Error ? error.message : "Please try again with different information.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again with different information.",
       });
     } finally {
       setIsLoading(false);

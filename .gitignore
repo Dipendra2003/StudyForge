@@ -4,3 +4,12 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+.sessions
+
+# Environment variables (contains sensitive data)
+.env
+.env.local
+.env.*.local
+
+# Keep example file
+!.env.example

@@ -22,7 +22,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
             className="md:w-1/2 mb-10 md:mb-0"
           >
             <span className="inline-block bg-primary/10 text-primary rounded-full px-4 py-1 text-sm font-semibold mb-6">
-              Coming Soon
+              Now Live
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
               Your AI Study <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Assistant</span> For Success
