@@ -1,175 +1,153 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useToast } from "@/hooks/use-toast";
-import { KeyRound, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Icons } from "@/components/ui/icons";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-
-const resetPasswordSchema = z.object({
-  otp: z.string().optional(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string().min(8, "Please confirm your password"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
-
-type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
+import { useState, useEffect } from 'react';
+import { useLocation, Link } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Eye, EyeOff, Loader2, KeyRound, CheckCircle2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ResetPassword() {
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
+  const [token, setToken] = useState('');
+  const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
-  const [isExpired, setIsExpired] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState<'link' | 'code'>('link');
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  // Extract token from URL query params
-  const searchParams = new URLSearchParams(window.location.search);
-  const token = searchParams.get("token");
-  const urlOtp = searchParams.get("otp");
-  
-  // Determine if we're using token from URL or manual OTP entry
-  const hasToken = !!token;
-  const hasUrlOtp = !!urlOtp;
-  const [manualOtpMode, setManualOtpMode] = useState(!hasToken && !hasUrlOtp);
-  const resetMethod = hasToken ? "token" : hasUrlOtp ? "otp" : manualOtpMode ? "manual-otp" : null;
-
+  // Check for token in URL (from email link)
   useEffect(() => {
-    // Auto-redirect to login after successful password reset
-    if (resetSuccess) {
-      const timer = setTimeout(() => {
-        navigate("/login");
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [resetSuccess, navigate]);
-
-  const form = useForm<ResetPasswordFormValues>({
-    resolver: zodResolver(resetPasswordSchema),
-    defaultValues: {
-      otp: urlOtp || "",
-      password: "",
-      confirmPassword: "",
-    },
-  });
-
-  async function onSubmit(data: ResetPasswordFormValues) {
-    // Determine which credential to use: token from URL, OTP from URL, or manual OTP
-    const otpToUse = data.otp || urlOtp;
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
     
-    if (!token && !otpToUse) {
-      toast({
-        variant: "destructive",
-        title: "Invalid reset credentials",
-        description: "Please enter your 6-digit verification code.",
-      });
+    if (urlToken) {
+      setToken(urlToken);
+      setActiveTab('link');
+    } else {
+      setActiveTab('code');
+    }
+  }, []);
+
+  const validatePassword = () => {
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return false;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      setError('Password must contain at least one lowercase letter');
+      return false;
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      setError('Password must contain at least one uppercase letter');
+      return false;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setError('Password must contain at least one number');
+      return false;
+    }
+
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      setError('Password must contain at least one special character');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!validatePassword()) {
       return;
     }
 
     setIsLoading(true);
+
     try {
-      const response = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        credentials: 'include',
+      const body = activeTab === 'link' 
+        ? { token, password }
+        : { otp, password };
+
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...(token && { token }),
-          ...(otpToUse && { otp: otpToUse }),
-          password: data.password,
-        }),
+        body: JSON.stringify(body),
       });
 
-      const responseData = await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
-        // Check for specific error types
-        if (responseData.expired) {
-          setIsExpired(true);
-          setErrorMessage(
-            resetMethod === "otp"
-              ? "Your password reset code has expired. Reset codes are valid for 1 hour."
-              : "Your password reset link has expired. Reset links are valid for 1 hour."
-          );
-        } else {
-          setErrorMessage(
-            responseData.message ||
-            (resetMethod === "otp"
-              ? "Failed to reset password. The code may be invalid or already used."
-              : "Failed to reset password. The link may be invalid or already used.")
-          );
-        }
-        
-        toast({
-          variant: "destructive",
-          title: "Failed to reset password",
-          description: responseData.message || "Please try again or request a new reset code.",
-        });
-        return;
+        throw new Error(data.message || 'Password reset failed');
       }
 
-      setResetSuccess(true);
+      setSuccess(true);
       toast({
-        title: "Password reset successful!",
-        description: "You can now log in with your new password. Redirecting to login...",
+        title: 'Password reset successful!',
+        description: 'You can now sign in with your new password.',
       });
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "An unexpected error occurred. Please try again.");
+
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        setLocation('/login');
+      }, 2000);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Password reset failed. Please try again.';
+      setError(errorMessage);
       toast({
-        variant: "destructive",
-        title: "Failed to reset password",
-        description: "An unexpected error occurred. Please try again or request a new reset code.",
+        title: 'Reset failed',
+        description: errorMessage,
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
-  // Allow manual OTP entry if no token or URL OTP is provided
-  // This section is removed to allow manual OTP entry
-
-  if (resetSuccess) {
+  if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+          <CardHeader className="space-y-1">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-white" />
+              </div>
             </div>
-            <CardTitle className="text-2xl font-bold">Password Reset Complete</CardTitle>
-            <CardDescription>
-              Your password has been successfully reset.
+            <CardTitle className="text-2xl font-bold text-center">Password reset!</CardTitle>
+            <CardDescription className="text-center">
+              Your password has been successfully reset
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground text-center">
-              <p className="mb-2">You can now log in to your account with your new password.</p>
-              <p className="text-xs">Redirecting to login in 3 seconds...</p>
-            </div>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              You can now sign in to your account with your new password.
+            </p>
           </CardContent>
           <CardFooter>
             <Button
+              onClick={() => setLocation('/login')}
               className="w-full"
-              onClick={() => navigate("/login")}
             >
-              Continue to Login
+              Go to sign in
             </Button>
           </CardFooter>
         </Card>
@@ -178,134 +156,159 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            Reset Your Password
-          </CardTitle>
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+              <KeyRound className="w-6 h-6 text-primary-foreground" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">Reset your password</CardTitle>
           <CardDescription className="text-center">
-            {hasToken 
-              ? "Enter your new password below."
-              : hasUrlOtp
-              ? "Enter your new password below. You're using a verification code."
-              : "Enter your 6-digit verification code and new password below."}
+            Enter your new password below
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {isExpired && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {hasToken
-                  ? "Your password reset link has expired. Reset links are valid for 1 hour. Please request a new one."
-                  : "Your password reset code has expired. Reset codes are valid for 1 hour. Please request a new one."}
-              </AlertDescription>
-            </Alert>
-          )}
-          {errorMessage && !isExpired && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {errorMessage}
-              </AlertDescription>
-            </Alert>
-          )}
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {manualOtpMode && (
-              <div className="space-y-2">
-                <Label htmlFor="otp">Verification Code</Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  placeholder="Enter 6-digit code"
-                  maxLength={6}
-                  disabled={isExpired}
-                  {...form.register("otp")}
-                />
-                {form.formState.errors.otp && (
-                  <p className="text-sm text-red-500">
-                    {form.formState.errors.otp.message}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Enter the 6-digit code from your password reset email
-                </p>
-              </div>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
-            
+
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'link' | 'code')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="link">Reset Link</TabsTrigger>
+                <TabsTrigger value="code">Reset Code</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="link" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="token">Reset Token</Label>
+                  <Input
+                    id="token"
+                    type="text"
+                    placeholder="Paste token from email"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    required={activeTab === 'link'}
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Copy the token from the reset email
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="code" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="otp">6-Digit Code</Label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    required={activeTab === 'code'}
+                    disabled={isLoading}
+                    maxLength={6}
+                    pattern="\d{6}"
+                    className="text-center text-2xl tracking-widest"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the 6-digit code from your email
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
-                  type="password"
-                  className="pl-9"
-                  placeholder="Enter new password"
-                  disabled={isExpired}
-                  {...form.register("password")}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  autoComplete="new-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
-              {form.formState.errors.password && (
-                <p className="text-sm text-red-500">
-                  {form.formState.errors.password.message}
-                </p>
-              )}
               <p className="text-xs text-muted-foreground">
-                Password must be at least 8 characters long
+                At least 8 characters with uppercase, lowercase, number, and special character
               </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
-                  type="password"
-                  className="pl-9"
-                  placeholder="Confirm new password"
-                  disabled={isExpired}
-                  {...form.register("confirmPassword")}
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  autoComplete="new-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
-              {form.formState.errors.confirmPassword && (
-                <p className="text-sm text-red-500">
-                  {form.formState.errors.confirmPassword.message}
-                </p>
-              )}
             </div>
+          </CardContent>
 
+          <CardFooter className="flex flex-col space-y-4">
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading || isExpired}
+              disabled={isLoading || (activeTab === 'link' ? !token : otp.length !== 6)}
             >
               {isLoading ? (
-                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Reset Password
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting password...
+                </>
+              ) : (
+                'Reset password'
+              )}
             </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-2">
-          {isExpired && (
-            <Button
-              className="w-full"
-              onClick={() => navigate("/forgot-password")}
-            >
-              Request New Reset Code
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => navigate("/login")}
-          >
-            Back to Login
-          </Button>
-        </CardFooter>
+
+            <div className="text-sm text-center text-muted-foreground">
+              Remember your password?{' '}
+              <Link href="/login">
+                <a className="text-primary hover:underline font-medium">
+                  Sign in
+                </a>
+              </Link>
+            </div>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );

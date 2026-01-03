@@ -10,15 +10,17 @@ interface EnvValidationResult {
   isValid: boolean;
   missingVars: string[];
   errors: string[];
+  warnings: string[];
 }
 
 /**
  * Validates that all required environment variables are set
- * @returns Validation result with missing variables and errors
+ * @returns Validation result with missing variables, errors, and warnings
  */
 export function validateEnvironmentVariables(): EnvValidationResult {
   const missingVars: string[] = [];
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   // Check for DATABASE_URL or individual MySQL credentials
   const hasDatabaseUrl = !!process.env.DATABASE_URL;
@@ -43,6 +45,21 @@ export function validateEnvironmentVariables(): EnvValidationResult {
     if (!process.env.MYSQL_DATABASE) missingVars.push('MYSQL_DATABASE');
   }
 
+  // Check for JWT_SECRET (Required for authentication)
+  if (!process.env.JWT_SECRET) {
+    missingVars.push('JWT_SECRET');
+    errors.push(
+      'JWT_SECRET is required for authentication.\n' +
+      '  Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  } else if (process.env.JWT_SECRET.length < 32) {
+    errors.push(
+      'JWT_SECRET must be at least 32 characters long for security.\n' +
+      '  Current length: ' + process.env.JWT_SECRET.length + ' characters\n' +
+      '  Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
   // Check for Gemini API key
   if (!process.env.GEMINI_API_KEY) {
     missingVars.push('GEMINI_API_KEY');
@@ -52,78 +69,26 @@ export function validateEnvironmentVariables(): EnvValidationResult {
     );
   }
 
-  // Session secret is no longer required (using JWT authentication)
-
-  // Check for JWT secrets (required in production)
-  if (process.env.NODE_ENV === 'production') {
-    if (!process.env.JWT_ACCESS_SECRET) {
-      missingVars.push('JWT_ACCESS_SECRET');
-      errors.push(
-        'JWT_ACCESS_SECRET is required for JWT token authentication in production.\n' +
-        '  Generate a secure secret: openssl rand -base64 32\n' +
-        '  or: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"'
-      );
-    } else if (process.env.JWT_ACCESS_SECRET.length < 32) {
-      errors.push(
-        'JWT_ACCESS_SECRET must be at least 32 characters long for security.\n' +
-        '  Generate a secure secret: openssl rand -base64 32'
-      );
-    }
-
-    if (!process.env.JWT_REFRESH_SECRET) {
-      missingVars.push('JWT_REFRESH_SECRET');
-      errors.push(
-        'JWT_REFRESH_SECRET is required for JWT token refresh in production.\n' +
-        '  Generate a secure secret: openssl rand -base64 32\n' +
-        '  or: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"'
-      );
-    } else if (process.env.JWT_REFRESH_SECRET.length < 32) {
-      errors.push(
-        'JWT_REFRESH_SECRET must be at least 32 characters long for security.\n' +
-        '  Generate a secure secret: openssl rand -base64 32'
-      );
-    }
-
-    // Ensure JWT secrets are different
-    if (process.env.JWT_ACCESS_SECRET && 
-        process.env.JWT_REFRESH_SECRET && 
-        process.env.JWT_ACCESS_SECRET === process.env.JWT_REFRESH_SECRET) {
-      errors.push(
-        'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different for security.\n' +
-        '  Generate two different secrets using: openssl rand -base64 32'
-      );
-    }
-  }
-
-  // Check for email service configuration (Gmail SMTP)
-  const hasGmailConfig = !!process.env.GMAIL_USER && !!process.env.GMAIL_APP_PASSWORD;
-
-  if (process.env.NODE_ENV === 'production' && !hasGmailConfig) {
-    errors.push(
-      'Email service configuration is required for production. Please provide:\n' +
-      '  - GMAIL_USER (your Gmail address)\n' +
-      '  - GMAIL_APP_PASSWORD (16-character app password from Google)\n' +
-      '  Get Gmail App Password from: https://myaccount.google.com/apppasswords'
-    );
-    
-    if (!process.env.GMAIL_USER) missingVars.push('GMAIL_USER');
-    if (!process.env.GMAIL_APP_PASSWORD) missingVars.push('GMAIL_APP_PASSWORD');
-  }
-
-  // Check for APP_URL (required for email links)
-  if (!process.env.APP_URL) {
-    missingVars.push('APP_URL');
-    errors.push(
-      'APP_URL is required for generating email verification and password reset links.\n' +
-      '  Development: http://localhost:5000\n' +
-      '  Production: https://your-domain.com'
+  // Check for email configuration (Optional but recommended)
+  const emailVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'];
+  const missingEmailVars = emailVars.filter(key => !process.env[key]);
+  
+  if (missingEmailVars.length > 0) {
+    warnings.push(
+      '⚠️  Email service not fully configured. Email features will be disabled.\n' +
+      '  Missing: ' + missingEmailVars.join(', ') + '\n' +
+      '  Email is required for:\n' +
+      '    - Email verification during registration\n' +
+      '    - Password reset functionality\n' +
+      '    - Account security notifications'
     );
   }
 
   return {
-    isValid: missingVars.length === 0,
+    isValid: missingVars.length === 0 && errors.length === 0,
     missingVars,
-    errors
+    errors,
+    warnings
   };
 }
 
@@ -150,6 +115,14 @@ export function validateEnvOrExit(): void {
     process.exit(1);
   }
 
+  // Display warnings if any
+  if (result.warnings.length > 0) {
+    console.log('⚠️  Configuration Warnings:\n');
+    result.warnings.forEach(warning => {
+      console.log(`  ${warning}\n`);
+    });
+  }
+
   console.log('✅ Environment variables validated successfully\n');
 }
 
@@ -170,6 +143,14 @@ export function logEnvironmentConfig(): void {
     console.log(`  - Database Name: ${process.env.MYSQL_DATABASE}`);
   }
   
+  // JWT config
+  if (process.env.JWT_SECRET) {
+    const secretLength = process.env.JWT_SECRET.length;
+    console.log(`  - JWT Secret: Configured (${secretLength} characters)`);
+    console.log(`  - JWT Access Token Expiry: ${process.env.JWT_ACCESS_EXPIRY || '15m'}`);
+    console.log(`  - JWT Refresh Token Expiry: ${process.env.JWT_REFRESH_EXPIRY || '7d'}`);
+  }
+  
   // Gemini config
   const apiKey = process.env.GEMINI_API_KEY || '';
   if (apiKey) {
@@ -177,19 +158,20 @@ export function logEnvironmentConfig(): void {
     console.log(`  - Gemini API Key: ${maskedKey}`);
   }
   
-  // JWT config
-  console.log(`  - JWT Access Secret: ${process.env.JWT_ACCESS_SECRET ? '✓ Set' : '✗ Not set'}`);
-  console.log(`  - JWT Refresh Secret: ${process.env.JWT_REFRESH_SECRET ? '✓ Set' : '✗ Not set'}`);
-  
-  // Email service config
-  const hasGmailConfig = !!process.env.GMAIL_USER && !!process.env.GMAIL_APP_PASSWORD;
-  
-  if (hasGmailConfig) {
-    console.log(`  - Email Service: Gmail SMTP (${process.env.GMAIL_USER})`);
+  // Email config
+  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+    console.log(`  - Email Service: Configured (${process.env.SMTP_HOST})`);
+    console.log(`  - Email From: ${process.env.SMTP_FROM_NAME || 'StudyForge'} <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`);
   } else {
-    console.log('  - Email Service: Development mode (console logging)');
+    console.log('  - Email Service: Not configured (email features disabled)');
   }
   
-  console.log(`  - From Email: ${process.env.FROM_EMAIL || 'Not set (will use default)'}`);
+  // Security config
+  console.log(`  - BCrypt Rounds: ${process.env.BCRYPT_ROUNDS || '12'}`);
+  console.log(`  - Verification Token Expiry: ${process.env.TOKEN_EXPIRY_HOURS_VERIFICATION || '24'} hours`);
+  console.log(`  - Reset Token Expiry: ${process.env.TOKEN_EXPIRY_HOURS_RESET || '1'} hour`);
+  console.log(`  - Rate Limit Window: ${process.env.RATE_LIMIT_WINDOW_MS || '900000'}ms`);
+  console.log(`  - Rate Limit Max Requests: ${process.env.RATE_LIMIT_MAX_REQUESTS || '5'}`);
+  
   console.log('');
 }

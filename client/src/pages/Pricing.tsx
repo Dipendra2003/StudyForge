@@ -38,7 +38,7 @@ export default function Pricing() {
                   <CardTitle className="text-2xl">Free</CardTitle>
                   <CardDescription>Perfect for getting started</CardDescription>
                   <div className="mt-4">
-                    <span className="text-4xl font-bold">$0</span>
+                    <span className="text-4xl font-bold">₹0</span>
                     <span className="text-gray-500 ml-2">/ month</span>
                   </div>
                 </CardHeader>
@@ -85,7 +85,7 @@ export default function Pricing() {
                   <CardTitle className="text-2xl">Plus</CardTitle>
                   <CardDescription>For serious students</CardDescription>
                   <div className="mt-4">
-                    <span className="text-4xl font-bold">$9.99</span>
+                    <span className="text-4xl font-bold">₹99</span>
                     <span className="text-gray-500 ml-2">/ month</span>
                   </div>
                 </CardHeader>
@@ -137,7 +137,7 @@ export default function Pricing() {
                   <CardTitle className="text-2xl">Pro</CardTitle>
                   <CardDescription>For educational institutions</CardDescription>
                   <div className="mt-4">
-                    <span className="text-4xl font-bold">$19.99</span>
+                    <span className="text-4xl font-bold">₹199</span>
                     <span className="text-gray-500 ml-2">/ month</span>
                   </div>
                 </CardHeader>

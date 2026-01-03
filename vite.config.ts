@@ -11,9 +11,7 @@ export default defineConfig({
     react({
       // Babel optimizations
       babel: {
-        plugins: [
-          // Add any babel plugins here if needed
-        ],
+        plugins: [],
       },
     }),
   ],
@@ -27,13 +25,25 @@ export default defineConfig({
   root: path.resolve(__dirname, "client"),
   // Development server optimizations
   server: {
+    port: 5173,
+    strictPort: false,
     hmr: {
       overlay: true,
+      protocol: 'ws',
+      host: 'localhost',
     },
     // Faster file watching
     watch: {
-      usePolling: false, // Use native file system events (faster)
-      interval: 100, // Polling interval if usePolling is true
+      usePolling: false,
+      interval: 100,
+    },
+    // Warm up frequently used files
+    warmup: {
+      clientFiles: [
+        './client/src/App.tsx',
+        './client/src/main.tsx',
+        './client/src/pages/Dashboard.tsx',
+      ],
     },
   },
   build: {
@@ -78,15 +88,18 @@ export default defineConfig({
       '@hookform/resolvers',
       'zod',
     ],
-    // Force optimization of these dependencies
-    force: false,
+    exclude: ['@google/generative-ai'],
   },
   // Esbuild optimizations for faster builds
   esbuild: {
     logOverride: { 'this-is-undefined-in-esm': 'silent' },
-    // Faster minification in development
     minifyIdentifiers: process.env.NODE_ENV === 'production',
     minifySyntax: true,
     minifyWhitespace: process.env.NODE_ENV === 'production',
+    target: 'es2020',
+  },
+  // CSS optimization
+  css: {
+    devSourcemap: false,
   },
 });

@@ -23,6 +23,7 @@ import DocumentSummarization from "@/pages/DocumentSummarization";
 import Flashcards from "@/pages/Flashcards";
 import StudyPlanner from "@/pages/StudyPlanner";
 import QuizMode from "@/pages/QuizMode";
+import SharedQuiz from "@/pages/SharedQuiz";
 import About from "@/pages/About";
 import Policy from "@/pages/Policy";
 import Terms from "@/pages/Terms";
@@ -30,6 +31,7 @@ import Pricing from "@/pages/Pricing";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Help from "@/pages/Help";
+import AuthDebug from "@/pages/AuthDebug";
 
 // Auth context is now imported from @/contexts/AuthContext
 
@@ -42,11 +44,23 @@ function HomePage() {
 }
 
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
+
+  console.log('[PrivateRoute]', rest.path, '- isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user);
+
+  // Use effect to handle redirect to avoid setState during render
+  useEffect(() => {
+    console.log('[PrivateRoute] useEffect', rest.path, '- isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
+    if (!isLoading && !isAuthenticated) {
+      console.log('[PrivateRoute] Redirecting to /login from', rest.path);
+      setLocation("/login");
+    }
+  }, [isLoading, isAuthenticated, setLocation]);
 
   // Show loading state while checking authentication
   if (isLoading) {
+    console.log('[PrivateRoute] Showing loading spinner for', rest.path);
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -54,13 +68,13 @@ function PrivateRoute({ component: Component, ...rest }: { component: React.Comp
     );
   }
 
-  // Only redirect if not authenticated
-  // This prevents unnecessary re-renders and redirects
+  // If not authenticated, show nothing (redirect will happen in useEffect)
   if (!isAuthenticated) {
-    setLocation("/login");
+    console.log('[PrivateRoute] Not authenticated, returning null for', rest.path);
     return null;
   }
 
+  console.log('[PrivateRoute] Rendering component for', rest.path);
   return <Component {...rest} />;
 }
 
@@ -79,6 +93,7 @@ function Router() {
       <PrivateRoute path="/flashcards" component={Flashcards} />
       <PrivateRoute path="/study-planner" component={StudyPlanner} />
       <PrivateRoute path="/quiz-mode" component={QuizMode} />
+      <Route path="/quiz/shared/:linkId" component={SharedQuiz} />
       <PrivateRoute path="/profile" component={Profile} />
       <PrivateRoute path="/settings" component={Settings} />
       <PrivateRoute path="/help" component={Help} />
@@ -86,6 +101,7 @@ function Router() {
       <Route path="/privacy-policy" component={Policy} />
       <Route path="/terms" component={Terms} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/auth-debug" component={AuthDebug} />
       <Route path="/" component={HomePage} />
     </Switch>
   );

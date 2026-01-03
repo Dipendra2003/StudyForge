@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import crypto from 'crypto';
+import { AIError, AIErrorCode } from '../utils/ai-errors';
 
 /**
  * Chat message interface compatible with Gemini API
@@ -238,28 +239,10 @@ class RetryHandler {
   }
 
   /**
-   * Convert technical errors to user-friendly messages
+   * Convert technical errors to user-friendly AIError messages
    */
-  private getUserFriendlyError(error: Error): Error {
-    const errorMessage = error.message.toLowerCase();
-
-    if (errorMessage.includes('api key') || errorMessage.includes('unauthorized')) {
-      return new Error('AI service configuration error. Please contact support.');
-    }
-
-    if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-      return new Error('Too many requests. Please wait a moment before trying again.');
-    }
-
-    if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
-      return new Error('Connection issue. Please check your internet and try again.');
-    }
-
-    if (errorMessage.includes('invalid') || errorMessage.includes('400')) {
-      return new Error('Invalid request. Please check your input and try again.');
-    }
-
-    return new Error('We\'re experiencing high demand. Please try again in a moment.');
+  private getUserFriendlyError(error: Error): AIError {
+    return AIError.fromError(error);
   }
 
   /**

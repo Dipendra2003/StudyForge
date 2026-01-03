@@ -1,173 +1,95 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useToast } from "@/hooks/use-toast";
-import { Mail, ArrowLeft } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Icons } from "@/components/ui/icons";
-import { OTPInput } from "@/components/OTPInput";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-});
-
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+import { useState } from 'react';
+import { Link } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, KeyRound, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ForgotPassword() {
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
+  const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const { toast } = useToast();
 
-  const form = useForm<ForgotPasswordFormValues>({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: {
-      email: "",
-    },
-  });
-
-  async function onSubmit(data: ForgotPasswordFormValues) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
     setIsLoading(true);
+
     try {
-      const response = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        credentials: 'include',
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ email }),
       });
 
-      const responseData = await response.json();
+      const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(responseData.message || "Failed to send reset email");
-      }
-
-      // Only show success if email was actually sent
-      if (responseData.emailSent) {
-        setEmailSent(true);
-        toast({
-          title: "Email sent!",
-          description: "Check your inbox for password reset instructions.",
-        });
-      } else {
-        throw new Error(responseData.message || "Failed to send reset email");
-      }
-    } catch (error) {
+      // Always show success message for security (don't reveal if email exists)
+      setSuccess(true);
       toast({
-        variant: "destructive",
-        title: "Failed to send email",
-        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again later.",
+        title: 'Reset email sent!',
+        description: 'If an account exists with this email, you will receive password reset instructions.',
       });
+    } catch (err: any) {
+      // Even on error, show success message for security
+      setSuccess(true);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
-  async function handleOtpComplete(otpValue: string) {
-    setIsVerifyingOtp(true);
-    try {
-      // Navigate to reset password page with OTP
-      navigate(`/reset-password?otp=${otpValue}`);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Invalid OTP",
-        description: "Please check the code and try again.",
-      });
-    } finally {
-      setIsVerifyingOtp(false);
-    }
-  }
-
-  if (emailSent) {
+  if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-6 w-6 text-primary" />
+          <CardHeader className="space-y-1">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-white" />
+              </div>
             </div>
-            <CardTitle className="text-2xl font-bold">Check Your Email</CardTitle>
-            <CardDescription>
-              We've sent password reset instructions to your email address.
+            <CardTitle className="text-2xl font-bold text-center">Check your email</CardTitle>
+            <CardDescription className="text-center">
+              Password reset instructions sent
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-              <p className="mb-2">
-                If you don't see the email in your inbox, please check your spam folder.
-              </p>
-              <p>
-                The reset link and code will expire in 1 hour for security reasons.
-              </p>
-            </div>
-
-            <Tabs defaultValue="link" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="link">Email Link</TabsTrigger>
-                <TabsTrigger value="otp">Enter Code</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="link" className="space-y-4 mt-4">
-                <div className="text-center text-sm text-muted-foreground">
-                  <p>Click the link in your email to reset your password.</p>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="otp" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label className="text-center block">Enter 6-digit code from email</Label>
-                  <OTPInput
-                    length={6}
-                    onComplete={handleOtpComplete}
-                    disabled={isVerifyingOtp}
-                    autoSubmit={true}
-                  />
-                  {isVerifyingOtp && (
-                    <div className="flex justify-center">
-                      <Icons.spinner className="h-4 w-4 animate-spin" />
-                    </div>
-                  )}
-                  <p className="text-xs text-center text-muted-foreground">
-                    The code will automatically verify when complete
-                  </p>
-                </div>
-              </TabsContent>
-            </Tabs>
+            <p className="text-sm text-muted-foreground text-center">
+              If an account exists with <strong>{email}</strong>, you will receive an email with instructions to reset your password.
+            </p>
+            <p className="text-sm text-muted-foreground text-center">
+              The email contains both a reset link and a 6-digit code that you can use.
+            </p>
+            <Alert>
+              <AlertDescription className="text-sm">
+                <strong>Didn't receive the email?</strong>
+                <ul className="mt-2 ml-4 list-disc space-y-1">
+                  <li>Check your spam folder</li>
+                  <li>Make sure you entered the correct email</li>
+                  <li>Wait a few minutes and try again</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
           </CardContent>
-          <CardFooter className="flex flex-col gap-2">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => navigate("/login")}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Login
-            </Button>
-            <Button
-              variant="link"
-              className="w-full"
-              onClick={() => setEmailSent(false)}
-            >
-              Didn't receive the email? Try again
-            </Button>
+          <CardFooter className="flex flex-col space-y-2">
+            <Link href="/reset-password">
+              <Button className="w-full">
+                Go to reset password page
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button variant="outline" className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to sign in
+              </Button>
+            </Link>
           </CardFooter>
         </Card>
       </div>
@@ -175,69 +97,71 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            Forgot Password?
-          </CardTitle>
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+              <KeyRound className="w-6 h-6 text-primary-foreground" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">Forgot password?</CardTitle>
           <CardDescription className="text-center">
-            Enter your email address and we'll send you instructions to reset your password.
+            Enter your email to receive reset instructions
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  className="pl-9"
-                  placeholder="Enter your email"
-                  {...form.register("email")}
-                />
-              </div>
-              {form.formState.errors.email && (
-                <p className="text-sm text-red-500">
-                  {form.formState.errors.email.message}
-                </p>
-              )}
-            </div>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+                autoComplete="email"
+              />
+              <p className="text-xs text-muted-foreground">
+                We'll send password reset instructions to this email
+              </p>
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-col space-y-4">
             <Button
               type="submit"
               className="w-full"
               disabled={isLoading}
             >
               {isLoading ? (
-                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Send Reset Instructions
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send reset instructions'
+              )}
             </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-2">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => navigate("/login")}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Login
-          </Button>
-          <div className="text-sm text-center text-muted-foreground">
-            Don't have an account?{" "}
-            <Button
-              variant="link"
-              className="p-0"
-              onClick={() => navigate("/register")}
-            >
-              Sign up
-            </Button>
-          </div>
-        </CardFooter>
+
+            <div className="text-sm text-center text-muted-foreground">
+              Remember your password?{' '}
+              <Link href="/login">
+                <a className="text-primary hover:underline font-medium">
+                  Sign in
+                </a>
+              </Link>
+            </div>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );

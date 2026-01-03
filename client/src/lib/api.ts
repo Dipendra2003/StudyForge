@@ -1,149 +1,106 @@
 /**
- * Authenticated fetch wrapper for API calls
- * Automatically includes credentials (httpOnly cookies) and handles 401 responses
+ * API utility functions for making authenticated requests
  */
 
-export interface AuthenticatedFetchOptions extends RequestInit {
-  // Allow overriding default options
+interface FetchOptions extends RequestInit {
+  headers?: Record<string, string>;
 }
 
 /**
- * Wrapper around fetch that automatically includes credentials and handles authentication errors
- * @param url - The URL to fetch
- * @param options - Fetch options (credentials: 'include' is added automatically)
- * @returns Promise with the fetch response
+ * Make an authenticated API request with automatic token inclusion
  */
-export async function authenticatedFetch(
-  url: string,
-  options: AuthenticatedFetchOptions = {}
-): Promise<Response> {
-  // Merge options with defaults
-  const fetchOptions: RequestInit = {
-    ...options,
-    credentials: 'include', // Always include httpOnly cookies
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+export async function fetchWithAuth(url: string, options: FetchOptions = {}): Promise<Response> {
+  const token = localStorage.getItem('accessToken');
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers,
   };
 
-  try {
-    const response = await fetch(url, fetchOptions);
-
-    // Handle token refresh automatically - backend middleware handles this
-    // If still 401 after refresh attempt, user needs to log in again
-    if (response.status === 401) {
-      // Check if we're not already on the login page to avoid redirect loop
-      if (!window.location.pathname.includes('/login')) {
-        // Store the current path to redirect back after login
-        sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
-        
-        // Redirect to login
-        window.location.href = '/login';
-      }
-    }
-
-    return response;
-  } catch (error) {
-    // Handle network errors
-    throw error;
+  // Add Authorization header if token exists
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
+
+  return fetch(url, {
+    ...options,
+    headers,
+    credentials: 'include', // Always include cookies for refresh token
+  });
 }
 
 /**
- * Helper function for GET requests
+ * Make an authenticated GET request
  */
-export async function authenticatedGet<T = any>(url: string): Promise<T> {
-  const response = await authenticatedFetch(url, { method: 'GET' });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      message: `HTTP ${response.status}: ${response.statusText}`
-    }));
-    throw errorData;
-  }
-  
-  return response.json();
+export async function apiGet(url: string): Promise<Response> {
+  return fetchWithAuth(url, { method: 'GET' });
 }
 
 /**
- * Helper function for POST requests
+ * Make an authenticated POST request
  */
-export async function authenticatedPost<T = any>(
-  url: string,
-  data?: any
-): Promise<T> {
-  const response = await authenticatedFetch(url, {
+export async function apiPost(url: string, data?: any): Promise<Response> {
+  return fetchWithAuth(url, {
     method: 'POST',
     body: data ? JSON.stringify(data) : undefined,
   });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      message: `HTTP ${response.status}: ${response.statusText}`
-    }));
-    throw errorData;
-  }
-  
-  return response.json();
 }
 
 /**
- * Helper function for PATCH requests
+ * Make an authenticated PUT request
  */
-export async function authenticatedPatch<T = any>(
-  url: string,
-  data?: any
-): Promise<T> {
-  const response = await authenticatedFetch(url, {
-    method: 'PATCH',
-    body: data ? JSON.stringify(data) : undefined,
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      message: `HTTP ${response.status}: ${response.statusText}`
-    }));
-    throw errorData;
-  }
-  
-  return response.json();
-}
-
-/**
- * Helper function for PUT requests
- */
-export async function authenticatedPut<T = any>(
-  url: string,
-  data?: any
-): Promise<T> {
-  const response = await authenticatedFetch(url, {
+export async function apiPut(url: string, data?: any): Promise<Response> {
+  return fetchWithAuth(url, {
     method: 'PUT',
     body: data ? JSON.stringify(data) : undefined,
   });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      message: `HTTP ${response.status}: ${response.statusText}`
-    }));
-    throw errorData;
-  }
-  
-  return response.json();
 }
 
 /**
- * Helper function for DELETE requests
+ * Make an authenticated DELETE request
  */
-export async function authenticatedDelete<T = any>(url: string): Promise<T> {
-  const response = await authenticatedFetch(url, { method: 'DELETE' });
+export async function apiDelete(url: string): Promise<Response> {
+  return fetchWithAuth(url, { method: 'DELETE' });
+}
+
+/**
+ * Make an authenticated PATCH request
+ */
+export async function apiPatch(url: string, data?: any): Promise<Response> {
+  return fetchWithAuth(url, {
+    method: 'PATCH',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+}
+
+/**
+ * Quiz API functions
+ */
+
+export interface MotivationRequest {
+  isCorrect?: boolean;
+  streak?: number;
+  score?: number;
+  totalQuestions?: number;
+  questionsAnswered?: number;
+  type?: 'answer' | 'periodic';
+}
+
+export interface MotivationResponse {
+  success: boolean;
+  motivation: string;
+}
+
+/**
+ * Generate motivational feedback based on performance
+ */
+export async function generateMotivation(data: MotivationRequest): Promise<string> {
+  const response = await apiPost('/api/quiz/motivation', data);
   
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      message: `HTTP ${response.status}: ${response.statusText}`
-    }));
-    throw errorData;
+    throw new Error('Failed to generate motivation');
   }
   
-  return response.json();
+  const result: MotivationResponse = await response.json();
+  return result.motivation;
 }

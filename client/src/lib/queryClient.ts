@@ -29,6 +29,9 @@ export async function apiRequest<T = any>(
     }
   }
 
+  // Get authentication token
+  const token = localStorage.getItem('accessToken');
+
   // Setup request options
   const requestOptions: RequestInit = {
     method,
@@ -37,6 +40,14 @@ export async function apiRequest<T = any>(
     },
     credentials: "include",
   };
+
+  // Add Authorization header if token exists
+  if (token) {
+    requestOptions.headers = {
+      'Authorization': `Bearer ${token}`,
+      ...requestOptions.headers,
+    };
+  }
 
   // Add body for non-GET requests
   if (method !== "GET") {

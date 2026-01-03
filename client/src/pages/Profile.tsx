@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,10 @@ import { Icons } from "@/components/ui/icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { User, Mail, Calendar, Award, TrendingUp, BookOpen, Code, FileText } from "lucide-react";
+import BadgeCollection from "@/components/quiz/BadgeCollection";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -58,9 +61,7 @@ export default function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch("/api/profile", {
-        credentials: 'include',
-      });
+      const response = await apiGet("/api/profile");
       
       if (!response.ok) {
         throw new Error("Failed to load profile");
@@ -90,14 +91,7 @@ export default function Profile() {
     setIsSaving(true);
     
     try {
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
+      const response = await apiPatch("/api/profile", formData);
       
       if (!response.ok) {
         throw new Error("Failed to update profile");
@@ -146,16 +140,9 @@ export default function Profile() {
     setIsChangingPassword(true);
     
     try {
-      const response = await fetch("/api/profile/change-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-        }),
+      const response = await apiPost("/api/profile/change-password", {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
       });
       
       const data = await response.json();
@@ -233,7 +220,17 @@ export default function Profile() {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="badges">
+              <Award className="h-4 w-4 mr-2" />
+              Badges
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6 mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Profile Overview Card */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -461,6 +458,18 @@ export default function Profile() {
             </motion.div>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="badges" className="mt-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <BadgeCollection />
+            </motion.div>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

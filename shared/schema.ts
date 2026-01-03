@@ -16,15 +16,23 @@ export const users = mysqlTable("users", {
   role: varchar("role", { length: 20 }).default("user").notNull(), // For role-based access control
   lastLogin: timestamp("last_login", { mode: 'date' }), // Track login times for security
   isActive: boolean("is_active").default(true), // For account activation/deactivation
-  // Email verification fields (supports both link and OTP)
-  emailVerified: boolean("email_verified").default(false),
-  verificationToken: varchar("verification_token", { length: 255 }), // For link-based verification
-  verificationOtp: varchar("verification_otp", { length: 6 }), // For OTP-based verification
+  
+  // Email verification fields
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  verificationToken: text("verification_token"),
+  verificationOtp: varchar("verification_otp", { length: 6 }),
   verificationTokenExpiry: timestamp("verification_token_expiry", { mode: 'date' }),
-  // Password reset fields (supports both link and OTP)
-  resetToken: varchar("reset_token", { length: 255 }), // For link-based reset
-  resetOtp: varchar("reset_otp", { length: 6 }), // For OTP-based reset
+  
+  // Password reset fields
+  resetToken: text("reset_token"),
+  resetOtp: varchar("reset_otp", { length: 6 }),
   resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'date' }),
+  
+  // Security tracking fields
+  failedLoginAttempts: int("failed_login_attempts").default(0),
+  lastFailedLogin: timestamp("last_failed_login", { mode: 'date' }),
+  accountLockedUntil: timestamp("account_locked_until", { mode: 'date' }),
+  
   createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
 }, (table) => {
@@ -36,39 +44,58 @@ export const users = mysqlTable("users", {
   }
 });
 
-// Authentication records (keeps track of sessions, login attempts, etc.)
-export const authentication = mysqlTable("authentication", {
-  id: int().autoincrement().primaryKey(),
+// Refresh tokens for JWT authentication
+export const refreshTokens = mysqlTable("refresh_tokens", {
+  id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: varchar("token", { length: 255 }),
-  provider: varchar("provider", { length: 20 }).default("local").notNull(), // For OAuth integration (local, google, etc.)
-  refreshToken: text("refresh_token"),
-  expiresAt: timestamp("expires_at"),
-  ipAddress: varchar("ip_address", { length: 50 }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { mode: 'date' }).notNull(),
+  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+  
+  // Optional: Track device/IP for security
   userAgent: text("user_agent"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
 }, (table) => {
   return {
-    userIdIdx: index("auth_user_id_idx").on(table.userId),
-    tokenIdx: index("auth_token_idx").on(table.token),
+    userIdIdx: index("refresh_tokens_user_id_idx").on(table.userId),
+    tokenIdx: index("refresh_tokens_token_idx").on(table.token),
+    expiresAtIdx: index("refresh_tokens_expires_at_idx").on(table.expiresAt),
   }
 });
 
-// Refresh tokens table for secure session management
-export const refreshTokens = mysqlTable("refresh_tokens", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: varchar("token", { length: 500 }).notNull().unique(),
-  expiresAt: timestamp("expires_at", { mode: 'date' }).notNull(),
-  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
-  revokedAt: timestamp("revoked_at", { mode: 'date' }),
-  ipAddress: varchar("ip_address", { length: 50 }),
-  userAgent: text("user_agent"),
+// Email logs for tracking email sending attempts
+export const emailLogs = mysqlTable("email_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").references(() => users.id, { onDelete: 'set null' }),
+  emailType: varchar("email_type", { length: 50 }).notNull(), // verification, reset, notification
+  recipient: varchar("recipient", { length: 100 }).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull(), // sent, failed, pending
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at", { mode: 'date' }).defaultNow().notNull(),
 }, (table) => {
   return {
-    userIdIdx: index("rt_user_id_idx").on(table.userId),
-    tokenIdx: index("rt_token_idx").on(table.token),
-    expiresAtIdx: index("rt_expires_at_idx").on(table.expiresAt),
+    userIdIdx: index("email_logs_user_id_idx").on(table.userId),
+    emailTypeIdx: index("email_logs_email_type_idx").on(table.emailType),
+    sentAtIdx: index("email_logs_sent_at_idx").on(table.sentAt),
+  }
+});
+
+// Security audit logs for tracking authentication events
+export const securityAuditLogs = mysqlTable("security_audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").references(() => users.id, { onDelete: 'set null' }),
+  action: varchar("action", { length: 50 }).notNull(), // login, logout, register, verify, reset, etc.
+  status: varchar("status", { length: 20 }).notNull(), // success, failure
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  details: json("details"), // Additional context
+  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("security_audit_logs_user_id_idx").on(table.userId),
+    actionIdx: index("security_audit_logs_action_idx").on(table.action),
+    createdAtIdx: index("security_audit_logs_created_at_idx").on(table.createdAt),
   }
 });
 
@@ -167,6 +194,89 @@ export const mcqs = mysqlTable("mcqs", {
     docIdIdx: index("mcq_doc_id_idx").on(table.documentId),
     difficultyIdx: index("mcq_difficulty_idx").on(table.difficulty), // For adaptive quizzes
     categoryIdx: index("mcq_category_idx").on(table.category), // For subject-specific quizzes
+  }
+});
+
+// Questions table for AI-Powered Quiz System (supports multiple question types)
+export const questions = mysqlTable("questions", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar("type", { length: 20 }).notNull(), // mcq, true-false, fill-blank, matching, rearrange
+  question: text("question").notNull(),
+  questionData: json("question_data").notNull(), // Type-specific data (options, pairs, items, etc.)
+  correctAnswer: json("correct_answer").notNull(), // Can be string, array, or object depending on type
+  explanation: text("explanation"),
+  category: varchar("category", { length: 50 }).notNull(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
+  tags: json("tags"), // Array of tags
+  hints: json("hints"), // Array of hints
+  isPublic: boolean("is_public").default(false),
+  usageCount: int("usage_count").default(0),
+  averageScore: int("average_score").default(0), // Score * 100 for precision
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("q_user_id_idx").on(table.userId),
+    typeIdx: index("q_type_idx").on(table.type),
+    categoryIdx: index("q_category_idx").on(table.category),
+    difficultyIdx: index("q_difficulty_idx").on(table.difficulty),
+    createdAtIdx: index("q_created_at_idx").on(table.createdAt),
+  }
+});
+
+// Quiz sessions for tracking active quizzes
+export const quizSessions = mysqlTable("quiz_sessions", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: varchar("session_id", { length: 100 }).notNull().unique(),
+  category: varchar("category", { length: 50 }).notNull(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull(),
+  questionTypes: json("question_types").notNull(), // Array of question types
+  totalQuestions: int("total_questions").notNull(),
+  currentQuestionIndex: int("current_question_index").default(0),
+  questionsData: json("questions_data").notNull(), // Array of question IDs and metadata
+  answersData: json("answers_data"), // Array of user answers
+  timedMode: boolean("timed_mode").default(false),
+  timeLimit: int("time_limit"), // In seconds
+  timeSpent: int("time_spent").default(0), // In seconds
+  voiceModeEnabled: boolean("voice_mode_enabled").default(false),
+  hintsUsed: int("hints_used").default(0),
+  completed: boolean("completed").default(false),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("qs_user_id_idx").on(table.userId),
+    sessionIdIdx: index("qs_session_id_idx").on(table.sessionId),
+    categoryIdx: index("qs_category_idx").on(table.category),
+    difficultyIdx: index("qs_difficulty_idx").on(table.difficulty),
+    createdAtIdx: index("qs_created_at_idx").on(table.createdAt),
+  }
+});
+
+// User quiz statistics for performance tracking
+export const userQuizStats = mysqlTable("user_quiz_stats", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  totalAttempts: int("total_attempts").default(0),
+  totalQuestions: int("total_questions").default(0),
+  correctAnswers: int("correct_answers").default(0),
+  incorrectAnswers: int("incorrect_answers").default(0),
+  averageScore: int("average_score").default(0), // Score * 100 for precision
+  averageAccuracy: int("average_accuracy").default(0), // Accuracy * 100 for precision
+  totalTimeSpent: int("total_time_spent").default(0), // In seconds
+  currentStreak: int("current_streak").default(0),
+  longestStreak: int("longest_streak").default(0),
+  lastQuizDate: timestamp("last_quiz_date"),
+  categoryStats: json("category_stats"), // Object with category-specific stats
+  difficultyStats: json("difficulty_stats"), // Object with difficulty-specific stats
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("uqs_user_id_idx").on(table.userId),
   }
 });
 
@@ -377,6 +487,87 @@ export const feedback = mysqlTable("feedback", {
   }
 });
 
+// Shareable quiz links for challenging friends
+export const shareableQuizLinks = mysqlTable("shareable_quiz_links", {
+  id: int().autoincrement().primaryKey(),
+  linkId: varchar("link_id", { length: 100 }).notNull().unique(),
+  creatorUserId: int("creator_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  category: varchar("category", { length: 50 }).notNull(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull(),
+  questionsData: json("questions_data").notNull(), // Array of question IDs
+  totalQuestions: int("total_questions").notNull(),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true),
+  viewCount: int("view_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    linkIdIdx: index("sql_link_id_idx").on(table.linkId),
+    creatorIdx: index("sql_creator_idx").on(table.creatorUserId),
+    expiresAtIdx: index("sql_expires_at_idx").on(table.expiresAt),
+  }
+});
+
+// Shared quiz attempts to track who took shared quizzes
+export const sharedQuizAttempts = mysqlTable("shared_quiz_attempts", {
+  id: int().autoincrement().primaryKey(),
+  shareableLinkId: int("shareable_link_id").notNull().references(() => shareableQuizLinks.id, { onDelete: 'cascade' }),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  score: int("score").notNull(),
+  totalQuestions: int("total_questions").notNull(),
+  correctAnswers: int("correct_answers").notNull(),
+  timeSpent: int("time_spent").notNull(),
+  accuracy: int("accuracy").notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    linkIdx: index("sqa_link_idx").on(table.shareableLinkId),
+    userIdx: index("sqa_user_idx").on(table.userId),
+    uniqueUserLink: unique("unique_user_link").on(table.shareableLinkId, table.userId),
+  }
+});
+
+// Saved quizzes for "Save for Later" functionality
+export const savedQuizzes = mysqlTable("saved_quizzes", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  category: varchar("category", { length: 50 }).notNull(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull(),
+  questionTypes: json("question_types").notNull(), // Array of question types
+  questionCount: int("question_count").notNull(),
+  title: varchar("title", { length: 255 }),
+  description: text("description"),
+  savedAt: timestamp("saved_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("sq_user_id_idx").on(table.userId),
+    categoryIdx: index("sq_category_idx").on(table.category),
+    savedAtIdx: index("sq_saved_at_idx").on(table.savedAt),
+  }
+});
+
+// Favorite quizzes for marking quizzes as favorites
+export const favoriteQuizzes = mysqlTable("favorite_quizzes", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  category: varchar("category", { length: 50 }).notNull(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull(),
+  questionTypes: json("question_types").notNull(), // Array of question types
+  questionCount: int("question_count").notNull(),
+  title: varchar("title", { length: 255 }),
+  description: text("description"),
+  favoritedAt: timestamp("favorited_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("fq_user_id_idx").on(table.userId),
+    categoryIdx: index("fq_category_idx").on(table.category),
+    favoritedAtIdx: index("fq_favorited_at_idx").on(table.favoritedAt),
+    uniqueUserQuiz: unique("unique_user_quiz").on(table.userId, table.category, table.difficulty),
+  }
+});
+
 // Define insertion schemas
 export const insertUserSchema = createInsertSchema(users, {
   username: z.string(),
@@ -384,6 +575,32 @@ export const insertUserSchema = createInsertSchema(users, {
   email: z.string(),
   fullName: z.string().optional(),
   preferredLanguage: z.string().optional(),
+});
+
+export const insertRefreshTokenSchema = createInsertSchema(refreshTokens, {
+  userId: z.number(),
+  token: z.string(),
+  expiresAt: z.date(),
+  userAgent: z.string().optional(),
+  ipAddress: z.string().optional(),
+});
+
+export const insertEmailLogSchema = createInsertSchema(emailLogs, {
+  userId: z.number().optional(),
+  emailType: z.string(),
+  recipient: z.string(),
+  subject: z.string(),
+  status: z.enum(["sent", "failed", "pending"]),
+  errorMessage: z.string().optional(),
+});
+
+export const insertSecurityAuditLogSchema = createInsertSchema(securityAuditLogs, {
+  userId: z.number().optional(),
+  action: z.string(),
+  status: z.enum(["success", "failure"]),
+  ipAddress: z.string().optional(),
+  userAgent: z.string().optional(),
+  details: z.any().optional(),
 });
 
 // Waitlist insertion schema removed
@@ -434,6 +651,49 @@ export const insertMcqSchema = z.object({
   documentId: z.number().optional(),
 });
 
+export const insertQuestionSchema = createInsertSchema(questions, {
+  userId: z.number(),
+  type: z.enum(["mcq", "true-false", "fill-blank", "matching", "rearrange"]),
+  question: z.string().min(1, "Question is required"),
+  questionData: z.any(), // JSON data specific to question type
+  correctAnswer: z.any(), // Can be string, array, or object
+  explanation: z.string().optional(),
+  category: z.string().min(1, "Category is required"),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  tags: z.array(z.string()).optional(),
+  hints: z.array(z.string()).optional(),
+  isPublic: z.boolean().optional(),
+});
+
+export const insertQuizSessionSchema = createInsertSchema(quizSessions, {
+  userId: z.number(),
+  sessionId: z.string(),
+  category: z.string(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  questionTypes: z.array(z.enum(["mcq", "true-false", "fill-blank", "matching", "rearrange"])),
+  totalQuestions: z.number().min(1),
+  questionsData: z.any(), // Array of question data
+  timedMode: z.boolean().optional(),
+  timeLimit: z.number().optional(),
+  voiceModeEnabled: z.boolean().optional(),
+});
+
+export const insertUserQuizStatsSchema = createInsertSchema(userQuizStats, {
+  userId: z.number(),
+  totalAttempts: z.number().optional(),
+  totalQuestions: z.number().optional(),
+  correctAnswers: z.number().optional(),
+  incorrectAnswers: z.number().optional(),
+  averageScore: z.number().optional(),
+  averageAccuracy: z.number().optional(),
+  totalTimeSpent: z.number().optional(),
+  currentStreak: z.number().optional(),
+  longestStreak: z.number().optional(),
+  lastQuizDate: z.date().optional(),
+  categoryStats: z.any().optional(),
+  difficultyStats: z.any().optional(),
+});
+
 export const insertCodeSnippetSchema = createInsertSchema(codeSnippets, {
   userId: z.number(),
   title: z.string(),
@@ -478,17 +738,7 @@ export const insertStudyPlanSchema = createInsertSchema(studyPlans, {
   endDate: z.date(),
 });
 
-// Extended schema with validation for forms - waitlist form removed
-
-export const userRegistrationSchema = insertUserSchema.extend({
-  email: z.string().email("Please enter a valid email address"),
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string().min(8, "Password must be at least 8 characters"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+// User registration schema removed - authentication disabled
 
 export const chatMessageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
@@ -525,9 +775,95 @@ export const codeGenerationSchema = z.object({
   category: z.string().optional(),
 });
 
+// ===== AUTHENTICATION REQUEST/RESPONSE SCHEMAS =====
+
+// Registration schema
+export const registerSchema = z.object({
+  username: z.string()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must not exceed 30 characters")
+    .regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, "Username must start with a letter and contain only letters, numbers, underscores, and hyphens"),
+  email: z.string()
+    .email("Invalid email format")
+    .max(100, "Email must not exceed 100 characters"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+  fullName: z.string()
+    .min(1, "Full name is required")
+    .max(100, "Full name must not exceed 100 characters"),
+});
+
+// Login schema
+export const loginSchema = z.object({
+  identifier: z.string()
+    .min(1, "Username or email is required"),
+  password: z.string()
+    .min(1, "Password is required"),
+});
+
+// Email verification schema
+export const verifyEmailSchema = z.object({
+  token: z.string().optional(),
+  otp: z.string().length(6, "OTP must be 6 digits").optional(),
+}).refine(data => data.token || data.otp, {
+  message: "Either token or OTP is required",
+});
+
+// Resend verification schema
+export const resendVerificationSchema = z.object({
+  email: z.string()
+    .email("Invalid email format"),
+});
+
+// Forgot password schema
+export const forgotPasswordSchema = z.object({
+  email: z.string()
+    .email("Invalid email format"),
+});
+
+// Reset password schema
+export const resetPasswordSchema = z.object({
+  token: z.string().optional(),
+  otp: z.string().length(6, "OTP must be 6 digits").optional(),
+  newPassword: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+}).refine(data => data.token || data.otp, {
+  message: "Either token or OTP is required",
+});
+
+// Refresh token schema
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().optional(), // Can come from cookie or body
+});
+
+// API Response schema
+export const apiResponseSchema = <T extends z.ZodType>(dataSchema: T) => z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: dataSchema.optional(),
+  errors: z.array(z.string()).optional(),
+});
+
 // Export types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertRefreshToken = z.infer<typeof insertRefreshTokenSchema>;
+export type RefreshToken = typeof refreshTokens.$inferSelect;
+
+export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+export type EmailLog = typeof emailLogs.$inferSelect;
+
+export type InsertSecurityAuditLog = z.infer<typeof insertSecurityAuditLogSchema>;
+export type SecurityAuditLog = typeof securityAuditLogs.$inferSelect;
 
 // Waitlist types removed
 
@@ -562,6 +898,15 @@ export interface FlashcardAnalytics {
 export type InsertMcq = z.infer<typeof insertMcqSchema>;
 export type Mcq = typeof mcqs.$inferSelect;
 
+export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
+export type Question = typeof questions.$inferSelect;
+
+export type InsertQuizSession = z.infer<typeof insertQuizSessionSchema>;
+export type QuizSession = typeof quizSessions.$inferSelect;
+
+export type InsertUserQuizStats = z.infer<typeof insertUserQuizStatsSchema>;
+export type UserQuizStats = typeof userQuizStats.$inferSelect;
+
 export type InsertCodeSnippet = z.infer<typeof insertCodeSnippetSchema>;
 export type CodeSnippet = typeof codeSnippets.$inferSelect;
 
@@ -582,3 +927,34 @@ export type StudyPlan = typeof studyPlans.$inferSelect;
 
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type CodeGeneration = z.infer<typeof codeGenerationSchema>;
+
+// Authentication types
+export type RegisterRequest = z.infer<typeof registerSchema>;
+export type LoginRequest = z.infer<typeof loginSchema>;
+export type VerifyEmailRequest = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationRequest = z.infer<typeof resendVerificationSchema>;
+export type ForgotPasswordRequest = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordRequest = z.infer<typeof resetPasswordSchema>;
+export type RefreshTokenRequest = z.infer<typeof refreshTokenSchema>;
+
+// Saved quiz schema
+export const insertSavedQuizSchema = createInsertSchema(savedQuizzes, {
+  userId: z.number(),
+  category: z.string().min(1, "Category is required"),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  questionTypes: z.array(z.enum(["mcq", "true-false", "fill-blank", "matching", "rearrange"])),
+  questionCount: z.number().min(1),
+  title: z.string().optional(),
+  description: z.string().optional(),
+});
+
+// Favorite quiz schema
+export const insertFavoriteQuizSchema = createInsertSchema(favoriteQuizzes, {
+  userId: z.number(),
+  category: z.string().min(1, "Category is required"),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  questionTypes: z.array(z.enum(["mcq", "true-false", "fill-blank", "matching", "rearrange"])),
+  questionCount: z.number().min(1),
+  title: z.string().optional(),
+  description: z.string().optional(),
+});

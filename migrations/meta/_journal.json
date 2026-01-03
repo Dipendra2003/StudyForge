@@ -8,6 +8,20 @@
       "when": 1762598260792,
       "tag": "0000_needy_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1763397105734,
+      "tag": "0001_safe_ma_gnuci",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1763457320617,
+      "tag": "0002_fluffy_frog_thor",
+      "breakpoints": true
     }
   ]
 }

@@ -242,8 +242,12 @@ export default function Flashcards() {
   useEffect(() => {
     const fetchUserStats = async () => {
       try {
+        const token = localStorage.getItem('accessToken');
         const response = await fetch("/api/user-stats", {
           credentials: 'include',
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+          },
         });
         
         if (response.ok) {
@@ -282,7 +286,13 @@ export default function Flashcards() {
       });
       
       // Refresh stats
-      fetch("/api/user-stats", { credentials: 'include' })
+      const token = localStorage.getItem('accessToken');
+      fetch("/api/user-stats", { 
+        credentials: 'include',
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      })
         .then(res => res.json())
         .then(data => setUserStats(data.stats))
         .catch(console.error);
@@ -701,7 +711,7 @@ export default function Flashcards() {
                     <SelectLabel>Categories</SelectLabel>
                     {categories.map((category) => (
                       <SelectItem key={category} value={category}>
-                        {category === 'all' ? '📚 All Categories' : `📖 ${category.charAt(0).toUpperCase() + category.slice(1)}`}
+                        {category === 'all' ? '📚 All Categories' : `📖 ${category ? category.charAt(0).toUpperCase() + category.slice(1) : 'Unknown'}`}
                       </SelectItem>
                     ))}
                   </SelectGroup>

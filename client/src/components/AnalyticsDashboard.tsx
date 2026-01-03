@@ -31,7 +31,7 @@ export function AnalyticsDashboard() {
         {/* Summary Stats Skeletons */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
+            <Card key={i} className="glass-light">
               <CardHeader className="pb-2">
                 <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
               </CardHeader>
@@ -44,7 +44,7 @@ export function AnalyticsDashboard() {
         
         {/* Charts Skeletons */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <div className="h-6 w-32 bg-gray-200 rounded animate-pulse" />
             </CardHeader>
@@ -52,7 +52,7 @@ export function AnalyticsDashboard() {
               <div className="h-64 bg-gray-100 rounded animate-pulse" />
             </CardContent>
           </Card>
-          <Card>
+          <Card className="glass-card">
             <CardHeader>
               <div className="h-6 w-32 bg-gray-200 rounded animate-pulse" />
             </CardHeader>
@@ -89,7 +89,7 @@ export function AnalyticsDashboard() {
     <div className="space-y-6" role="main" aria-label="Analytics dashboard">
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" role="region" aria-label="Summary statistics">
-        <Card role="article" aria-label="Total reviews statistic">
+        <Card role="article" aria-label="Total reviews statistic" className="glass-light">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -101,7 +101,7 @@ export function AnalyticsDashboard() {
           </CardContent>
         </Card>
 
-        <Card role="article" aria-label="Average accuracy statistic">
+        <Card role="article" aria-label="Average accuracy statistic" className="glass-light">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-green-500" aria-hidden="true" />
@@ -113,7 +113,7 @@ export function AnalyticsDashboard() {
           </CardContent>
         </Card>
 
-        <Card role="article" aria-label="Current streak statistic">
+        <Card role="article" aria-label="Current streak statistic" className="glass-light">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Flame className="h-4 w-4 text-orange-500" aria-hidden="true" />
@@ -125,7 +125,7 @@ export function AnalyticsDashboard() {
           </CardContent>
         </Card>
 
-        <Card role="article" aria-label="Longest streak statistic">
+        <Card role="article" aria-label="Longest streak statistic" className="glass-light">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Award className="h-4 w-4 text-yellow-500" aria-hidden="true" />
@@ -145,7 +145,7 @@ export function AnalyticsDashboard() {
       />
 
       {/* Review Heatmap */}
-      <Card role="region" aria-labelledby="review-activity-title">
+      <Card role="region" aria-labelledby="review-activity-title" className="glass-card">
         <CardHeader>
           <CardTitle id="review-activity-title">Review Activity</CardTitle>
           <CardDescription>Your study activity over the past 90 days</CardDescription>
@@ -164,7 +164,7 @@ export function AnalyticsDashboard() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Category Accuracy Chart */}
-        <Card role="region" aria-labelledby="category-accuracy-title">
+        <Card role="region" aria-labelledby="category-accuracy-title" className="glass-card">
           <CardHeader>
             <CardTitle id="category-accuracy-title">Accuracy by Category</CardTitle>
             <CardDescription>Performance across different categories</CardDescription>
@@ -181,7 +181,7 @@ export function AnalyticsDashboard() {
         </Card>
 
         {/* Mastery Distribution Chart */}
-        <Card role="region" aria-labelledby="mastery-distribution-title">
+        <Card role="region" aria-labelledby="mastery-distribution-title" className="glass-card">
           <CardHeader>
             <CardTitle id="mastery-distribution-title">Mastery Distribution</CardTitle>
             <CardDescription>Your flashcard mastery levels</CardDescription>

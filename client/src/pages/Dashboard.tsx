@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { apiGet } from "@/lib/api";
 
 import {
   Card,
@@ -18,6 +19,8 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { QuizOfTheDay } from "@/components/quiz/QuizOfTheDay";
+import { AIInsightsPanel } from "@/components/quiz/AIInsightsPanel";
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
@@ -40,9 +43,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchUserStats = async () => {
       try {
-        const response = await fetch("/api/user-stats", {
-          credentials: 'include',
-        });
+        const response = await apiGet("/api/user-stats");
         
         if (!response.ok) {
           throw new Error("Failed to load user statistics");
@@ -72,9 +73,7 @@ export default function Dashboard() {
     
     const fetchDueFlashcards = async () => {
       try {
-        const response = await fetch("/api/flashcards/due?limit=5", {
-          credentials: 'include',
-        });
+        const response = await apiGet("/api/flashcards/due?limit=5");
         
         if (response.ok) {
           const data = await response.json();
@@ -89,9 +88,7 @@ export default function Dashboard() {
     
     const fetchRecommendations = async () => {
       try {
-        const response = await fetch("/api/recommendations", {
-          credentials: 'include',
-        });
+        const response = await apiGet("/api/recommendations");
         
         if (response.ok) {
           const data = await response.json();
@@ -199,6 +196,36 @@ export default function Dashboard() {
 
         {/* Email Verification Banner */}
         <EmailVerificationBanner show={user !== null && !user.emailVerified} />
+
+        {/* Quiz of the Day */}
+        <QuizOfTheDay />
+
+        {/* Saved and Favorite Quizzes */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+        >
+          <Card className="border-2 border-primary/20 shadow-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10">
+                    <BookOpenIcon className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold">My Quizzes</CardTitle>
+                    <CardDescription>Saved and favorite quizzes</CardDescription>
+                  </div>
+                </div>
+                <Button onClick={() => navigate("/quiz-mode")}>
+                  View All
+                  <Icons.arrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+        </motion.div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -363,93 +390,14 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Study Recommendations Widget */}
-        {!loadingRecommendations && recommendations.length > 0 && (
+        {/* AI Insights Panel - Unified Component */}
+        {user && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.5 }}
           >
-            <Card className="border-2 border-yellow-500/20 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-background via-background to-yellow-500/5">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-500/20 to-yellow-500/10">
-                    <Lightbulb className="h-6 w-6 text-yellow-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl font-bold">Personalized Insights</CardTitle>
-                    <CardDescription>Recommendations based on your performance</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {recommendations.slice(0, 3).map((rec, index) => {
-                    const iconMap: Record<string, any> = {
-                      flame: Flame,
-                      trophy: Trophy,
-                      target: Target,
-                      zap: Zap,
-                      book: BookOpenIcon,
-                      refresh: RefreshCw,
-                      'check-circle': CheckCircle,
-                      clock: Clock,
-                      'trending-up': TrendingUp,
-                      upload: Upload,
-                    };
-                    const IconComponent = iconMap[rec.icon || 'lightbulb'] || Lightbulb;
-                    const priorityColors: Record<string, string> = {
-                      high: 'border-red-200 bg-red-50/50 dark:bg-red-950/20',
-                      medium: 'border-yellow-200 bg-yellow-50/50 dark:bg-yellow-950/20',
-                      low: 'border-green-200 bg-green-50/50 dark:bg-green-950/20',
-                    };
-                    
-                    return (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 0.1 * index }}
-                        className={`p-4 rounded-lg border-2 ${priorityColors[rec.priority] || priorityColors.medium} transition-all hover:shadow-md`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-background/50">
-                            <IconComponent className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-semibold text-sm">{rec.title}</h4>
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${
-                                  rec.priority === 'high' ? 'border-red-300 text-red-700' :
-                                  rec.priority === 'medium' ? 'border-yellow-300 text-yellow-700' :
-                                  'border-green-300 text-green-700'
-                                }`}
-                              >
-                                {rec.priority}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-2">{rec.description}</p>
-                            {rec.action && (
-                              <p className="text-xs text-primary font-medium flex items-center gap-1">
-                                <Icons.arrowRight className="h-3 w-3" />
-                                {rec.action}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                  {recommendations.length > 3 && (
-                    <p className="text-sm text-muted-foreground text-center pt-2">
-                      +{recommendations.length - 3} more insights available
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <AIInsightsPanel userId={user.id} />
           </motion.div>
         )}
 

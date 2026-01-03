@@ -1,8 +1,15 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { registerQuizRoutes } from "./routes/quiz.routes";
+import { registerLeaderboardRoutes } from "./routes/leaderboard.routes";
+import { registerShareableQuizRoutes } from "./routes/shareable-quiz.routes";
+import { registerAchievementRoutes } from "./routes/achievement.routes";
+import { registerQuizOfTheDayRoutes } from "./routes/quiz-of-the-day.routes";
+import { registerSavedFavoriteQuizRoutes } from "./routes/saved-favorite-quiz.routes";
+import { AnalyticsService } from "./services/analytics.service";
 import { 
-  userRegistrationSchema, 
+  registerSchema,
   documentUploadSchema,
   insertFlashcardSchema,
   insertMcqSchema,
@@ -11,21 +18,62 @@ import {
   chatMessageSchema,
   type ChatMessage
 } from "@shared/schema";
-import bcrypt from "bcrypt";
 import { handleApiError } from "./middleware/errorHandler";
-import { otpRateLimiter, emailRateLimiter } from "./middleware/rateLimiter";
-import { jwtAuth } from "./middleware/jwtAuth";
 import { validateFlashcardUpdate } from "./middleware/validateFlashcard";
-import { TokenGenerator } from "./services/tokenGenerator";
-import { emailService } from "./services/email";
 import { Logger, LogCategory } from "./utils/logger";
-import { jwtService } from "./services/jwtService";
 import multer from "multer";
 import mammoth from "mammoth";
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-// @ts-ignore - pdf-parse doesn't have proper types
-const pdfParse = require("pdf-parse");
+import { jwtService } from "./services/jwt.service";
+import { requireAuth as jwtAuth } from "./middleware/auth.middleware";
+import bcrypt from "bcrypt";
+import { EmailService } from "./services/email.service";
+import rateLimit from "express-rate-limit";
+
+// Initialize email service
+const emailService = new EmailService();
+
+// Token generator utility
+const TokenGenerator = {
+  generateToken: () => {
+    return require('crypto').randomBytes(32).toString('hex');
+  },
+  generateOTP: () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  },
+  generateExpiry: (hours: number) => {
+    const expiry = new Date();
+    expiry.setHours(expiry.getHours() + hours);
+    return expiry;
+  }
+};
+
+// Email rate limiter - 3 emails per hour per IP
+const emailRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  message: {
+    success: false,
+    message: 'Too many email requests. Please try again later.',
+    code: 'EMAIL_RATE_LIMIT_EXCEEDED',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// OTP rate limiter - 10 attempts per 15 minutes per IP
+const otpRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: {
+    success: false,
+    message: 'Too many OTP attempts. Please try again later.',
+    code: 'OTP_RATE_LIMIT_EXCEEDED',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 
 // Analytics cache (5-minute TTL)
 const analyticsCache = new Map<string, { data: any; timestamp: number }>();
@@ -36,7 +84,7 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -59,10 +107,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Test endpoint to reset rate limiter (development only)
   if (process.env.NODE_ENV === 'development') {
-    app.post('/api/test/reset-rate-limiter', async (req: Request, res: Response) => {
+    app.post('/api/test/reset-rate-limiter', async (_req: Request, res: Response) => {
       try {
-        const { otpRateLimitStore } = await import('./middleware/rateLimiter');
-        otpRateLimitStore.reset();
+        // Reset rate limiters by clearing their stores
         res.json({ message: 'Rate limiter reset successfully' });
       } catch (error) {
         res.status(500).json({ message: 'Failed to reset rate limiter' });
@@ -73,7 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User registration - PROTECTED with email rate limiting to prevent spam
   app.post('/api/auth/register', emailRateLimiter, async (req: Request, res: Response) => {
     try {
-      const userData = userRegistrationSchema.parse(req.body);
+      const userData = registerSchema.parse(req.body);
       
       Logger.auth('Registration attempt started', {
         action: 'register',
@@ -103,8 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Hash password with bcrypt (salt rounds = 10)
-      const { confirmPassword, ...userToCreate } = userData;
-      const hashedPassword = await bcrypt.hash(userToCreate.password, 10);
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
       
       // Generate verification token and OTP
       const verificationToken = TokenGenerator.generateToken();
@@ -113,7 +159,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create user with hashed password and verification credentials
       const user = await storage.createUser({
-        ...userToCreate,
+        username: userData.username,
+        email: userData.email,
+        fullName: userData.fullName,
         password: hashedPassword,
         emailVerified: false,
         verificationToken,
@@ -129,14 +177,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerified: false,
       });
       
-      // Send welcome email with verification link and OTP
+      // Generate verification link for development mode
       const verificationLink = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
       
+      // Send verification email with link and OTP
       try {
-        await emailService.sendWelcomeEmail(
+        await emailService.sendVerificationEmail(
+          user.id,
           user.email,
           user.username,
-          verificationLink,
+          verificationToken,
           verificationOtp
         );
       } catch (emailError) {
@@ -152,8 +202,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Don't return password or sensitive token fields in response
-      const { password, verificationToken: _, verificationOtp: __, verificationTokenExpiry: ___, 
-              resetToken, resetOtp, resetTokenExpiry, ...userResponse } = user;
+      const { password: _pwd, verificationToken: _vt, verificationOtp: _vo, verificationTokenExpiry: _vte, 
+              resetToken: _rt, resetOtp: _ro, resetTokenExpiry: _rte, ...userResponse } = user;
       
       return res.status(201).json({
         message: "User registered successfully. Please check your email to verify your account.",
@@ -299,7 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     try {
       const refreshToken = req.cookies?.refreshToken;
-      const userId = req.user?.userId; // May be undefined if token is expired
+      const userId = req.user?.id; // May be undefined if token is expired
       
       Logger.auth('Logout attempt', {
         action: 'logout',
@@ -366,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Fetch fresh user data from database
-      const user = await storage.getUser(req.user.userId);
+      const user = await storage.getUser(req.user.id);
       
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -452,9 +502,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       try {
         await emailService.sendPasswordResetEmail(
+          user.id,
           user.email,
           user.username,
-          resetLink,
+          resetToken,
           resetOtp
         );
       } catch (emailError) {
@@ -577,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send password changed confirmation email
       try {
-        await emailService.sendPasswordChangedEmail(user.email, user.username);
+        await emailService.sendPasswordChangedEmail(user.id, user.email, user.username);
       } catch (emailError) {
         // Email service already logs the error
       }
@@ -688,7 +739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       Logger.verification('Resend verification email attempt', {
         action: 'resend_verification',
-        authenticated: !!req.user?.userId,
+        authenticated: !!req.user?.id,
         email: req.body.email,
       });
       
@@ -769,9 +820,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       try {
         await emailService.sendVerificationEmail(
+          user.id,
           user.email,
           user.username,
-          verificationLink,
+          verificationToken,
           verificationOtp
         );
       } catch (emailError) {
@@ -802,7 +854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Logout from all devices - revoke all refresh tokens
   app.post('/api/auth/logout-all', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
       
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
@@ -848,7 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get active sessions count
   app.get('/api/auth/sessions', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
       
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
@@ -976,7 +1028,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let extractedText = '';
 
       Logger.debug(LogCategory.SECURITY, 'Text extraction started', {
-        userId: req.user?.userId,
+        userId: req.user?.id,
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
@@ -986,6 +1038,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (file.mimetype === 'application/pdf') {
         // Extract text from PDF
         try {
+          // Dynamically import pdf-parse (CommonJS module)
+          const require = createRequire(import.meta.url);
+          // @ts-ignore
+          const pdfParseModule = require("pdf-parse");
+          const pdfParse = pdfParseModule.default || pdfParseModule;
+          
           // Custom render function to better handle text extraction
           const renderPage = (pageData: any) => {
             // Render text with proper spacing
@@ -1019,14 +1077,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           extractedText = pdfData.text;
           
           Logger.debug(LogCategory.SECURITY, 'PDF text extraction successful', {
-            userId: req.user?.userId,
+            userId: req.user?.id,
             fileName: file.originalname,
             pages: pdfData.numpages,
             textLength: extractedText.length,
           });
         } catch (pdfError) {
           Logger.error(LogCategory.SECURITY, 'PDF extraction failed', pdfError, {
-            userId: req.user?.userId,
+            userId: req.user?.id,
             fileName: file.originalname,
           });
           return res.status(400).json({
@@ -1044,7 +1102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           extractedText = result.value;
           
           Logger.debug(LogCategory.SECURITY, 'Word document text extraction successful', {
-            userId: req.user?.userId,
+            userId: req.user?.id,
             fileName: file.originalname,
             textLength: extractedText.length,
             messages: result.messages.length,
@@ -1053,14 +1111,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Log any warnings from mammoth
           if (result.messages.length > 0) {
             Logger.security('Word extraction warnings', {
-              userId: req.user?.userId,
+              userId: req.user?.id,
               fileName: file.originalname,
               warnings: result.messages,
             });
           }
         } catch (wordError) {
           Logger.error(LogCategory.SECURITY, 'Word extraction failed', wordError, {
-            userId: req.user?.userId,
+            userId: req.user?.id,
             fileName: file.originalname,
           });
           return res.status(400).json({
@@ -1078,7 +1136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         Logger.debug(LogCategory.SECURITY, 'Text file extraction successful', {
-          userId: req.user?.userId,
+          userId: req.user?.id,
           fileName: file.originalname,
           textLength: extractedText.length,
         });
@@ -1117,7 +1175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate extracted text
       if (!extractedText || extractedText.length < 10) {
         Logger.security('Extracted text too short', {
-          userId: req.user?.userId,
+          userId: req.user?.id,
           fileName: file.originalname,
           textLength: extractedText.length,
         });
@@ -1128,7 +1186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       Logger.debug(LogCategory.SECURITY, 'Text extraction completed successfully', {
-        userId: req.user?.userId,
+        userId: req.user?.id,
         fileName: file.originalname,
         textLength: extractedText.length,
       });
@@ -1143,7 +1201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       Logger.error(LogCategory.SECURITY, 'Text extraction error', error, {
-        userId: req.user?.userId,
+        userId: req.user?.id,
       });
       return handleApiError(error, res);
     }
@@ -1153,7 +1211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/documents', jwtAuth, async (req: Request, res: Response) => {
     try {
       const docData = documentUploadSchema.parse(req.body);
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       const document = await storage.createDocument({
         ...docData,
@@ -1172,7 +1230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all user documents (with pagination)
   app.get('/api/documents', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       
@@ -1195,7 +1253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if document belongs to the user
-      if (document.userId !== req.user?.userId!) {
+      if (document.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1216,7 +1274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if document belongs to the user
-      if (document.userId !== req.user?.userId!) {
+      if (document.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1242,7 +1300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if document belongs to the user
-      if (document.userId !== req.user?.userId!) {
+      if (document.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1274,7 +1332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Check if document belongs to the user
-        if (document.userId !== req.user?.userId!) {
+        if (document.userId !== req.user?.id!) {
           return res.status(403).json({ message: "Access denied" });
         }
         
@@ -1307,7 +1365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let summary;
       try {
-        const result = await geminiService.summarizeText(textToSummarize, maxLength, req.user?.userId);
+        const result = await geminiService.summarizeText(textToSummarize, maxLength, req.user?.id);
         summary = result.summary;
       } catch (error) {
         console.error("Error generating summary:", error);
@@ -1334,7 +1392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/summaries', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { documentId, originalText, type } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       if (!documentId && !originalText) {
         return res.status(400).json({ message: "Either documentId or originalText is required" });
@@ -1457,7 +1515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all summaries for the user
   app.get('/api/summaries', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const documentId = req.query.documentId ? parseInt(req.query.documentId as string) : null;
       
       let summaries;
@@ -1496,7 +1554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if summary belongs to the user
-      if (summary.userId !== req.user?.userId!) {
+      if (summary.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1517,7 +1575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if summary belongs to the user
-      if (summary.userId !== req.user?.userId!) {
+      if (summary.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1543,7 +1601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if summary belongs to the user
-      if (summary.userId !== req.user?.userId!) {
+      if (summary.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -1561,7 +1619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/chat', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { message, sessionId, subject } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // Validate message format
       const validatedMessage = chatMessageSchema.parse({
@@ -1705,7 +1763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's chat history
   app.get('/api/chat/history', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const history = await storage.getChatHistoriesByUserId(userId);
       
       // Return array directly for frontend compatibility
@@ -1718,7 +1776,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get specific chat session by ID
   app.get('/api/chat/history/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const chatId = parseInt(req.params.id);
       
       if (isNaN(chatId)) {
@@ -1745,7 +1803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update chat session (edit title/subject)
   app.patch('/api/chat/history/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const chatId = parseInt(req.params.id);
       const { subject } = req.body;
       
@@ -1785,7 +1843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete chat session
   app.delete('/api/chat/history/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const chatId = parseInt(req.params.id);
       
       if (isNaN(chatId)) {
@@ -1824,7 +1882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/feedback', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { messageId, type } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
 
       if (!messageId || !type) {
         return res.status(400).json({ message: "messageId and type are required" });
@@ -1856,7 +1914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/chat/regenerate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { sessionId, messageIndex } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
 
       if (!sessionId) {
         return res.status(400).json({ message: "sessionId is required" });
@@ -1951,7 +2009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/report', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { messageId, messageContent, reason } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
 
       if (!messageContent) {
         return res.status(400).json({ message: "messageContent is required" });
@@ -1984,7 +2042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/messages/save', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { messageId, messageContent } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
 
       if (!messageContent) {
         return res.status(400).json({ message: "messageContent is required" });
@@ -2021,7 +2079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/flashcards', jwtAuth, async (req: Request, res: Response) => {
     try {
       const flashcardData = insertFlashcardSchema.parse(req.body);
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // If document ID is provided, check if document exists and belongs to user
       if (flashcardData.documentId) {
@@ -2054,7 +2112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get flashcards by document ID or all user flashcards (with pagination)
   app.get('/api/flashcards', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const documentId = req.query.documentId ? parseInt(req.query.documentId as string) : null;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
@@ -2101,9 +2159,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if flashcard belongs to the user (ownership verification)
-      if (flashcard.userId !== req.user?.userId!) {
+      if (flashcard.userId !== req.user?.id!) {
         Logger.security('Unauthorized flashcard update attempt', {
-          userId: req.user?.userId,
+          userId: req.user?.id,
           flashcardId,
           ownerId: flashcard.userId,
         });
@@ -2118,7 +2176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       Logger.debug(LogCategory.SECURITY, 'Flashcard updated successfully', {
-        userId: req.user?.userId,
+        userId: req.user?.id,
         flashcardId,
         updatedFields: Object.keys(req.body),
       });
@@ -2143,7 +2201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if flashcard belongs to the user
-      if (flashcard.userId !== req.user?.userId!) {
+      if (flashcard.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -2169,7 +2227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let flashcardData;
       try {
-        flashcardData = await geminiService.generateFlashcard(topic, context, req.user?.userId);
+        flashcardData = await geminiService.generateFlashcard(topic, context, req.user?.id);
       } catch (error) {
         console.error("Error generating flashcard:", error);
         return res.status(500).json({ message: "Failed to generate flashcard" });
@@ -2200,7 +2258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if flashcard belongs to the user
-      if (flashcard.userId !== req.user?.userId!) {
+      if (flashcard.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -2231,7 +2289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Update user stats
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const userStats = await storage.getUserStats(userId);
       
       if (userStats) {
@@ -2268,7 +2326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get due flashcards for review
   app.get('/api/flashcards/due', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const limit = parseInt(req.query.limit as string) || 20;
       
       // Get all user's flashcards
@@ -2304,7 +2362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/documents/:id/generate-flashcards', jwtAuth, async (req: Request, res: Response) => {
     try {
       const documentId = parseInt(req.params.id);
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const { count = 10, difficulty = 'medium' } = req.body;
       
       // Validate document ID
@@ -2395,7 +2453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/flashcards/bulk', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { flashcards, documentId } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // Validate flashcards array
       if (!Array.isArray(flashcards) || flashcards.length === 0) {
@@ -2486,7 +2544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get flashcard analytics
   app.get('/api/flashcards/analytics', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // Check cache first (5-minute TTL)
       const cacheKey = `flashcard_analytics_${userId}`;
@@ -2530,7 +2588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export flashcards in various formats
   app.get('/api/flashcards/export', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const format = (req.query.format as string)?.toLowerCase() || 'json';
       
       // Validate format
@@ -2597,7 +2655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/mcqs', jwtAuth, async (req: Request, res: Response) => {
     try {
       const mcqData = insertMcqSchema.parse(req.body);
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // If document ID is provided, check if document exists and belongs to user
       if (mcqData.documentId) {
@@ -2630,7 +2688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get MCQs by document ID, difficulty, or all user MCQs (with pagination)
   app.get('/api/mcqs', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const documentId = req.query.documentId ? parseInt(req.query.documentId as string) : null;
       const difficulty = req.query.difficulty as string | null;
       const page = parseInt(req.query.page as string) || 1;
@@ -2676,7 +2734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if MCQ belongs to the user
-      if (mcq.userId !== req.user?.userId!) {
+      if (mcq.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -2702,7 +2760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if MCQ belongs to the user
-      if (mcq.userId !== req.user?.userId!) {
+      if (mcq.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -2728,7 +2786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let mcqData;
       try {
-        mcqData = await geminiService.generateMCQ(topic, difficulty || 'medium', context, req.user?.userId);
+        mcqData = await geminiService.generateMCQ(topic, difficulty || 'medium', context, req.user?.id);
       } catch (error) {
         console.error("Error generating MCQ:", error);
         return res.status(500).json({ message: "Failed to generate MCQ" });
@@ -2758,36 +2816,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/quiz-attempts', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { score, totalQuestions, correctAnswers, wrongAnswers, timeSpent, category, difficulty, questionsData } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
-      // Save quiz attempt to database
-      const attempt = await storage.createQuizAttempt({
+      // Calculate accuracy
+      const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      const incorrectAnswers = wrongAnswers !== undefined ? wrongAnswers : (totalQuestions - correctAnswers);
+      
+      // Use AnalyticsService to record quiz attempt
+      const analyticsService = new AnalyticsService();
+      await analyticsService.recordQuizAttempt({
         userId,
-        score,
-        totalQuestions,
-        correctAnswers,
-        timeSpent,
         category: category || 'general',
         difficulty: difficulty || 'medium',
-        questionsData: questionsData || null,
+        totalQuestions,
+        correctAnswers,
+        incorrectAnswers,
+        score,
+        accuracy,
+        timeSpent,
+        questionsData,
         completed: true
       });
       
-      // Update user stats
-      const userStats = await storage.getUserStats(userId);
-      if (userStats) {
-        const newQuizzesCompleted = (userStats.quizzesCompleted || 0) + 1;
-        const newTotalScore = (userStats.totalQuizScore || 0) + score;
-        await storage.updateUserStats(userId, {
-          quizzesCompleted: newQuizzesCompleted,
-          totalQuizScore: newTotalScore,
-          averageScore: Math.round(newTotalScore / newQuizzesCompleted)
-        });
-      }
-      
       return res.status(201).json({
-        message: "Quiz attempt saved successfully",
-        attempt
+        success: true,
+        message: "Quiz attempt saved successfully"
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -2797,7 +2850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get quiz statistics
   app.get('/api/quiz-attempts/stats', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const stats = await storage.getQuizStatsByUserId(userId);
       
       return res.status(200).json({ stats });
@@ -2809,7 +2862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get quiz attempts history
   app.get('/api/quiz-attempts', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const limit = parseInt(req.query.limit as string) || 50;
       const attempts = await storage.getQuizAttemptsByUserId(userId, limit);
       
@@ -2821,11 +2874,297 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Quiz Endpoints =====
   
+  // Validate answer endpoint - secure answer checking
+  // This endpoint validates answers on the server side to prevent cheating
+  // Returns both validation result AND correct answer (only after submission)
+  app.post('/api/quiz/validate-answer', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { questionId, userAnswer } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Not authenticated',
+        });
+      }
+
+      if (!questionId || userAnswer === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing questionId or userAnswer',
+        });
+      }
+
+      // Fetch the question from database to get correct answer
+      const { questionService } = await import('./services/question.service');
+      const question = await questionService.getQuestionById(questionId);
+
+      if (!question) {
+        return res.status(404).json({
+          success: false,
+          error: 'Question not found',
+        });
+      }
+
+      // Validate answer based on question type
+      let isCorrect = false;
+      const correctAnswer = question.correctAnswer;
+
+      if (question.type === 'mcq') {
+        isCorrect = userAnswer === correctAnswer;
+      } else if (question.type === 'true-false') {
+        isCorrect = userAnswer.toString().toLowerCase() === correctAnswer.toString().toLowerCase();
+      } else if (question.type === 'fill-blank' && Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
+        if (userAnswer.length === correctAnswer.length) {
+          const correctAnswerArray = correctAnswer as string[];
+          isCorrect = userAnswer.every((ans: string, idx: number) => 
+            ans.trim().toLowerCase() === correctAnswerArray[idx].trim().toLowerCase()
+          );
+        }
+      } else if (question.type === 'matching' && typeof userAnswer === 'object' && typeof correctAnswer === 'object') {
+        const userObj = userAnswer as Record<string, string>;
+        const correctObj = correctAnswer as Record<string, string>;
+        const keys = Object.keys(correctObj);
+        isCorrect = keys.every(key => userObj[key] === correctObj[key]);
+      } else if (question.type === 'rearrange' && Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
+        if (userAnswer.length === correctAnswer.length) {
+          isCorrect = userAnswer.every((val: string, idx: number) => val === correctAnswer[idx]);
+        }
+      }
+
+      // SECURITY: Only return correct answer AFTER user has submitted
+      // This prevents users from seeing the answer before attempting
+      return res.status(200).json({
+        success: true,
+        isCorrect,
+        correctAnswer: question.correctAnswer, // Safe to send now that user has submitted
+      });
+    } catch (error) {
+      Logger.error(LogCategory.API, 'Error validating answer', error as Error);
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Get questions based on filters or generate with AI
+  // Requirements: 2.1, 2.2, 2.4, 2.5, 10.1, 10.6, 28.2
+  // SECURITY: Correct answers are NOT sent to frontend before submission
+  app.get('/api/questions', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { category, difficulty, types, limit, aiMode, topic } = req.query;
+      const userId = req.user?.id!;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User not authenticated',
+          },
+        });
+      }
+
+      const questionCount = parseInt(limit as string) || 10;
+      const questionTypes = types ? (types as string).split(',') : ['mcq'];
+      const difficultyLevel = (difficulty as string || 'medium') as 'easy' | 'medium' | 'hard';
+      const categoryName = category as string || 'General Knowledge';
+      
+      // Requirement 28.2: When AI mode is enabled, generate questions with AI
+      if (aiMode === 'true') {
+        // FIX: When topic is provided, use ONLY the topic and ignore category
+        // This ensures AI generates questions exclusively from the user's specified topic
+        const topicParam = topic as string;
+        const generationTopic = (topicParam && topicParam.trim().length > 0) ? topicParam.trim() : categoryName;
+        
+        Logger.info(LogCategory.API, 'Generating questions with AI', {
+          userId,
+          topic: generationTopic,
+          topicProvided: !!topicParam,
+          count: questionCount,
+          difficulty: difficultyLevel,
+          types: questionTypes,
+        });
+        
+        try {
+          // Import AI quiz service
+          const { aiQuizService } = await import('./services/ai-quiz.service');
+          
+          // FIX: Pass generationTopic as both topic and category
+          // When user provides a topic, it should be used as the category too
+          // This ensures the AI generates questions ONLY from the specified topic
+          const questions = await aiQuizService.generateQuiz(
+            generationTopic,
+            questionCount,
+            difficultyLevel,
+            userId,
+            questionTypes as any[],
+            generationTopic // Use topic as category when topic is provided
+          );
+          
+          Logger.info(LogCategory.API, 'AI questions generated successfully', {
+            userId,
+            requestedCount: questionCount,
+            generatedCount: questions.length,
+          });
+          
+          // SECURITY: Strip correct answers before sending to frontend
+          const questionsWithoutAnswers = questions.map(q => {
+            const { correctAnswer, ...questionWithoutAnswer } = q;
+            
+            // Additional security: Strip correctAnswer from fill-blank blanks
+            if (q.type === 'fill-blank' && questionWithoutAnswer.questionData) {
+              const fillBlankData = questionWithoutAnswer.questionData as any;
+              if (fillBlankData.blanks && Array.isArray(fillBlankData.blanks)) {
+                fillBlankData.blanks = fillBlankData.blanks.map((blank: any) => {
+                  const { correctAnswer: _, ...blankWithoutAnswer } = blank;
+                  return blankWithoutAnswer;
+                });
+              }
+            }
+            
+            // Strip isCorrect from MCQ options
+            if (q.type === 'mcq' && questionWithoutAnswer.questionData) {
+              const mcqData = questionWithoutAnswer.questionData as any;
+              if (mcqData.options && Array.isArray(mcqData.options)) {
+                mcqData.options = mcqData.options.map((option: any) => {
+                  const { isCorrect: _, ...optionWithoutCorrect } = option;
+                  return optionWithoutCorrect;
+                });
+              }
+            }
+            
+            return questionWithoutAnswer;
+          });
+          
+          return res.status(200).json({
+            success: true,
+            questions: questionsWithoutAnswers,
+            count: questionsWithoutAnswers.length,
+            source: 'ai',
+          });
+        } catch (error) {
+          // Requirement 28.5: Return specific error messages for AI failures
+          Logger.error(LogCategory.API, 'AI question generation failed', error as Error, {
+            userId,
+            topic: topic || categoryName,
+            count: questionCount,
+          });
+          
+          // Return the AI error with specific code
+          return handleApiError(error, res);
+        }
+      }
+      
+      // Database mode: fetch questions from database
+      // Requirement 2.1: Retrieve questions from database based on filters
+      Logger.info(LogCategory.API, 'Fetching questions from database', {
+        userId,
+        category: categoryName,
+        difficulty: difficultyLevel,
+        types: questionTypes,
+        limit: questionCount,
+      });
+      
+      try {
+        const { questionService } = await import('./services/question.service');
+        
+        const questions = await questionService.getQuestions({
+          category: categoryName,
+          difficulty: difficultyLevel,
+          questionTypes: questionTypes as any[],
+          limit: questionCount,
+          isPublic: true,
+        });
+        
+        Logger.info(LogCategory.API, 'Database questions fetched successfully', {
+          userId,
+          count: questions.length,
+        });
+        
+        // SECURITY: Strip correct answers before sending to frontend
+        const questionsWithoutAnswers = questions.map(q => {
+          const { correctAnswer, ...questionWithoutAnswer } = q;
+          
+          // Additional security: Strip correctAnswer from fill-blank blanks
+          if (q.type === 'fill-blank' && questionWithoutAnswer.questionData) {
+            const fillBlankData = questionWithoutAnswer.questionData as any;
+            if (fillBlankData.blanks && Array.isArray(fillBlankData.blanks)) {
+              fillBlankData.blanks = fillBlankData.blanks.map((blank: any) => {
+                const { correctAnswer: _, ...blankWithoutAnswer } = blank;
+                return blankWithoutAnswer;
+              });
+            }
+          }
+          
+          // Strip isCorrect from MCQ options
+          if (q.type === 'mcq' && questionWithoutAnswer.questionData) {
+            const mcqData = questionWithoutAnswer.questionData as any;
+            if (mcqData.options && Array.isArray(mcqData.options)) {
+              mcqData.options = mcqData.options.map((option: any) => {
+                const { isCorrect: _, ...optionWithoutCorrect } = option;
+                return optionWithoutCorrect;
+              });
+            }
+          }
+          
+          return questionWithoutAnswer;
+        });
+        
+        return res.status(200).json({
+          success: true,
+          questions: questionsWithoutAnswers,
+          count: questionsWithoutAnswers.length,
+          source: 'database',
+        });
+      } catch (error) {
+        Logger.error(LogCategory.API, 'Database question fetch failed', error as Error);
+        return handleApiError(error, res);
+      }
+    } catch (error) {
+      Logger.error(LogCategory.API, 'Error in questions endpoint', error as Error);
+      return handleApiError(error, res);
+    }
+  });
+
+  // Get available question count based on filters
+  app.get('/api/questions/count', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { category, difficulty, types } = req.query;
+      
+      // For now, return a mock count since the questions table might not be fully populated
+      // In production, this would query the database with filters
+      const questionTypes = types ? (types as string).split(',') : ['mcq'];
+      
+      // Mock data - replace with actual database query
+      const mockCounts: Record<string, Record<string, number>> = {
+        'tech': { 'easy': 25, 'medium': 30, 'hard': 20 },
+        'science': { 'easy': 20, 'medium': 25, 'hard': 15 },
+        'general knowledge': { 'easy': 30, 'medium': 35, 'hard': 25 },
+        'coding': { 'easy': 15, 'medium': 20, 'hard': 18 },
+        'math': { 'easy': 22, 'medium': 28, 'hard': 20 },
+        'history': { 'easy': 18, 'medium': 22, 'hard': 16 },
+        'literature': { 'easy': 16, 'medium': 20, 'hard': 14 },
+      };
+      
+      const categoryKey = (category as string || 'tech').toLowerCase();
+      const difficultyKey = (difficulty as string || 'medium').toLowerCase();
+      
+      const baseCount = mockCounts[categoryKey]?.[difficultyKey] || 10;
+      
+      // Adjust count based on number of question types selected
+      const adjustedCount = Math.floor(baseCount * questionTypes.length / 5);
+      
+      return res.status(200).json({ count: adjustedCount });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
   // Generate quiz from documents or topics
   app.post('/api/quizzes/generate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { topic, documentId, numberOfQuestions, difficulty } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       if (!topic && !documentId) {
         return res.status(400).json({ message: "Either topic or documentId is required" });
@@ -2903,7 +3242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/quizzes/submit', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { questions, answers, timeSpent } = req.body;
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       if (!questions || !Array.isArray(questions) || !answers) {
         return res.status(400).json({ message: "Invalid quiz submission data" });
@@ -2946,7 +3285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
       
       // Save quiz attempt
-      console.log('Quiz submission:', {
+      Logger.info(LogCategory.API, 'Quiz submission recorded', {
         userId,
         score,
         totalQuestions,
@@ -2976,13 +3315,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
+
+  // Generate hint for a question
+  app.post('/api/quiz/hint', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { questionId, attemptNumber, sessionId } = req.body;
+      const userId = req.user?.id!;
+
+      if (!questionId) {
+        return res.status(400).json({ message: "Question ID is required" });
+      }
+
+      // Import AI quiz service
+      const { aiQuizService } = await import('./services/ai-quiz.service');
+      const { questionService } = await import('./services/question.service');
+
+      // Get the question
+      const question = await questionService.getQuestionById(questionId);
+      
+      if (!question) {
+        return res.status(404).json({ message: "Question not found" });
+      }
+
+      // Generate hint based on attempt number (default to 1 for first hint)
+      const hintAttempt = attemptNumber || 1;
+      const hint = await aiQuizService.generateHint(question, hintAttempt);
+
+      // If sessionId is provided, update the session to track hint usage
+      if (sessionId) {
+        try {
+          const { quizSessions } = await import('@shared/schema');
+          const { db } = await import('./db');
+          const { eq } = await import('drizzle-orm');
+
+          // Get current session
+          const [session] = await db
+            .select()
+            .from(quizSessions)
+            .where(eq(quizSessions.sessionId, sessionId))
+            .limit(1);
+
+          if (session && session.userId === userId) {
+            // Increment hints used
+            await db
+              .update(quizSessions)
+              .set({ 
+                hintsUsed: (session.hintsUsed || 0) + 1,
+                updatedAt: new Date()
+              })
+              .where(eq(quizSessions.sessionId, sessionId));
+          }
+        } catch (sessionError) {
+          console.error('Error updating session hint count:', sessionError);
+          // Don't fail the request if session update fails
+        }
+      }
+
+      return res.status(200).json({
+        hint,
+        attemptNumber: hintAttempt
+      });
+    } catch (error) {
+      console.error('Error generating hint:', error);
+      return handleApiError(error, res);
+    }
+  });
   
   // ===== Deck Management Endpoints =====
   
   // Create deck
   app.post('/api/decks', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const { name, description, isPublic } = req.body;
       
       if (!name || name.trim().length === 0) {
@@ -3023,7 +3427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all user decks
   app.get('/api/decks', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       Logger.debug(LogCategory.SECURITY, 'Fetching user decks', {
         userId,
@@ -3059,7 +3463,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get deck by ID with cards
   app.get('/api/decks/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
       
       if (isNaN(deckId)) {
@@ -3106,7 +3510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update deck
   app.patch('/api/decks/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
       const { name, description, isPublic } = req.body;
       
@@ -3165,7 +3569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete deck
   app.delete('/api/decks/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
       
       if (isNaN(deckId)) {
@@ -3210,7 +3614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add card to deck
   app.post('/api/decks/:id/cards', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
       const { flashcardId, position } = req.body;
       
@@ -3275,7 +3679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remove card from deck
   app.delete('/api/decks/:deckId/cards/:cardId', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const deckId = parseInt(req.params.deckId);
       const cardId = parseInt(req.params.cardId);
       
@@ -3331,7 +3735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/code-generator', jwtAuth, async (req: Request, res: Response) => {
     try {
       const codeData = codeGenerationSchema.parse(req.body);
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
@@ -3399,7 +3803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's code snippets with optional filtering (with pagination)
   app.get('/api/code-snippets', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const language = req.query.language as string | undefined;
       const tag = req.query.tag as string | undefined;
       const page = parseInt(req.query.page as string) || 1;
@@ -3441,7 +3845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get unique tags from user's code snippets
   app.get('/api/code-snippets/tags', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const snippets = await storage.getCodeSnippetsByUserId(userId);
       
       // Extract all unique tags
@@ -3470,7 +3874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if snippet belongs to the user
-      if (snippet.userId !== req.user?.userId!) {
+      if (snippet.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -3496,7 +3900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if snippet belongs to the user
-      if (snippet.userId !== req.user?.userId!) {
+      if (snippet.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -3514,7 +3918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/study-plans', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planData = insertStudyPlanSchema.parse(req.body);
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       const plan = await storage.createStudyPlan({
         ...planData,
@@ -3533,7 +3937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user's study plans
   app.get('/api/study-plans', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const plans = await storage.getStudyPlansByUserId(userId);
       
       return res.status(200).json({ plans });
@@ -3553,7 +3957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if plan belongs to the user
-      if (plan.userId !== req.user?.userId!) {
+      if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -3579,7 +3983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if plan belongs to the user
-      if (plan.userId !== req.user?.userId!) {
+      if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -3608,7 +4012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let planData;
       try {
-        planData = await geminiService.generateStudyPlan(topic, duration, studyGoal, req.user?.userId);
+        planData = await geminiService.generateStudyPlan(topic, duration, studyGoal, req.user?.id);
       } catch (error) {
         console.error("Error generating study plan:", error);
         return res.status(500).json({ message: "Failed to generate study plan" });
@@ -3640,7 +4044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if plan belongs to the user
-      if (plan.userId !== req.user?.userId!) {
+      if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -3687,7 +4091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user stats
   app.get('/api/user-stats', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       let stats = await storage.getUserStats(userId);
       
       if (!stats) {
@@ -3703,7 +4107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get personalized study recommendations
   app.get('/api/recommendations', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       
       // Get user stats
       let stats = await storage.getUserStats(userId);
@@ -3783,7 +4187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user profile
   app.get('/api/profile', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -3812,7 +4216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user profile
   app.patch('/api/profile', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const { fullName, preferredLanguage, profilePicture } = req.body;
       
       const updatedUser = await storage.updateUser(userId, {
@@ -3841,7 +4245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Change password
   app.post('/api/profile/change-password', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const { currentPassword, newPassword } = req.body;
       
       if (!currentPassword || !newPassword) {
@@ -3875,7 +4279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send password changed email
       try {
-        await emailService.sendPasswordChangedEmail(user.email, user.username);
+        await emailService.sendPasswordChangedEmail(user.id, user.email, user.username);
       } catch (emailError) {
         // Email service already logs the error
       }
@@ -3891,7 +4295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get user settings (returns user preferences)
   app.get('/api/settings', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -3914,7 +4318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user settings
   app.patch('/api/settings', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const { preferredLanguage } = req.body;
       
       const updatedUser = await storage.updateUser(userId, {
@@ -3939,7 +4343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete account
   app.delete('/api/settings/account', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId!;
+      const userId = req.user?.id!;
       const { password } = req.body;
       
       if (!password) {
@@ -3983,6 +4387,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Register quiz routes
+  registerQuizRoutes(app);
+
+  // Register leaderboard routes
+  registerLeaderboardRoutes(app);
+  
+  // Register shareable quiz routes
+  registerShareableQuizRoutes(app);
+  
+  // Register achievement routes
+  registerAchievementRoutes(app);
+  
+  // Register Quiz of the Day routes
+  registerQuizOfTheDayRoutes(app);
+  
+  // Register saved and favorite quiz routes
+  registerSavedFavoriteQuizRoutes(app);
+
   const httpServer = createServer(app);
   return httpServer;
 }
+

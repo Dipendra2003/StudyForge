@@ -11,8 +11,15 @@ import { initializeDatabases } from "./db/index";
 import { initializeStorage } from "./storage";
 import { errorHandler } from "./middleware/errorHandler";
 import { validateEnvOrExit, logEnvironmentConfig } from "./config/validateEnv";
+import { securityHeaders, additionalSecurityHeaders, securityLogging } from "./middleware/security.middleware";
 
 const app = express();
+
+// Security headers middleware (must be early in the middleware chain)
+// Requirements: 8.8
+app.use(securityHeaders);
+app.use(additionalSecurityHeaders);
+app.use(securityLogging);
 
 // Enable compression for all responses - significant performance boost
 app.use(compression({
@@ -50,16 +57,29 @@ app.use((req, res, next) => {
   next();
 });
 
-// Cross-origin resource sharing configuration for development
+// Cross-origin resource sharing configuration
+// Requirements: 8.8
+import { CORS_CONFIG, isOriginAllowed } from "./config/security";
+
 app.use((req, res, next) => {
-  // In production, set this to your actual domain
-  // IMPORTANT: When using credentials, origin cannot be '*'
-  const origin = req.headers.origin || 'http://localhost:5000';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true'); // Critical for cookies
+  const origin = req.headers.origin;
   
+  // Check if origin is allowed
+  if (origin && isOriginAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (process.env.NODE_ENV !== 'production') {
+    // In development, be more permissive
+    res.setHeader('Access-Control-Allow-Origin', origin || 'http://localhost:5000');
+  }
+  
+  // Set other CORS headers
+  res.setHeader('Access-Control-Allow-Methods', CORS_CONFIG.methods.join(', '));
+  res.setHeader('Access-Control-Allow-Headers', CORS_CONFIG.allowedHeaders.join(', '));
+  res.setHeader('Access-Control-Expose-Headers', CORS_CONFIG.exposedHeaders.join(', '));
+  res.setHeader('Access-Control-Allow-Credentials', CORS_CONFIG.credentials.toString());
+  res.setHeader('Access-Control-Max-Age', CORS_CONFIG.maxAge.toString());
+  
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -90,10 +110,20 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
     initializeStorage();
     log('Storage layer initialized with MySQL', 'database');
     
-    // Start token cleanup service
-    const { tokenCleanupService } = await import('./services/tokenCleanup');
-    tokenCleanupService.start();
-    log('Token cleanup service started', 'security');
+    // Initialize email service
+    const { EmailService } = await import('./services/email.service');
+    const emailService = new EmailService();
+    
+    // Test email service configuration
+    if (emailService.isReady()) {
+      log('Email service initialized and configured', 'email');
+    } else {
+      log('Email service initialized but not configured - email features will be disabled', 'email');
+    }
+    
+    // Store email service in app locals for access in routes
+    app.locals.emailService = emailService;
+    
   } catch (error) {
     console.error('Failed to initialize database connections:', error);
     console.error('Server cannot start without database connection');

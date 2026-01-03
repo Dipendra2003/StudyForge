@@ -1,370 +1,280 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+/**
+ * QuizMode.tsx - AI-Powered Quiz System Main Page
+ * 
+ * This is the main entry point for the AI-Powered Quiz System, integrating all quiz features
+ * including configuration, quiz-taking, results, analytics, leaderboards, and social features.
+ * 
+ * Key Features Integrated:
+ * - Multiple question types (MCQ, True/False, Fill-blank, Matching, Rearrange) - Req 1
+ * - Dynamic question loading from database and AI generation - Req 2
+ * - Quiz configuration with filters - Req 3
+ * - Timed and untimed quiz modes - Req 4
+ * - Real-time feedback and scoring - Req 5
+ * - Comprehensive results summary with animations - Req 6
+ * - Global and filtered leaderboards - Req 7
+ * - Performance analytics and progress tracking - Req 8
+ * - Achievement badges and gamification - Req 9
+ * - AI-powered hints and explanations - Req 10-14
+ * - Voice mode with TTS and voice input - Req 15-17
+ * - Quiz of the Day feature - Req 22
+ * - Shareable quiz links - Req 23
+ * - Save and favorite quizzes - Req 24
+ * - Motivational quotes and feedback - Req 26
+ * - Modern UI with glassmorphism and animations - Req 20-21
+ */
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useMutation } from "@tanstack/react-query";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import queryClient from "@/lib/queryClient";
-import QuizProgress from "@/components/quiz/QuizProgress";
+import { LeaderboardDisplay } from "@/components/quiz/LeaderboardDisplay";
+import { useIsMobile } from "@/hooks/use-mobile";
+import QuizConfigurationPanel, { QuizConfig } from "@/components/quiz/QuizConfigurationPanel";
+import QuizPlayer, { QuizResults } from "@/components/quiz/QuizPlayer";
+import ResultsSummary from "@/components/quiz/ResultsSummary";
+import { QuizOfTheDay } from "@/components/quiz/QuizOfTheDay";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ShareQuizModal } from "@/components/quiz/ShareQuizModal";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Loader2,
-  RefreshCw,
-  Plus,
-  ListChecks,
-  FileQuestion,
-  Trophy,
-  CheckCircle2,
-  XCircle,
-  Heart,
-  ArrowRight,
-  Archive,
-  ChevronRight,
-  Clock,
-  AlarmClock,
-  Settings2,
-  HelpCircle,
+  Sparkles,
+  TrendingUp,
+  BookOpen,
+  BarChart3,
 } from "lucide-react";
+import { SavedFavoriteQuizzes } from "@/components/quiz/SavedFavoriteQuizzes";
+import { Question } from "@/../../shared/quiz-types";
+import QuizProgress from "@/components/quiz/QuizProgress";
+import { AdaptiveDifficultyNotification } from "@/components/quiz/AdaptiveDifficultyNotification";
+import { useAuth } from "@/contexts/AuthContext";
 
-// Define types for MCQs
-interface McqOption {
-  id: string;
-  text: string;
-  isCorrect: boolean;
-}
-
-interface Mcq {
-  id: number;
-  userId: number;
-  documentId?: number | null;
-  question: string;
-  explanation: string;
-  options: McqOption[];
-  category: string;
-  difficulty: string;
-  createdAt: string;
-}
-
-interface QuizState {
-  currentQuestionIndex: number;
-  selectedAnswers: Record<number, string>;
-  correctAnswers: number;
-  wrongAnswers: number;
-  isCompleted: boolean;
-  timeSpent: number;
-}
-
+/**
+ * Main QuizMode Component
+ * 
+ * Manages the overall quiz experience including:
+ * - Tab navigation between different quiz features
+ * - Quiz lifecycle (configuration → taking → results)
+ * - State management for quiz sessions
+ * - Integration with backend services
+ */
 export default function QuizMode() {
-  const [activeTab, setActiveTab] = useState("take-quiz");
-  const [quizState, setQuizState] = useState<QuizState>({
-    currentQuestionIndex: 0,
-    selectedAnswers: {},
-    correctAnswers: 0,
-    wrongAnswers: 0,
-    isCompleted: false,
-    timeSpent: 0,
-  });
-  const [isCreatingMcq, setIsCreatingMcq] = useState(false);
-  const [quizTimer, setQuizTimer] = useState<NodeJS.Timeout | null>(null);
-  const [isQuizStarted, setIsQuizStarted] = useState(false);
-  const [showResultsDialog, setShowResultsDialog] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
-  const [newMcq, setNewMcq] = useState<{
-    question: string;
-    explanation: string;
-    options: McqOption[];
-    category: string;
-    difficulty: string;
-    topic: string; // For AI generation
-  }>({
-    question: "",
-    explanation: "",
-    options: [
-      { id: "1", text: "", isCorrect: true },
-      { id: "2", text: "", isCorrect: false },
-      { id: "3", text: "", isCorrect: false },
-      { id: "4", text: "", isCorrect: false },
-    ],
-    category: "general",
-    difficulty: "medium",
-    topic: "",
-  });
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
   
+  // Navigation state
+  const [activeTab, setActiveTab] = useState("take-quiz");
+  
+  // Quiz lifecycle state
+  const [isQuizStarted, setIsQuizStarted] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  
+  // Quiz data state
+  const [quizConfig, setQuizConfig] = useState<QuizConfig | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
+  const [quizResults, setQuizResults] = useState<QuizResults | null>(null);
+  
+  // Social features state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [completedQuizAttemptId, setCompletedQuizAttemptId] = useState<number | null>(null);
+  
+  // Session tracking - unique ID for hint tracking and progress (Req 13.2)
+  const [sessionId] = useState<string>(() => 
+    `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+  );
+  
+  // Hooks
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const { user } = useAuth();
+  
+  // Adaptive difficulty notification state
+  const [showAdaptiveNotification, setShowAdaptiveNotification] = useState(false);
 
-  // Get all MCQs
-  const { data: mcqs, isLoading, refetch } = useQuery({
-    queryKey: ['/api/mcqs'],
-    queryFn: async () => {
-      const response = await apiRequest<{ mcqs: Mcq[] } | { data: Mcq[] }>('/api/mcqs');
-      // Handle both response formats (direct mcqs array or paginated response)
-      if (response && 'mcqs' in response) {
-        return response.mcqs || [];
-      } else if (response && 'data' in response) {
-        return response.data || [];
+  // ============================================================================
+  // QUIZ QUESTION FETCHING
+  // ============================================================================
+  
+  /**
+   * Fetch questions based on configuration
+   * Implements Requirement 2.1: Retrieve questions from database based on filters
+   * Implements Requirement 2.4: Filter by difficulty
+   * Implements Requirement 2.5: Filter by category
+   * 
+   * @param config - Quiz configuration with filters
+   * @returns Array of questions matching the filters
+   */
+  const fetchQuestions = async (config: QuizConfig): Promise<Question[]> => {
+    try {
+      const params = new URLSearchParams({
+        category: config.category.toLowerCase(),
+        difficulty: config.difficulty,
+        types: config.questionTypes.join(','),
+        limit: config.questionCount.toString(),
+      });
+      
+      // Add AI mode and topic if specified
+      if (config.aiMode) {
+        params.append('aiMode', 'true');
+        if (config.topic) {
+          params.append('topic', config.topic);
+        }
       }
+      
+      // Show loading toast for AI mode
+      if (config.aiMode) {
+        toast({
+          title: "Generating Questions",
+          description: `Creating ${config.questionCount} AI-powered questions. This may take a moment...`,
+        });
+      }
+      
+      const response = await apiRequest<{ questions: Question[] }>(`/api/questions?${params}`);
+      return response.questions || [];
+    } catch (error: any) {
+      
+      // Handle AI-specific errors with detailed messages
+      if (error?.code) {
+        // AI error with specific code
+        const errorMessages: Record<string, { title: string; description: string }> = {
+          'API_TIMEOUT': {
+            title: 'AI Generation Timeout',
+            description: 'AI question generation timed out. Please try with fewer questions or use database questions.',
+          },
+          'RATE_LIMIT': {
+            title: 'Rate Limit Reached',
+            description: 'AI service rate limit reached. Please wait a moment and try again, or use database questions.',
+          },
+          'API_KEY_ERROR': {
+            title: 'AI Service Error',
+            description: 'AI service configuration error. Please use database questions or contact support.',
+          },
+          'NETWORK_ERROR': {
+            title: 'Connection Issue',
+            description: 'Network connection issue. Please check your internet and try again, or use database questions.',
+          },
+          'INVALID_RESPONSE': {
+            title: 'AI Response Error',
+            description: 'AI generated an invalid response. Please try again or use database questions.',
+          },
+          'GENERATION_FAILED': {
+            title: 'Generation Failed',
+            description: 'AI question generation failed. Please try again or use database questions.',
+          },
+          'UNKNOWN_ERROR': {
+            title: 'AI Unavailable',
+            description: 'AI question generation unavailable. Please try again or use database questions.',
+          },
+        };
+        
+        const errorInfo = errorMessages[error.code] || {
+          title: 'AI Unavailable',
+          description: error.message || 'AI question generation unavailable. Please try again or use database questions.',
+        };
+        
+        toast({
+          title: errorInfo.title,
+          description: errorInfo.description,
+          variant: "destructive",
+        });
+      } else {
+        // Generic error
+        toast({
+          title: "Error loading questions",
+          description: error.message || "Failed to load quiz questions. Please try again.",
+          variant: "destructive",
+        });
+      }
+      
       return [];
     }
-  });
+  };
 
-  // Filter MCQs by category and difficulty
-  const filteredMcqs = mcqs?.filter(mcq => 
-    (selectedCategory === "all" || mcq.category === selectedCategory) &&
-    (selectedDifficulty === "all" || mcq.difficulty === selectedDifficulty)
-  ) || [];
-
-  // Get unique categories and difficulties
-  const categories = mcqs 
-    ? ['all', ...Array.from(new Set(mcqs.map(mcq => mcq.category)))]
-    : ['all'];
+  // ============================================================================
+  // QUIZ LIFECYCLE HANDLERS
+  // ============================================================================
   
-  const difficulties = mcqs
-    ? ['all', ...Array.from(new Set(mcqs.map(mcq => mcq.difficulty)))]
-    : ['all'];
+  // Loading state for quiz generation
+  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
 
-  // Create a new MCQ
-  const createMcqMutation = useMutation({
-    mutationFn: async (mcqData: Omit<Mcq, 'id' | 'userId' | 'createdAt'>) => {
-      return apiRequest<Mcq>('/api/mcqs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(mcqData),
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "MCQ created",
-        description: "Your multiple-choice question has been created successfully.",
-      });
-      setNewMcq({
-        question: "",
-        explanation: "",
-        options: [
-          { id: "1", text: "", isCorrect: true },
-          { id: "2", text: "", isCorrect: false },
-          { id: "3", text: "", isCorrect: false },
-          { id: "4", text: "", isCorrect: false },
-        ],
-        category: "general",
-        difficulty: "medium",
-        topic: "",
-      });
-      setIsCreatingMcq(false);
-      refetch();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error creating MCQ",
-        description: "There was an error creating your question. Please try again.",
-        variant: "destructive",
-      });
-      console.error("Create MCQ error:", error);
-    },
-  });
-
-  // Generate MCQ with AI
-  const generateMcqMutation = useMutation({
-    mutationFn: async (topic: string) => {
-      return apiRequest<Mcq>('/api/mcqs/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ topic }),
-      });
-    },
-    onSuccess: (data) => {
-      if (data) {
-        setNewMcq({
-          question: data.question,
-          explanation: data.explanation,
-          options: data.options,
-          category: data.category || "general",
-          difficulty: data.difficulty || "medium",
-          topic: newMcq.topic,
-        });
-        toast({
-          title: "MCQ generated",
-          description: "A question has been generated for you. Edit if needed before saving.",
-        });
+  /**
+   * Start quiz with configuration
+   * Implements Requirement 2.3: Shuffle questions randomly
+   * Implements Requirement 3.4: Handle no questions available scenario
+   * Implements Requirement 28.2: Don't show false errors in AI mode
+   * 
+   * @param config - Quiz configuration from QuizConfigurationPanel
+   */
+  const handleStartQuiz = async (config: QuizConfig) => {
+    setIsLoadingQuiz(true);
+    
+    try {
+      const questions = await fetchQuestions(config);
+      
+      // Requirement 28.2: Only show "No questions available" if API actually returned empty
+      // The fetchQuestions function already handles errors and shows appropriate messages
+      // If we get here with 0 questions, it means the API succeeded but returned nothing
+      if (questions.length === 0) {
+        // This should only happen in database mode when no questions match filters
+        // In AI mode, errors are handled in fetchQuestions with specific messages
+        if (!config.aiMode) {
+          toast({
+            title: "No questions available",
+            description: "No questions match your selected criteria. Please try different settings or enable AI mode.",
+            variant: "destructive",
+          });
+        }
+        return;
       }
-    },
-    onError: (error) => {
+
+      // Requirement 2.3: Shuffle questions for random order each attempt
+      const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+      
+      // Initialize quiz state
+      setQuizConfig({ ...config, sessionId });
+      setQuizQuestions(shuffledQuestions);
+      setIsQuizStarted(true);
+      setShowResults(false);
+      setQuizResults(null);
+      
       toast({
-        title: "Error generating MCQ",
-        description: "There was an error generating your question. Please try again.",
-        variant: "destructive",
+        title: "Quiz Started!",
+        description: `Get ready for ${shuffledQuestions.length} questions. Good luck!`,
       });
-      console.error("Generate MCQ error:", error);
-    },
-  });
-
-  // Handle form submission
-  const handleCreateMcq = () => {
-    if (!newMcq.question || newMcq.options.some(option => !option.text)) {
-      toast({
-        title: "Missing information",
-        description: "Please provide a question and all option texts.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Ensure at least one option is marked as correct
-    if (!newMcq.options.some(option => option.isCorrect)) {
-      toast({
-        title: "No correct answer",
-        description: "Please mark at least one option as correct.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createMcqMutation.mutate({
-      question: newMcq.question,
-      explanation: newMcq.explanation,
-      options: newMcq.options,
-      category: newMcq.category,
-      difficulty: newMcq.difficulty,
-      documentId: null,
-    });
-  };
-
-  // Handle option change
-  const handleOptionChange = (id: string, field: 'text' | 'isCorrect', value: string | boolean) => {
-    setNewMcq(prev => {
-      const updatedOptions = prev.options.map(option => {
-        if (option.id === id) {
-          return { ...option, [field]: value };
-        }
-        // If marking this option as correct, mark others as incorrect (radio button behavior)
-        if (field === 'isCorrect' && value === true) {
-          return { ...option, isCorrect: option.id === id };
-        }
-        return option;
-      });
-      return { ...prev, options: updatedOptions };
-    });
-  };
-
-  // Start quiz
-  const startQuiz = () => {
-    if (filteredMcqs.length === 0) {
-      toast({
-        title: "No questions available",
-        description: "There are no questions available for the selected category and difficulty.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setQuizState({
-      currentQuestionIndex: 0,
-      selectedAnswers: {},
-      correctAnswers: 0,
-      wrongAnswers: 0,
-      isCompleted: false,
-      timeSpent: 0,
-    });
-    
-    setIsQuizStarted(true);
-    
-    // Start timer
-    const timer = setInterval(() => {
-      setQuizState(prev => ({
-        ...prev,
-        timeSpent: prev.timeSpent + 1,
-      }));
-    }, 1000);
-    
-    setQuizTimer(timer);
-  };
-
-  // Submit answer
-  const submitAnswer = (optionId: string) => {
-    const currentQuestion = filteredMcqs[quizState.currentQuestionIndex];
-    const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
-    const isCorrect = optionId === correctOption?.id;
-
-    setQuizState(prev => ({
-      ...prev,
-      selectedAnswers: {
-        ...prev.selectedAnswers,
-        [currentQuestion.id]: optionId,
-      },
-      correctAnswers: isCorrect ? prev.correctAnswers + 1 : prev.correctAnswers,
-      wrongAnswers: !isCorrect ? prev.wrongAnswers + 1 : prev.wrongAnswers,
-    }));
-  };
-
-  // Go to next question
-  const goToNextQuestion = () => {
-    if (quizState.currentQuestionIndex < filteredMcqs.length - 1) {
-      setQuizState(prev => ({
-        ...prev,
-        currentQuestionIndex: prev.currentQuestionIndex + 1,
-      }));
-    } else {
-      completeQuiz();
+    } finally {
+      setIsLoadingQuiz(false);
     }
   };
 
-  // Save quiz attempt mutation
+  // ============================================================================
+  // DATA PERSISTENCE
+  // ============================================================================
+  
+  /**
+   * Save quiz attempt to database
+   * Implements Requirement 8.6: Store quiz completion stats
+   * Implements Requirement 18.4: Associate data with authenticated user
+   * Implements Requirement 19.2: Record quiz attempt data
+   */
   const saveQuizAttemptMutation = useMutation({
     mutationFn: async (attemptData: {
       score: number;
       totalQuestions: number;
       correctAnswers: number;
-      wrongAnswers: number;
+      incorrectAnswers: number;
       timeSpent: number;
       category: string;
       difficulty: string;
+      hintsUsed?: number;
     }) => {
       return apiRequest('/api/quiz-attempts', {
         method: 'POST',
@@ -374,641 +284,429 @@ export default function QuizMode() {
         body: JSON.stringify(attemptData),
       });
     },
-    onSuccess: () => {
-      console.log("Quiz attempt saved successfully");
+    onSuccess: (data: any) => {
+      // Store attempt ID for sharing functionality (Req 23.1)
+      if (data?.id) {
+        setCompletedQuizAttemptId(data.id);
+      }
     },
     onError: (error) => {
-      console.error("Error saving quiz attempt:", error);
+      // Requirement 19.5: Handle database errors gracefully
+      toast({
+        title: "Warning",
+        description: "Quiz completed but failed to save. Your progress may not be recorded.",
+        variant: "destructive",
+      });
     },
   });
 
-  // Complete quiz
-  const completeQuiz = () => {
-    if (quizTimer) {
-      clearInterval(quizTimer);
-      setQuizTimer(null);
+  /**
+   * Handle quiz completion
+   * Implements Requirement 6: Display results summary
+   * Implements Requirement 6.5: Show confetti for high scores
+   * Implements Requirement 9: Award badges based on performance
+   * Implements Requirement 12.3: Show adaptive difficulty notification
+   */
+  const handleQuizComplete = async (results: QuizResults) => {
+    setQuizResults(results);
+    setShowResults(true);
+    setIsQuizStarted(false);
+    
+    // Requirement 8.6 & 19.2: Save quiz attempt to database
+    if (quizConfig) {
+      saveQuizAttemptMutation.mutate({
+        score: results.score,
+        totalQuestions: results.totalQuestions,
+        correctAnswers: results.correctAnswers,
+        incorrectAnswers: results.incorrectAnswers,
+        timeSpent: results.timeSpent,
+        category: quizConfig.category,
+        difficulty: quizConfig.difficulty,
+        hintsUsed: results.hintsUsed,
+      });
     }
     
-    setQuizState(prev => ({
-      ...prev,
-      isCompleted: true,
-    }));
+    // Requirement 6.5: Show confetti animation for high scores (>90%)
+    if (results.score > 90) {
+      toast({
+        title: "🎉 Outstanding Performance!",
+        description: `You scored ${results.score}%! Excellent work!`,
+      });
+    }
     
-    // Save quiz attempt to database
-    const score = calculateScore();
-    saveQuizAttemptMutation.mutate({
-      score,
-      totalQuestions: filteredMcqs.length,
-      correctAnswers: quizState.correctAnswers,
-      wrongAnswers: quizState.wrongAnswers,
-      timeSpent: quizState.timeSpent,
-      category: selectedCategory,
-      difficulty: selectedDifficulty,
+    // Requirement 12.3: Trigger adaptive difficulty notification check
+    // Show notification after a brief delay to let results animation complete
+    setTimeout(() => {
+      setShowAdaptiveNotification(true);
+    }, 1500);
+  };
+
+  /**
+   * Handle retry quiz
+   * Implements Requirement 6.6: Retry option
+   */
+  const handleRetryQuiz = () => {
+    if (quizConfig) {
+      handleStartQuiz(quizConfig);
+    }
+  };
+
+  /**
+   * Handle view answers
+   * Implements Requirement 6.6: View detailed answers option
+   */
+  const handleViewAnswers = () => {
+    setShowResults(false);
+    setActiveTab("question-bank");
+    toast({
+      title: "Review Mode",
+      description: "Check the question bank to review answers and explanations.",
     });
-    
-    setShowResultsDialog(true);
-    setIsQuizStarted(false);
   };
 
-  // Format time
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  /**
+   * Handle share results
+   * Implements Requirement 23: Shareable quiz links
+   */
+  const handleShareResults = () => {
+    if (completedQuizAttemptId) {
+      setShowShareModal(true);
+    } else {
+      toast({
+        title: "Share unavailable",
+        description: "Unable to generate share link at this time.",
+        variant: "destructive",
+      });
+    }
   };
 
-  // Calculate quiz score percentage
-  const calculateScore = () => {
-    const { correctAnswers, wrongAnswers } = quizState;
-    const total = correctAnswers + wrongAnswers;
-    return total > 0 ? Math.round((correctAnswers / total) * 100) : 0;
+  /**
+   * Handle hint request
+   * Implements Requirement 13: AI hint system
+   */
+  const handleHintRequest = async (questionId: number): Promise<string> => {
+    try {
+      const response = await apiRequest<{ hint: string }>(`/api/questions/${questionId}/hint`, {
+        method: 'POST',
+      });
+      return response.hint || "No hint available for this question.";
+    } catch (error) {
+      return "Unable to load hint at this time.";
+    }
   };
 
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (quizTimer) {
-        clearInterval(quizTimer);
-      }
-    };
-  }, [quizTimer]);
-
-  // Get current question
-  const currentQuestion = filteredMcqs[quizState.currentQuestionIndex];
-  const hasAnsweredCurrent = currentQuestion && quizState.selectedAnswers[currentQuestion.id] !== undefined;
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Quiz Mode</h1>
-          <div className="flex gap-2">
-            <Dialog open={isCreatingMcq} onOpenChange={setIsCreatingMcq}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Question
+      <div className="container mx-auto py-4 md:py-8 px-4 md:px-6">
+        {/* 
+          Header with animated intro
+          Implements Requirement 21.1: Animated intro sequence
+        */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="mb-6 md:mb-8"
+        >
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <motion.div
+                  animate={{ 
+                    rotate: [0, 10, -10, 0],
+                    scale: [1, 1.1, 1]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <Sparkles className="h-8 w-8 md:h-10 md:w-10 text-primary" />
+                </motion.div>
+                AI-Powered Quiz Mode
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground mt-2">
+                Test your knowledge with intelligent, adaptive quizzes powered by AI
+              </p>
+            </div>
+            
+            {/* Quick Stats - Quick access to progress and leaderboard */}
+            {!isQuizStarted && !showResults && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3, duration: 0.4 }}
+                className="flex gap-2"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab("progress")}
+                  className="gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  {!isMobile && "Progress"}
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[650px]">
-                <DialogHeader>
-                  <DialogTitle>Create New Question</DialogTitle>
-                  <DialogDescription>
-                    Create a new multiple-choice question or generate one with AI.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="flex justify-between">
-                    <Label htmlFor="topic" className="mt-2">
-                      AI-Powered Generation:
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="topic"
-                        placeholder="Enter a topic..."
-                        className="w-64"
-                        value={newMcq.topic}
-                        onChange={(e) => setNewMcq({ ...newMcq, topic: e.target.value })}
-                      />
-                      <Button 
-                        variant="outline" 
-                        onClick={() => {
-                          if (newMcq.topic) {
-                            generateMcqMutation.mutate(newMcq.topic);
-                          } else {
-                            toast({
-                              title: "Missing topic",
-                              description: "Please enter a topic to generate a question.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                        disabled={generateMcqMutation.isPending}
-                      >
-                        {generateMcqMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="question">Question</Label>
-                    <Textarea
-                      id="question"
-                      value={newMcq.question}
-                      onChange={(e) => setNewMcq({ ...newMcq, question: e.target.value })}
-                      rows={2}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label>Options (select one correct answer)</Label>
-                    {newMcq.options.map((option, index) => (
-                      <div key={option.id} className="flex items-start space-x-3">
-                        <RadioGroup 
-                          value={option.isCorrect ? option.id : ""}
-                          onValueChange={(value) => {
-                            if (value === option.id) {
-                              handleOptionChange(option.id, 'isCorrect', true);
-                            }
-                          }}
-                          className="mt-1"
-                        >
-                          <RadioGroupItem value={option.id} id={`option-${option.id}`} />
-                        </RadioGroup>
-                        <div className="flex-1">
-                          <Input
-                            placeholder={`Option ${index + 1}`}
-                            value={option.text}
-                            onChange={(e) => handleOptionChange(option.id, 'text', e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="explanation">Explanation (why the correct answer is right)</Label>
-                    <Textarea
-                      id="explanation"
-                      value={newMcq.explanation}
-                      onChange={(e) => setNewMcq({ ...newMcq, explanation: e.target.value })}
-                      rows={2}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="category">Category</Label>
-                      <Select
-                        value={newMcq.category}
-                        onValueChange={(value) => setNewMcq({ ...newMcq, category: value })}
-                      >
-                        <SelectTrigger id="category">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">General</SelectItem>
-                          <SelectItem value="math">Math</SelectItem>
-                          <SelectItem value="science">Science</SelectItem>
-                          <SelectItem value="history">History</SelectItem>
-                          <SelectItem value="literature">Literature</SelectItem>
-                          <SelectItem value="programming">Programming</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="difficulty">Difficulty</Label>
-                      <Select
-                        value={newMcq.difficulty}
-                        onValueChange={(value) => setNewMcq({ ...newMcq, difficulty: value })}
-                      >
-                        <SelectTrigger id="difficulty">
-                          <SelectValue placeholder="Select difficulty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="easy">Easy</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="hard">Hard</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsCreatingMcq(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="button" onClick={handleCreateMcq} disabled={createMcqMutation.isPending}>
-                    {createMcqMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      "Create Question"
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab("leaderboard")}
+                  className="gap-2"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  {!isMobile && "Leaderboard"}
+                </Button>
+              </motion.div>
+            )}
           </div>
-        </div>
+        </motion.div>
 
+        {/*
+          Main Tab Navigation
+          Implements Requirements 7, 8, 22, 24: Multiple quiz features
+        */}
         <Tabs defaultValue="take-quiz" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="take-quiz">Take Quiz</TabsTrigger>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
-            <TabsTrigger value="question-bank">Question Bank</TabsTrigger>
+          <TabsList className={`grid w-full ${isMobile ? 'grid-cols-3' : 'grid-cols-5'} gap-1 mb-6`}>
+            <TabsTrigger value="take-quiz" className="text-xs md:text-sm gap-1 md:gap-2">
+              <Sparkles className="h-3 w-3 md:h-4 md:w-4" />
+              {isMobile ? 'Quiz' : 'Take Quiz'}
+            </TabsTrigger>
+            <TabsTrigger value="quiz-of-day" className="text-xs md:text-sm gap-1 md:gap-2">
+              <TrendingUp className="h-3 w-3 md:h-4 md:w-4" />
+              {isMobile ? 'Daily' : 'Daily Quiz'}
+            </TabsTrigger>
+            <TabsTrigger value="saved" className="text-xs md:text-sm gap-1 md:gap-2">
+              <BookOpen className="h-3 w-3 md:h-4 md:w-4" />
+              {isMobile ? 'Saved' : 'My Quizzes'}
+            </TabsTrigger>
+            {!isMobile && (
+              <>
+                <TabsTrigger value="progress" className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Progress
+                </TabsTrigger>
+                <TabsTrigger value="leaderboard" className="gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Leaderboard
+                </TabsTrigger>
+              </>
+            )}
+            {isMobile && (
+              <TabsTrigger value="more" className="text-xs md:text-sm">More</TabsTrigger>
+            )}
           </TabsList>
           
+          {/* 
+            Take Quiz Tab - Main quiz interface
+            Implements Requirements 1-6: Core quiz functionality
+          */}
           <TabsContent value="take-quiz" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quiz Settings</CardTitle>
-                <CardDescription>
-                  Configure your quiz parameters
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="quiz-category">Category</Label>
-                      <Select 
-                        value={selectedCategory} 
-                        onValueChange={setSelectedCategory}
-                        disabled={isQuizStarted}
-                      >
-                        <SelectTrigger id="quiz-category">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectLabel>Categories</SelectLabel>
-                            {categories.map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category === 'all' ? 'All Categories' : 
-                                  category.charAt(0).toUpperCase() + category.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quiz-difficulty">Difficulty</Label>
-                      <Select 
-                        value={selectedDifficulty} 
-                        onValueChange={setSelectedDifficulty}
-                        disabled={isQuizStarted}
-                      >
-                        <SelectTrigger id="quiz-difficulty">
-                          <SelectValue placeholder="Select difficulty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectLabel>Difficulty</SelectLabel>
-                            {difficulties.map((difficulty) => (
-                              <SelectItem key={difficulty} value={difficulty}>
-                                {difficulty === 'all' ? 'All Difficulties' : 
-                                  difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="flex flex-col justify-between">
-                    <div className="space-y-2 mb-4">
-                      <Label>Quiz Summary</Label>
-                      <div className="bg-muted p-4 rounded-md space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm">Questions:</span>
-                          <span className="text-sm font-medium">{filteredMcqs?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">Category:</span>
-                          <span className="text-sm font-medium">
-                            {selectedCategory === 'all' ? 'All Categories' : 
-                              selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">Difficulty:</span>
-                          <span className="text-sm font-medium">
-                            {selectedDifficulty === 'all' ? 'All Difficulties' : 
-                              selectedDifficulty.charAt(0).toUpperCase() + selectedDifficulty.slice(1)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <Button 
-                      className="w-full" 
-                      onClick={startQuiz} 
-                      disabled={isLoading || filteredMcqs.length === 0 || isQuizStarted}
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          <ListChecks className="mr-2 h-4 w-4" />
-                          Start Quiz
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {isQuizStarted && currentQuestion && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle>Question {quizState.currentQuestionIndex + 1} of {filteredMcqs.length}</CardTitle>
-                      <CardDescription>
-                        {currentQuestion.category} • {currentQuestion.difficulty}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">{formatTime(quizState.timeSpent)}</span>
-                    </div>
-                  </div>
-                  <Progress 
-                    value={((quizState.currentQuestionIndex + 1) / filteredMcqs.length) * 100} 
-                    className="h-2 mt-2" 
+            <AnimatePresence mode="wait">
+              {/* Quiz Configuration Phase */}
+              {!isQuizStarted && !showResults && (
+                <motion.div
+                  key="config"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <QuizConfigurationPanel
+                    onStartQuiz={handleStartQuiz}
+                    isLoading={isLoadingQuiz}
+                    disabled={isLoadingQuiz}
                   />
-                </CardHeader>
-                <CardContent className="py-6">
-                  <h3 className="text-lg font-medium mb-6">{currentQuestion.question}</h3>
-                  <div className="space-y-4">
-                    <RadioGroup
-                      value={quizState.selectedAnswers[currentQuestion.id] || ""}
-                      onValueChange={(value) => {
-                        if (!hasAnsweredCurrent) {
-                          submitAnswer(value);
-                        }
-                      }}
-                      className="space-y-3"
-                    >
-                      {currentQuestion.options.map((option) => {
-                        const isSelected = quizState.selectedAnswers[currentQuestion.id] === option.id;
-                        const showResult = hasAnsweredCurrent;
-                        const isCorrect = option.isCorrect;
-                        let optionClassName = "border p-4 rounded-md";
-                        
-                        if (showResult) {
-                          if (isSelected && isCorrect) {
-                            optionClassName += " bg-green-50 border-green-200";
-                          } else if (isSelected && !isCorrect) {
-                            optionClassName += " bg-red-50 border-red-200";
-                          } else if (!isSelected && isCorrect) {
-                            optionClassName += " bg-green-50 border-green-200";
-                          }
-                        } else if (isSelected) {
-                          optionClassName += " border-primary/50 bg-primary/5";
-                        }
-                        
-                        return (
-                          <div key={option.id} className={optionClassName}>
-                            <div className="flex items-start">
-                              <RadioGroupItem 
-                                value={option.id} 
-                                id={`option-${currentQuestion.id}-${option.id}`} 
-                                disabled={hasAnsweredCurrent}
-                                className="mt-1"
-                              />
-                              <div className="ml-3">
-                                <Label 
-                                  htmlFor={`option-${currentQuestion.id}-${option.id}`}
-                                  className="text-base font-normal"
-                                >
-                                  {option.text}
-                                </Label>
-                                {showResult && isCorrect && (
-                                  <p className="text-sm text-green-600 mt-1">
-                                    <CheckCircle2 className="h-4 w-4 inline mr-1" />
-                                    Correct answer
-                                  </p>
-                                )}
-                                {showResult && isSelected && !isCorrect && (
-                                  <p className="text-sm text-red-600 mt-1">
-                                    <XCircle className="h-4 w-4 inline mr-1" />
-                                    Incorrect answer
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </RadioGroup>
-                  </div>
+                </motion.div>
+              )}
 
-                  {hasAnsweredCurrent && (
-                    <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-md">
-                      <h4 className="font-medium text-blue-700 mb-1">Explanation</h4>
-                      <p className="text-blue-700">{currentQuestion.explanation}</p>
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="flex justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="flex gap-1 items-center">
-                      <CheckCircle2 className="h-3 w-3 text-green-500" />
-                      <span>{quizState.correctAnswers}</span>
-                    </Badge>
-                    <Badge variant="outline" className="flex gap-1 items-center">
-                      <XCircle className="h-3 w-3 text-red-500" />
-                      <span>{quizState.wrongAnswers}</span>
-                    </Badge>
-                  </div>
-                  
-                  <Button 
-                    disabled={!hasAnsweredCurrent}
-                    onClick={goToNextQuestion}
-                  >
-                    {quizState.currentQuestionIndex === filteredMcqs.length - 1 ? (
-                      <>Finish Quiz</>
-                    ) : (
-                      <>Next Question</>
-                    )}
-                    <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            )}
+              {/* Quiz Taking Phase */}
+              {isQuizStarted && quizConfig && quizQuestions.length > 0 && (
+                <motion.div
+                  key="player"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <QuizPlayer
+                    questions={quizQuestions}
+                    config={quizConfig}
+                    onComplete={handleQuizComplete}
+                    onHintRequest={handleHintRequest}
+                  />
+                </motion.div>
+              )}
+
+              {/* Results Phase */}
+              {showResults && quizResults && (
+                <motion.div
+                  key="results"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.5, type: "spring" }}
+                >
+                  <ResultsSummary
+                    results={quizResults}
+                    onRetry={handleRetryQuiz}
+                    onViewAnswers={handleViewAnswers}
+                    onShare={handleShareResults}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </TabsContent>
+
+          {/* 
+            Quiz of the Day Tab
+            Implements Requirement 22: Daily featured quiz
+          */}
+          <TabsContent value="quiz-of-day">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <QuizOfTheDay />
+            </motion.div>
           </TabsContent>
           
+          {/* 
+            Saved & Favorite Quizzes Tab
+            Implements Requirement 24: Save and favorite functionality
+          */}
+          <TabsContent value="saved">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <SavedFavoriteQuizzes 
+                onStartQuiz={(config) => {
+                  setActiveTab("take-quiz");
+                  handleStartQuiz(config);
+                }}
+              />
+            </motion.div>
+          </TabsContent>
+          
+          {/* 
+            Progress & Analytics Tab
+            Implements Requirement 8: Performance tracking and analytics
+          */}
           <TabsContent value="progress">
-            <QuizProgress />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <QuizProgress />
+            </motion.div>
           </TabsContent>
           
-          <TabsContent value="question-bank">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex gap-2">
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Categories</SelectLabel>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category === 'all' ? 'All Categories' : 
-                            category.charAt(0).toUpperCase() + category.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select Difficulty" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Difficulty</SelectLabel>
-                      {difficulties.map((difficulty) => (
-                        <SelectItem key={difficulty} value={difficulty}>
-                          {difficulty === 'all' ? 'All Difficulties' : 
-                            difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <span className="text-sm text-muted-foreground">
-                {filteredMcqs.length} questions
-              </span>
-            </div>
-
-            {isLoading ? (
-              <div className="flex justify-center my-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : filteredMcqs.length === 0 ? (
-              <div className="text-center py-12 bg-muted/30 rounded-lg">
-                <FileQuestion className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-xl font-bold">No Questions Available</h3>
-                <p className="text-gray-500 max-w-md mx-auto my-2">
-                  Create your first question to start building your quiz bank.
-                </p>
-                <Button className="mt-4" onClick={() => setIsCreatingMcq(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Question
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredMcqs.map((mcq) => (
-                  <Card key={mcq.id}>
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between">
-                        <div className="space-x-2">
-                          <Badge variant="outline" className="capitalize">
-                            {mcq.category}
-                          </Badge>
-                          <Badge variant="secondary" className="capitalize">
-                            {mcq.difficulty}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <h3 className="font-bold text-lg mb-4">{mcq.question}</h3>
-                      <div className="space-y-2">
-                        {mcq.options.map((option) => (
-                          <div 
-                            key={option.id} 
-                            className={`
-                              p-3 rounded-md border 
-                              ${option.isCorrect ? "border-green-200 bg-green-50" : "border-gray-200"}
-                            `}
-                          >
-                            <div className="flex items-start">
-                              <div className={`
-                                flex-shrink-0 h-5 w-5 mt-0.5 rounded-full border 
-                                flex items-center justify-center
-                                ${option.isCorrect 
-                                  ? "bg-green-100 border-green-300 text-green-500" 
-                                  : "bg-gray-100 border-gray-300"}
-                              `}>
-                                {option.isCorrect && <CheckCircle2 className="h-3 w-3" />}
-                              </div>
-                              <span className="ml-3 text-sm">{option.text}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {mcq.explanation && (
-                        <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
-                          <h4 className="font-medium text-sm text-blue-700 mb-1">Explanation</h4>
-                          <p className="text-sm text-blue-700">{mcq.explanation}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+          {/* 
+            Leaderboard Tab
+            Implements Requirement 7: Global and filtered leaderboards
+          */}
+          <TabsContent value="leaderboard">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <LeaderboardDisplay />
+            </motion.div>
           </TabsContent>
+          
+          {/* 
+            Mobile More Options Tab
+            Provides access to Progress and Leaderboard on mobile devices
+          */}
+          {isMobile && (
+            <TabsContent value="more">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                      More Options
+                    </CardTitle>
+                    <CardDescription>Access additional quiz features</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Button
+                      variant="outline"
+                      className="w-full h-14 justify-start text-base gap-3 hover:bg-primary/5 transition-colors"
+                      onClick={() => setActiveTab("progress")}
+                    >
+                      <BarChart3 className="h-5 w-5 text-primary" />
+                      <div className="text-left">
+                        <div className="font-semibold">Progress & Analytics</div>
+                        <div className="text-xs text-muted-foreground">View your performance stats</div>
+                      </div>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full h-14 justify-start text-base gap-3 hover:bg-primary/5 transition-colors"
+                      onClick={() => setActiveTab("leaderboard")}
+                    >
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      <div className="text-left">
+                        <div className="font-semibold">Leaderboard</div>
+                        <div className="text-xs text-muted-foreground">See top performers</div>
+                      </div>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </TabsContent>
+          )}
         </Tabs>
+
+        {/* 
+          Floating Action Hints
+          Provides contextual tips during quiz taking
+          Only shown when quiz is active
+        */}
+
       </div>
 
-      {/* Quiz Results Dialog */}
-      <AlertDialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
-        <AlertDialogContent className="sm:max-w-[500px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Quiz Completed!</AlertDialogTitle>
-            <AlertDialogDescription>
-              Here's how you did on this quiz
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-6">
-            <div className="flex justify-center mb-6">
-              <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center">
-                <div className="text-center">
-                  <span className="text-3xl font-bold text-primary">{calculateScore()}%</span>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-muted rounded-lg p-4 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mr-1" />
-                  <span className="text-lg font-bold">{quizState.correctAnswers}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">Correct</p>
-              </div>
-              <div className="bg-muted rounded-lg p-4 text-center">
-                <div className="flex items-center justify-center mb-2">
-                  <XCircle className="h-5 w-5 text-red-500 mr-1" />
-                  <span className="text-lg font-bold">{quizState.wrongAnswers}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">Incorrect</p>
-              </div>
-            </div>
-            <div className="bg-muted rounded-lg p-4 text-center mb-6">
-              <div className="flex items-center justify-center mb-2">
-                <Clock className="h-5 w-5 text-blue-500 mr-1" />
-                <span className="text-lg font-bold">{formatTime(quizState.timeSpent)}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Time Taken</p>
-            </div>
-            <div className="text-center">
-              {calculateScore() >= 80 ? (
-                <div className="text-green-600 flex justify-center items-center">
-                  <Trophy className="h-5 w-5 mr-2" />
-                  <span className="font-medium">Excellent work!</span>
-                </div>
-              ) : calculateScore() >= 60 ? (
-                <div className="text-blue-600 flex justify-center items-center">
-                  <Heart className="h-5 w-5 mr-2" />
-                  <span className="font-medium">Good job!</span>
-                </div>
-              ) : (
-                <div className="text-amber-600 flex justify-center items-center">
-                  <ArrowRight className="h-5 w-5 mr-2" />
-                  <span className="font-medium">Keep practicing!</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-            <AlertDialogAction onClick={() => startQuiz()}>Retry Quiz</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* 
+        Share Quiz Modal
+        Implements Requirement 23: Shareable quiz links
+        Allows users to share their quiz results with friends
+      */}
+      {completedQuizAttemptId && quizResults && (
+        <ShareQuizModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          quizAttemptId={completedQuizAttemptId}
+          score={quizResults.correctAnswers}
+          totalQuestions={quizResults.totalQuestions}
+        />
+      )}
+
+      {/* 
+        Adaptive Difficulty Notification
+        Implements Requirement 12.3: Notify user of difficulty changes
+        Shows after quiz completion if difficulty should be adjusted
+      */}
+      {showAdaptiveNotification && user && (
+        <AdaptiveDifficultyNotification
+          userId={user.id}
+          onDismiss={() => setShowAdaptiveNotification(false)}
+          autoFetch={true}
+        />
+      )}
     </DashboardLayout>
   );
 }

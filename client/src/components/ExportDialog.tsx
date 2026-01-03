@@ -28,9 +28,13 @@ export function ExportDialog({ children }: ExportDialogProps) {
     setIsExporting(true);
     
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch(`/api/flashcards/export?format=${selectedFormat}`, {
         method: 'GET',
         credentials: 'include',
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
       });
 
       if (!response.ok) {

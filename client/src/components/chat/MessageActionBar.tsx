@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiCopy, FiThumbsUp, FiThumbsDown, FiRefreshCw, FiDownload, FiMoreVertical, FiCheck } from 'react-icons/fi';
 import { useToast } from '@/hooks/use-toast';
+import { apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -61,14 +62,9 @@ export default function MessageActionBar({
     // Save feedback to backend
     if (messageId) {
       try {
-        await fetch('/api/feedback', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messageId,
-            type: newLikedState ? 'like' : 'unlike',
-          }),
+        await apiPost('/api/feedback', {
+          messageId,
+          type: newLikedState ? 'like' : 'unlike',
         });
       } catch (error) {
         console.error('Failed to save feedback:', error);
@@ -94,14 +90,9 @@ export default function MessageActionBar({
     // Save feedback to backend
     if (messageId) {
       try {
-        await fetch('/api/feedback', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messageId,
-            type: newDislikedState ? 'dislike' : 'undislike',
-          }),
+        await apiPost('/api/feedback', {
+          messageId,
+          type: newDislikedState ? 'dislike' : 'undislike',
         });
       } catch (error) {
         console.error('Failed to save feedback:', error);

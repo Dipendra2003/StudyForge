@@ -1,130 +1,84 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
-import { useToast } from "@/hooks/use-toast";
-import { Mail, CheckCircle2, XCircle, Loader2, AlertCircle, Link2, KeyRound } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { OTPInput } from "@/components/OTPInput";
+import { useState, useEffect } from 'react';
+import { useLocation, Link } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Mail, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function VerifyEmail() {
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
-  const [verificationStatus, setVerificationStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isExpired, setIsExpired] = useState(false);
-  const [isAlreadyVerified, setIsAlreadyVerified] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [activeTab, setActiveTab] = useState<"link" | "otp">("link");
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [email, setEmail] = useState('');
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  // Extract token from URL query params
-  const searchParams = new URLSearchParams(window.location.search);
-  const token = searchParams.get("token");
-
+  // Check for token in URL (from email link)
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    
     if (token) {
-      // If token is present in URL, automatically verify with link
-      setVerificationStatus("loading");
-      verifyEmail(token);
-    } else {
-      // No token in URL, show manual OTP entry option
-      setVerificationStatus("idle");
-      setActiveTab("otp");
+      verifyWithToken(token);
     }
-  }, [token]);
+  }, []);
 
-  useEffect(() => {
-    // Auto-redirect to login after successful verification
-    if (verificationStatus === "success") {
-      // Set flag to show success message on login page
-      sessionStorage.setItem("emailJustVerified", "true");
-      
-      const timer = setTimeout(() => {
-        navigate("/login");
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [verificationStatus, navigate]);
+  const verifyWithToken = async (token: string) => {
+    setIsLoading(true);
+    setError('');
 
-  async function verifyEmail(verificationToken: string) {
     try {
-      const response = await fetch("/api/auth/verify-email", {
-        method: "POST",
-        credentials: 'include',
+      const response = await fetch('/api/auth/verify-email', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ token: verificationToken }),
+        body: JSON.stringify({ token }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Check for specific error types
-        if (data.expired) {
-          setIsExpired(true);
-          setErrorMessage("Your verification link has expired. Verification links are valid for 24 hours.");
-        } else if (data.alreadyVerified) {
-          setIsAlreadyVerified(true);
-          setErrorMessage("Your email is already verified. You can log in to your account.");
-        } else {
-          setErrorMessage(data.message || "Email verification failed. The link may be invalid or already used.");
-        }
-        setVerificationStatus("error");
-        
-        toast({
-          variant: "destructive",
-          title: "Verification failed",
-          description: data.message || "Please try again or request a new verification link.",
-        });
-        return;
+        throw new Error(data.message || 'Verification failed');
       }
 
-      // Check if already verified in success response
-      if (data.alreadyVerified) {
-        setIsAlreadyVerified(true);
-        setVerificationStatus("success");
-        toast({
-          title: "Already verified",
-          description: "Your email was already verified.",
-        });
-        return;
-      }
+      setSuccess(true);
+      toast({
+        title: 'Email verified!',
+        description: 'Your account has been successfully verified.',
+      });
 
-      setVerificationStatus("success");
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        setLocation('/login');
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || 'Verification failed. Please try again.');
       toast({
-        title: "Email verified!",
-        description: "Your email has been successfully verified. Redirecting to login...",
+        title: 'Verification failed',
+        description: err.message,
+        variant: 'destructive',
       });
-    } catch (error) {
-      setVerificationStatus("error");
-      setErrorMessage(error instanceof Error ? error.message : "An unexpected error occurred. Please try again.");
-      toast({
-        variant: "destructive",
-        title: "Verification failed",
-        description: "An unexpected error occurred. Please try again or request a new verification link.",
-      });
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
-  async function verifyWithOTP(otp: string) {
-    setIsVerifyingOtp(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
     try {
-      const response = await fetch("/api/auth/verify-email", {
-        method: "POST",
-        credentials: 'include',
+      const response = await fetch('/api/auth/verify-email', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ otp }),
       });
@@ -132,224 +86,98 @@ export default function VerifyEmail() {
       const data = await response.json();
 
       if (!response.ok) {
-        // Check for specific error types
-        if (data.expired) {
-          setIsExpired(true);
-          setErrorMessage("Your verification code has expired. Verification codes are valid for 24 hours.");
-        } else if (data.alreadyVerified) {
-          setIsAlreadyVerified(true);
-          setErrorMessage("Your email is already verified. You can log in to your account.");
-        } else {
-          setErrorMessage(data.message || "Email verification failed. The code may be invalid or already used.");
-        }
-        setVerificationStatus("error");
-        
-        toast({
-          variant: "destructive",
-          title: "Verification failed",
-          description: data.message || "Please check your code and try again.",
-        });
-        return;
+        throw new Error(data.message || 'Verification failed');
       }
 
-      // Check if already verified in success response
-      if (data.alreadyVerified) {
-        setIsAlreadyVerified(true);
-        setVerificationStatus("success");
-        toast({
-          title: "Already verified",
-          description: "Your email was already verified.",
-        });
-        return;
-      }
-
-      setVerificationStatus("success");
+      setSuccess(true);
       toast({
-        title: "Email verified!",
-        description: "Your email has been successfully verified. Redirecting to login...",
+        title: 'Email verified!',
+        description: 'Your account has been successfully verified.',
       });
-    } catch (error) {
-      setVerificationStatus("error");
-      setErrorMessage(error instanceof Error ? error.message : "An unexpected error occurred. Please try again.");
+
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        setLocation('/login');
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || 'Verification failed. Please try again.');
       toast({
-        variant: "destructive",
-        title: "Verification failed",
-        description: "An unexpected error occurred. Please check your code and try again.",
+        title: 'Verification failed',
+        description: err.message,
+        variant: 'destructive',
       });
     } finally {
-      setIsVerifyingOtp(false);
+      setIsLoading(false);
     }
-  }
+  };
 
-  function handleOTPComplete(otp: string) {
-    verifyWithOTP(otp);
-  }
-
-  function handleOTPChange(_otp: string) {
-    // Reset error state when user starts typing
-    if (verificationStatus === "error") {
-      setVerificationStatus("idle");
-      setErrorMessage("");
-      setIsExpired(false);
+  const handleResend = async () => {
+    if (!email) {
+      setError('Please enter your email address');
+      return;
     }
-  }
 
-  async function resendVerificationEmail() {
     setIsResending(true);
+    setError('');
+
     try {
-      const response = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-        credentials: "include",
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to resend verification email");
+        throw new Error(data.message || 'Failed to resend verification email');
       }
 
       toast({
-        title: "Email sent!",
-        description: "A new verification email has been sent to your inbox. Please check your email.",
+        title: 'Verification email sent!',
+        description: 'Please check your email for the verification code.',
       });
-
-      // Reset error state
-      setIsExpired(false);
-      setErrorMessage("A new verification email has been sent. Please check your inbox and spam folder.");
-    } catch (error) {
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to resend verification email';
+      setError(errorMessage);
       toast({
-        variant: "destructive",
-        title: "Failed to resend email",
-        description: error instanceof Error ? error.message : "Please try again later.",
+        title: 'Failed to resend',
+        description: errorMessage,
+        variant: 'destructive',
       });
     } finally {
       setIsResending(false);
     }
-  }
+  };
 
-  // Show idle state with OTP input option
-  if (verificationStatus === "idle") {
+  if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-6 w-6 text-primary" />
+          <CardHeader className="space-y-1">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-white" />
+              </div>
             </div>
-            <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
-            <CardDescription>
-              Enter the 6-digit code sent to your email address
+            <CardTitle className="text-2xl font-bold text-center">Email verified!</CardTitle>
+            <CardDescription className="text-center">
+              Your account has been successfully verified
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
-              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <AlertDescription className="text-amber-800 dark:text-amber-200">
-                You need to verify your email before you can log in. Check your inbox for the verification code.
-              </AlertDescription>
-            </Alert>
-            <div className="space-y-4">
-              <OTPInput
-                length={6}
-                onComplete={handleOTPComplete}
-                onChange={handleOTPChange}
-                disabled={isVerifyingOtp}
-                autoSubmit={true}
-              />
-              {isVerifyingOtp && (
-                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Verifying code...</span>
-                </div>
-              )}
-            </div>
-            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-              <p className="mb-2">
-                Check your email inbox for a message from Jadoo with your verification code.
-              </p>
-              <p className="text-xs">
-                The code is valid for 24 hours.
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-2">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={resendVerificationEmail}
-              disabled={isResending}
-            >
-              {isResending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Mail className="mr-2 h-4 w-4" />
-              )}
-              {isResending ? "Sending..." : "Resend Verification Code"}
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => navigate("/login")}
-            >
-              Back to Login
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  if (verificationStatus === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Loader2 className="h-6 w-6 text-primary animate-spin" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Verifying Your Email</CardTitle>
-            <CardDescription>
-              Please wait while we verify your email address...
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
-  if (verificationStatus === "success") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
-            </div>
-            <CardTitle className="text-2xl font-bold">
-              {isAlreadyVerified ? "Already Verified!" : "Email Verified!"}
-            </CardTitle>
-            <CardDescription>
-              {isAlreadyVerified 
-                ? "Your email address was already verified."
-                : "Your email address has been successfully verified."
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground text-center">
-              <p className="mb-2">You can now access all features of your Jadoo account.</p>
-              <p className="text-xs">Redirecting to login in 3 seconds...</p>
-            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              You can now sign in to your account and start using StudyForge.
+            </p>
           </CardContent>
           <CardFooter>
             <Button
+              onClick={() => setLocation('/login')}
               className="w-full"
-              onClick={() => navigate("/login")}
             >
-              Continue to Login
+              Go to sign in
             </Button>
           </CardFooter>
         </Card>
@@ -357,110 +185,106 @@ export default function VerifyEmail() {
     );
   }
 
-  // Error state - show tabs to allow switching between link and OTP verification
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900">
-            <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+              <Mail className="w-6 h-6 text-primary-foreground" />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold">
-            {isExpired ? "Verification Code Expired" : "Verification Failed"}
-          </CardTitle>
-          <CardDescription>
-            {errorMessage || "We couldn't verify your email address."}
+          <CardTitle className="text-2xl font-bold text-center">Verify your email</CardTitle>
+          <CardDescription className="text-center">
+            Enter the 6-digit code sent to your email
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {isExpired && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Verification codes expire after 24 hours for security reasons. Please request a new verification email or try entering your code manually.
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "link" | "otp")} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="link" className="flex items-center gap-2">
-                <Link2 className="h-4 w-4" />
-                Link
-              </TabsTrigger>
-              <TabsTrigger value="otp" className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4" />
-                Code
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="link" className="space-y-4">
-              <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-                {isExpired ? (
-                  <>
-                    <p className="mb-2">
-                      For your security, verification links are only valid for 24 hours.
-                    </p>
-                    <p>
-                      Click the button below to receive a new verification email with a fresh link.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="mb-2">
-                      The verification link may be invalid, already used, or malformed.
-                    </p>
-                    <p>
-                      Please request a new verification email or try entering your code manually.
-                    </p>
-                  </>
-                )}
-              </div>
-              <Button
-                className="w-full"
-                onClick={resendVerificationEmail}
-                disabled={isResending}
-              >
-                {isResending ? (
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="otp">Verification Code</Label>
+              <Input
+                id="otp"
+                type="text"
+                placeholder="Enter 6-digit code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required
+                disabled={isLoading}
+                maxLength={6}
+                pattern="\d{6}"
+                className="text-center text-2xl tracking-widest"
+              />
+              <p className="text-xs text-muted-foreground text-center">
+                Check your email for the verification code
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email (for resending)</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading || isResending}
+              />
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-col space-y-4">
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading || otp.length !== 6}
+            >
+              {isLoading ? (
+                <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Mail className="mr-2 h-4 w-4" />
-                )}
-                {isResending ? "Sending..." : "Resend Verification Email"}
-              </Button>
-            </TabsContent>
-            
-            <TabsContent value="otp" className="space-y-4">
-              <div className="space-y-4">
-                <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground text-center">
-                  <p>Enter the 6-digit code from your email</p>
-                </div>
-                <OTPInput
-                  length={6}
-                  onComplete={handleOTPComplete}
-                  onChange={handleOTPChange}
-                  disabled={isVerifyingOtp}
-                  autoSubmit={true}
-                />
-                {isVerifyingOtp && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Verifying code...</span>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-        <CardFooter>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => navigate("/login")}
-          >
-            Back to Login
-          </Button>
-        </CardFooter>
+                  Verifying...
+                </>
+              ) : (
+                'Verify email'
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleResend}
+              disabled={isResending || !email}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Resend verification email
+                </>
+              )}
+            </Button>
+
+            <div className="text-sm text-center text-muted-foreground">
+              Already verified?{' '}
+              <Link href="/login">
+                <a className="text-primary hover:underline font-medium">
+                  Sign in
+                </a>
+              </Link>
+            </div>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   );

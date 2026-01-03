@@ -1641,11 +1641,11 @@ export default function DocumentSummarization() {
       </div>
 
       {/* Bulk Generate Flashcards Dialog */}
-      {savedDocumentId && (currentSummary || selectedSummary) && (
+      {(currentSummary || selectedSummary) && (
         <BulkGenerateDialog
           open={showBulkGenerateDialog}
           onOpenChange={setShowBulkGenerateDialog}
-          documentId={savedDocumentId}
+          documentId={(currentSummary?.documentId || selectedSummary?.documentId || savedDocumentId)!}
           documentText={(currentSummary || selectedSummary)?.originalText || ""}
           onSuccess={() => {
             toast({

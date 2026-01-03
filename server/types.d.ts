@@ -1,2 +1,10 @@
 // Type definitions for Express extensions
-// Session types removed - now using JWT authentication
+// Authentication completely removed from application
+
+declare global {
+  namespace Express {
+    interface Request {
+      // No user authentication - all endpoints are public
+    }
+  }
+}

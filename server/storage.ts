@@ -28,9 +28,29 @@ import {
   feedback,
   type Feedback,
   type InsertFeedback,
+  refreshTokens,
+  type RefreshToken,
+  type InsertRefreshToken,
+  emailLogs,
+  type EmailLog,
+  type InsertEmailLog,
+  securityAuditLogs,
+  type SecurityAuditLog,
+  type InsertSecurityAuditLog,
+  savedQuizzes,
+  favoriteQuizzes,
 } from "@shared/schema";
 import { db } from "./db/index";
 import { eq, and, desc, count } from "drizzle-orm";
+
+/**
+ * Helper function to safely convert insertId to number
+ * Drizzle's $returningId() returns { id: number | bigint }
+ * This ensures we always get a number for consistency
+ */
+function toNumberId(id: number | bigint): number {
+  return typeof id === 'bigint' ? Number(id) : id;
+}
 
 // Interface for all storage CRUD operations
 export interface IStorage {
@@ -140,9 +160,63 @@ export interface IStorage {
   getFlashcardsByDeckId(deckId: number): Promise<Flashcard[]>;
   addCardToDeck(deckId: number, flashcardId: number, position?: number): Promise<any>;
   removeCardFromDeck(deckId: number, flashcardId: number): Promise<boolean>;
+
+  // Refresh token methods
+  createRefreshToken(refreshToken: InsertRefreshToken): Promise<RefreshToken>;
+  getRefreshToken(token: string): Promise<RefreshToken | undefined>;
+  deleteRefreshToken(token: string): Promise<boolean>;
+  deleteAllUserRefreshTokens(userId: number): Promise<boolean>;
+
+  // Email log methods
+  createEmailLog(emailLog: InsertEmailLog): Promise<EmailLog>;
+  getRecentEmailLogs(userId: number, emailType: string, minutesAgo: number): Promise<EmailLog[]>;
+
+  // Security audit log methods
+  createSecurityAuditLog(auditLog: InsertSecurityAuditLog): Promise<SecurityAuditLog>;
+  getSecurityAuditLogsByUser(userId: number, limit?: number): Promise<SecurityAuditLog[]>;
+
+  // Saved quiz methods
+  saveQuiz(userId: number, quizData: any): Promise<any>;
+  getSavedQuizzes(userId: number): Promise<any[]>;
+  removeSavedQuiz(userId: number, quizId: number): Promise<boolean>;
+
+  // Favorite quiz methods
+  favoriteQuiz(userId: number, quizData: any): Promise<any>;
+  getFavoriteQuizzes(userId: number): Promise<any[]>;
+  removeFavoriteQuiz(userId: number, quizId: number): Promise<boolean>;
+  isFavoriteQuiz(userId: number, category: string, difficulty: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
+  // Saved quiz methods (stub implementations for MemStorage)
+  async saveQuiz(userId: number, quizData: any): Promise<any> {
+    throw new Error("MemStorage does not support saved quizzes");
+  }
+
+  async getSavedQuizzes(userId: number): Promise<any[]> {
+    return [];
+  }
+
+  async removeSavedQuiz(userId: number, quizId: number): Promise<boolean> {
+    return false;
+  }
+
+  // Favorite quiz methods (stub implementations for MemStorage)
+  async favoriteQuiz(userId: number, quizData: any): Promise<any> {
+    throw new Error("MemStorage does not support favorite quizzes");
+  }
+
+  async getFavoriteQuizzes(userId: number): Promise<any[]> {
+    return [];
+  }
+
+  async removeFavoriteQuiz(userId: number, quizId: number): Promise<boolean> {
+    return false;
+  }
+
+  async isFavoriteQuiz(userId: number, category: string, difficulty: string): Promise<boolean> {
+    return false;
+  }
   private users: Map<number, User>;
   private documents: Map<number, Document>;
   private flashcards: Map<number, Flashcard>;
@@ -154,6 +228,9 @@ export class MemStorage implements IStorage {
   private userStatsMap: Map<number, any>;
   private decks: Map<number, any>;
   private deckFlashcards: Map<string, any>;
+  private refreshTokensMap: Map<number, RefreshToken>;
+  private emailLogsMap: Map<number, EmailLog>;
+  private securityAuditLogsMap: Map<number, SecurityAuditLog>;
 
   // Track IDs
   currentUserId: number;
@@ -166,6 +243,9 @@ export class MemStorage implements IStorage {
   currentAchievementId: number;
   currentUserStatsId: number;
   currentDeckId: number;
+  currentRefreshTokenId: number;
+  currentEmailLogId: number;
+  currentSecurityAuditLogId: number;
 
   constructor() {
     // Initialize maps
@@ -180,6 +260,9 @@ export class MemStorage implements IStorage {
     this.userStatsMap = new Map();
     this.decks = new Map();
     this.deckFlashcards = new Map();
+    this.refreshTokensMap = new Map();
+    this.emailLogsMap = new Map();
+    this.securityAuditLogsMap = new Map();
 
     // Initialize IDs
     this.currentUserId = 1;
@@ -192,6 +275,9 @@ export class MemStorage implements IStorage {
     this.currentAchievementId = 1;
     this.currentUserStatsId = 1;
     this.currentDeckId = 1;
+    this.currentRefreshTokenId = 1;
+    this.currentEmailLogId = 1;
+    this.currentSecurityAuditLogId = 1;
   }
 
   // User methods
@@ -256,6 +342,9 @@ export class MemStorage implements IStorage {
       resetToken: (insertUser as any).resetToken || null,
       resetOtp: (insertUser as any).resetOtp || null,
       resetTokenExpiry: (insertUser as any).resetTokenExpiry || null,
+      failedLoginAttempts: 0,
+      lastFailedLogin: null,
+      accountLockedUntil: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -897,6 +986,103 @@ export class MemStorage implements IStorage {
     const key = `${deckId}-${flashcardId}`;
     return this.deckFlashcards.delete(key);
   }
+
+  // Refresh token methods
+  async createRefreshToken(insertRefreshToken: InsertRefreshToken): Promise<RefreshToken> {
+    const id = this.currentRefreshTokenId++;
+    const now = new Date();
+    const refreshToken: RefreshToken = {
+      id,
+      userId: insertRefreshToken.userId,
+      token: insertRefreshToken.token,
+      expiresAt: insertRefreshToken.expiresAt,
+      createdAt: now,
+      userAgent: insertRefreshToken.userAgent || null,
+      ipAddress: insertRefreshToken.ipAddress || null,
+    };
+    this.refreshTokensMap.set(id, refreshToken);
+    return refreshToken;
+  }
+
+  async getRefreshToken(token: string): Promise<RefreshToken | undefined> {
+    return Array.from(this.refreshTokensMap.values()).find(
+      (rt) => rt.token === token,
+    );
+  }
+
+  async deleteRefreshToken(token: string): Promise<boolean> {
+    const refreshToken = await this.getRefreshToken(token);
+    if (!refreshToken) return false;
+    return this.refreshTokensMap.delete(refreshToken.id);
+  }
+
+  async deleteAllUserRefreshTokens(userId: number): Promise<boolean> {
+    const tokensToDelete: number[] = [];
+    this.refreshTokensMap.forEach((token, id) => {
+      if (token.userId === userId) {
+        tokensToDelete.push(id);
+      }
+    });
+    tokensToDelete.forEach(id => this.refreshTokensMap.delete(id));
+    return true;
+  }
+
+  // Email log methods
+  async createEmailLog(insertEmailLog: InsertEmailLog): Promise<EmailLog> {
+    const id = this.currentEmailLogId++;
+    const now = new Date();
+    const emailLog: EmailLog = {
+      id,
+      userId: insertEmailLog.userId || null,
+      emailType: insertEmailLog.emailType,
+      recipient: insertEmailLog.recipient,
+      subject: insertEmailLog.subject,
+      status: insertEmailLog.status,
+      errorMessage: insertEmailLog.errorMessage || null,
+      sentAt: now,
+    };
+    this.emailLogsMap.set(id, emailLog);
+    return emailLog;
+  }
+
+  async getRecentEmailLogs(userId: number, emailType: string, minutesAgo: number): Promise<EmailLog[]> {
+    const cutoffTime = new Date(Date.now() - minutesAgo * 60 * 1000);
+    return Array.from(this.emailLogsMap.values()).filter(
+      (log) => 
+        log.userId === userId && 
+        log.emailType === emailType && 
+        log.sentAt >= cutoffTime
+    );
+  }
+
+  // Security audit log methods
+  async createSecurityAuditLog(insertAuditLog: InsertSecurityAuditLog): Promise<SecurityAuditLog> {
+    const id = this.currentSecurityAuditLogId++;
+    const now = new Date();
+    const auditLog: SecurityAuditLog = {
+      id,
+      userId: insertAuditLog.userId || null,
+      action: insertAuditLog.action,
+      status: insertAuditLog.status,
+      ipAddress: insertAuditLog.ipAddress || null,
+      userAgent: insertAuditLog.userAgent || null,
+      details: insertAuditLog.details || null,
+      createdAt: now,
+    };
+    this.securityAuditLogsMap.set(id, auditLog);
+    return auditLog;
+  }
+
+  async getSecurityAuditLogsByUser(userId: number, limit?: number): Promise<SecurityAuditLog[]> {
+    const logs = Array.from(this.securityAuditLogsMap.values())
+      .filter((log) => log.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    if (limit) {
+      return logs.slice(0, limit);
+    }
+    return logs;
+  }
 }
 
 // MySQL Storage implementation using Drizzle ORM
@@ -1017,7 +1203,7 @@ export class MySQLStorage implements IStorage {
         .$returningId();
       
       // Fetch the created user
-      return await this.getUser(user.id) as User;
+      return await this.getUser(toNumberId(user.id)) as User;
     } catch (error) {
       console.error('[DB Error] Operation: createUser, Table: users, Username:', insertUser.username, 'Error:', error);
       throw new Error('Failed to create user');
@@ -1065,7 +1251,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getDocumentById(document.id) as Document;
+      return await this.getDocumentById(toNumberId(document.id)) as Document;
     } catch (error) {
       console.error('[DB Error] Operation: createDocument, Table: documents, UserID:', insertDocument.userId, 'Error:', error);
       throw new Error('Failed to create document');
@@ -1160,7 +1346,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getFlashcardById(flashcard.id) as Flashcard;
+      return await this.getFlashcardById(toNumberId(flashcard.id)) as Flashcard;
     } catch (error) {
       console.error('[DB Error] Operation: createFlashcard, Table: flashcards, UserID:', insertFlashcard.userId, 'Error:', error);
       throw new Error('Failed to create flashcard');
@@ -1268,7 +1454,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getMcqById(mcq.id) as Mcq;
+      return await this.getMcqById(toNumberId(mcq.id)) as Mcq;
     } catch (error) {
       console.error('[DB Error] Operation: createMcq, Table: mcqs, UserID:', insertMcq.userId, 'Error:', error);
       throw new Error('Failed to create MCQ');
@@ -1388,7 +1574,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getCodeSnippetById(snippet.id) as CodeSnippet;
+      return await this.getCodeSnippetById(toNumberId(snippet.id)) as CodeSnippet;
     } catch (error) {
       console.error('[DB Error] Operation: createCodeSnippet, Table: codeSnippets, UserID:', insertSnippet.userId, 'Error:', error);
       throw new Error('Failed to create code snippet');
@@ -1486,7 +1672,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getChatHistoryById(history.id) as ChatHistory;
+      return await this.getChatHistoryById(toNumberId(history.id)) as ChatHistory;
     } catch (error) {
       console.error('Error creating chat history:', error);
       throw new Error('Failed to create chat history');
@@ -1588,7 +1774,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getStudyPlanById(plan.id) as StudyPlan;
+      return await this.getStudyPlanById(toNumberId(plan.id)) as StudyPlan;
     } catch (error) {
       console.error('Error creating study plan:', error);
       throw new Error('Failed to create study plan');
@@ -1732,7 +1918,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getSummaryById(summary.id) as Summary;
+      return await this.getSummaryById(toNumberId(summary.id)) as Summary;
     } catch (error) {
       console.error('Error creating summary:', error);
       throw new Error('Failed to create summary');
@@ -1824,7 +2010,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return { id: attempt.id, ...attemptData, createdAt: now };
+      return { id: toNumberId(attempt.id), ...attemptData, createdAt: now };
     } catch (error) {
       console.error('Error creating quiz attempt:', error);
       throw new Error('Failed to create quiz attempt');
@@ -1965,7 +2151,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return { id: newFeedback.id, ...feedbackData, createdAt: now };
+      return { id: toNumberId(newFeedback.id), ...feedbackData, createdAt: now };
     } catch (error) {
       console.error('Error creating feedback:', error);
       throw new Error('Failed to create feedback');
@@ -2001,7 +2187,7 @@ export class MySQLStorage implements IStorage {
         })
         .$returningId();
       
-      return await this.getDeckById(deck.id);
+      return await this.getDeckById(toNumberId(deck.id));
     } catch (error) {
       console.error('[DB Error] Operation: createDeck, Table: flashcard_decks, UserID:', insertDeck.userId, 'Error:', error);
       throw new Error('Failed to create deck');
@@ -2132,6 +2318,292 @@ export class MySQLStorage implements IStorage {
       return true;
     } catch (error) {
       console.error('[DB Error] Operation: removeCardFromDeck, Table: deck_flashcards, DeckID:', deckId, 'FlashcardID:', flashcardId, 'Error:', error);
+      return false;
+    }
+  }
+
+  // Refresh token methods
+  async createRefreshToken(insertRefreshToken: InsertRefreshToken): Promise<RefreshToken> {
+    try {
+      const [result] = await db
+        .insert(refreshTokens)
+        .values({
+          userId: insertRefreshToken.userId,
+          token: insertRefreshToken.token,
+          expiresAt: insertRefreshToken.expiresAt,
+          userAgent: insertRefreshToken.userAgent || null,
+          ipAddress: insertRefreshToken.ipAddress || null,
+        });
+      
+      const [refreshToken] = await db
+        .select()
+        .from(refreshTokens)
+        .where(eq(refreshTokens.id, toNumberId(result.insertId)))
+        .limit(1);
+      
+      return refreshToken;
+    } catch (error) {
+      console.error('[DB Error] Operation: createRefreshToken, Table: refresh_tokens, Error:', error);
+      throw new Error('Failed to create refresh token');
+    }
+  }
+
+  async getRefreshToken(token: string): Promise<RefreshToken | undefined> {
+    try {
+      const [refreshToken] = await db
+        .select()
+        .from(refreshTokens)
+        .where(eq(refreshTokens.token, token))
+        .limit(1);
+      return refreshToken;
+    } catch (error) {
+      console.error('[DB Error] Operation: getRefreshToken, Table: refresh_tokens, Error:', error);
+      throw new Error('Failed to fetch refresh token');
+    }
+  }
+
+  async deleteRefreshToken(token: string): Promise<boolean> {
+    try {
+      await db
+        .delete(refreshTokens)
+        .where(eq(refreshTokens.token, token));
+      return true;
+    } catch (error) {
+      console.error('[DB Error] Operation: deleteRefreshToken, Table: refresh_tokens, Error:', error);
+      return false;
+    }
+  }
+
+  async deleteAllUserRefreshTokens(userId: number): Promise<boolean> {
+    try {
+      await db
+        .delete(refreshTokens)
+        .where(eq(refreshTokens.userId, userId));
+      return true;
+    } catch (error) {
+      console.error('[DB Error] Operation: deleteAllUserRefreshTokens, Table: refresh_tokens, UserID:', userId, 'Error:', error);
+      return false;
+    }
+  }
+
+  // Email log methods
+  async createEmailLog(insertEmailLog: InsertEmailLog): Promise<EmailLog> {
+    try {
+      const [result] = await db
+        .insert(emailLogs)
+        .values({
+          userId: insertEmailLog.userId || null,
+          emailType: insertEmailLog.emailType,
+          recipient: insertEmailLog.recipient,
+          subject: insertEmailLog.subject,
+          status: insertEmailLog.status,
+          errorMessage: insertEmailLog.errorMessage || null,
+        });
+      
+      const [emailLog] = await db
+        .select()
+        .from(emailLogs)
+        .where(eq(emailLogs.id, toNumberId(result.insertId)))
+        .limit(1);
+      
+      return emailLog;
+    } catch (error) {
+      console.error('[DB Error] Operation: createEmailLog, Table: email_logs, Error:', error);
+      throw new Error('Failed to create email log');
+    }
+  }
+
+  async getRecentEmailLogs(userId: number, emailType: string, minutesAgo: number): Promise<EmailLog[]> {
+    try {
+      const cutoffTime = new Date(Date.now() - minutesAgo * 60 * 1000);
+      
+      const logs = await db
+        .select()
+        .from(emailLogs)
+        .where(
+          and(
+            eq(emailLogs.userId, userId),
+            eq(emailLogs.emailType, emailType)
+          )
+        );
+      
+      // Filter by time in JavaScript since Drizzle doesn't have a direct >= operator for dates
+      return logs.filter((log: EmailLog) => log.sentAt >= cutoffTime);
+    } catch (error) {
+      console.error('[DB Error] Operation: getRecentEmailLogs, Table: email_logs, UserID:', userId, 'Error:', error);
+      throw new Error('Failed to fetch recent email logs');
+    }
+  }
+
+  // Security audit log methods
+  async createSecurityAuditLog(insertAuditLog: InsertSecurityAuditLog): Promise<SecurityAuditLog> {
+    try {
+      const [result] = await db
+        .insert(securityAuditLogs)
+        .values({
+          userId: insertAuditLog.userId || null,
+          action: insertAuditLog.action,
+          status: insertAuditLog.status,
+          ipAddress: insertAuditLog.ipAddress || null,
+          userAgent: insertAuditLog.userAgent || null,
+          details: insertAuditLog.details || null,
+        });
+      
+      const [auditLog] = await db
+        .select()
+        .from(securityAuditLogs)
+        .where(eq(securityAuditLogs.id, toNumberId(result.insertId)))
+        .limit(1);
+      
+      return auditLog;
+    } catch (error) {
+      console.error('[DB Error] Operation: createSecurityAuditLog, Table: security_audit_logs, Error:', error);
+      throw new Error('Failed to create security audit log');
+    }
+  }
+
+  async getSecurityAuditLogsByUser(userId: number, limit?: number): Promise<SecurityAuditLog[]> {
+    try {
+      let query = db
+        .select()
+        .from(securityAuditLogs)
+        .where(eq(securityAuditLogs.userId, userId))
+        .orderBy(desc(securityAuditLogs.createdAt));
+      
+      if (limit) {
+        query = query.limit(limit) as any;
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('[DB Error] Operation: getSecurityAuditLogsByUser, Table: security_audit_logs, UserID:', userId, 'Error:', error);
+      throw new Error('Failed to fetch security audit logs');
+    }
+  }
+
+  // Saved quiz methods
+  async saveQuiz(userId: number, quizData: any): Promise<any> {
+    try {
+      const [result] = await db
+        .insert(savedQuizzes)
+        .values({
+          userId,
+          category: quizData.category,
+          difficulty: quizData.difficulty,
+          questionTypes: quizData.questionTypes,
+          questionCount: quizData.questionCount,
+          title: quizData.title || null,
+          description: quizData.description || null,
+        });
+      
+      const [savedQuiz] = await db
+        .select()
+        .from(savedQuizzes)
+        .where(eq(savedQuizzes.id, toNumberId(result.insertId)))
+        .limit(1);
+      
+      return savedQuiz;
+    } catch (error) {
+      console.error('[DB Error] Operation: saveQuiz, Table: saved_quizzes, UserID:', userId, 'Error:', error);
+      throw new Error('Failed to save quiz');
+    }
+  }
+
+  async getSavedQuizzes(userId: number): Promise<any[]> {
+    try {
+      return await db
+        .select()
+        .from(savedQuizzes)
+        .where(eq(savedQuizzes.userId, userId))
+        .orderBy(desc(savedQuizzes.savedAt));
+    } catch (error) {
+      console.error('[DB Error] Operation: getSavedQuizzes, Table: saved_quizzes, UserID:', userId, 'Error:', error);
+      throw new Error('Failed to fetch saved quizzes');
+    }
+  }
+
+  async removeSavedQuiz(userId: number, quizId: number): Promise<boolean> {
+    try {
+      await db
+        .delete(savedQuizzes)
+        .where(and(eq(savedQuizzes.id, quizId), eq(savedQuizzes.userId, userId)));
+      return true;
+    } catch (error) {
+      console.error('[DB Error] Operation: removeSavedQuiz, Table: saved_quizzes, QuizID:', quizId, 'Error:', error);
+      throw new Error('Failed to remove saved quiz');
+    }
+  }
+
+  // Favorite quiz methods
+  async favoriteQuiz(userId: number, quizData: any): Promise<any> {
+    try {
+      const [result] = await db
+        .insert(favoriteQuizzes)
+        .values({
+          userId,
+          category: quizData.category,
+          difficulty: quizData.difficulty,
+          questionTypes: quizData.questionTypes,
+          questionCount: quizData.questionCount,
+          title: quizData.title || null,
+          description: quizData.description || null,
+        });
+      
+      const [favoriteQuiz] = await db
+        .select()
+        .from(favoriteQuizzes)
+        .where(eq(favoriteQuizzes.id, toNumberId(result.insertId)))
+        .limit(1);
+      
+      return favoriteQuiz;
+    } catch (error) {
+      console.error('[DB Error] Operation: favoriteQuiz, Table: favorite_quizzes, UserID:', userId, 'Error:', error);
+      throw new Error('Failed to favorite quiz');
+    }
+  }
+
+  async getFavoriteQuizzes(userId: number): Promise<any[]> {
+    try {
+      return await db
+        .select()
+        .from(favoriteQuizzes)
+        .where(eq(favoriteQuizzes.userId, userId))
+        .orderBy(desc(favoriteQuizzes.favoritedAt));
+    } catch (error) {
+      console.error('[DB Error] Operation: getFavoriteQuizzes, Table: favorite_quizzes, UserID:', userId, 'Error:', error);
+      throw new Error('Failed to fetch favorite quizzes');
+    }
+  }
+
+  async removeFavoriteQuiz(userId: number, quizId: number): Promise<boolean> {
+    try {
+      await db
+        .delete(favoriteQuizzes)
+        .where(and(eq(favoriteQuizzes.id, quizId), eq(favoriteQuizzes.userId, userId)));
+      return true;
+    } catch (error) {
+      console.error('[DB Error] Operation: removeFavoriteQuiz, Table: favorite_quizzes, QuizID:', quizId, 'Error:', error);
+      throw new Error('Failed to remove favorite quiz');
+    }
+  }
+
+  async isFavoriteQuiz(userId: number, category: string, difficulty: string): Promise<boolean> {
+    try {
+      const [result] = await db
+        .select()
+        .from(favoriteQuizzes)
+        .where(
+          and(
+            eq(favoriteQuizzes.userId, userId),
+            eq(favoriteQuizzes.category, category),
+            eq(favoriteQuizzes.difficulty, difficulty)
+          )
+        )
+        .limit(1);
+      
+      return !!result;
+    } catch (error) {
+      console.error('[DB Error] Operation: isFavoriteQuiz, Table: favorite_quizzes, UserID:', userId, 'Error:', error);
       return false;
     }
   }

@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { AIError } from "../utils/ai-errors";
 
-// Custom error class for application errors
+// Base custom error class for application errors
 export class AppError extends Error {
   constructor(
     public statusCode: number,
@@ -15,34 +16,141 @@ export class AppError extends Error {
   }
 }
 
-// Error response interface
-interface ErrorResponse {
-  message: string;
-  errors?: Array<{ field: string; message: string }>;
-  stack?: string;
+/**
+ * ValidationError for input validation failures
+ * Requirements: 10.11
+ */
+export class ValidationError extends AppError {
+  public errors?: Array<{ field: string; message: string }>;
+
+  constructor(message: string, errors?: Array<{ field: string; message: string }>) {
+    super(400, message, true);
+    this.name = 'ValidationError';
+    this.errors = errors;
+    Object.setPrototypeOf(this, ValidationError.prototype);
+  }
 }
 
-// Centralized error handler middleware
+/**
+ * AuthenticationError for authentication failures
+ * Requirements: 10.11
+ */
+export class AuthenticationError extends AppError {
+  constructor(message: string = 'Authentication failed') {
+    super(401, message, true);
+    this.name = 'AuthenticationError';
+    Object.setPrototypeOf(this, AuthenticationError.prototype);
+  }
+}
+
+/**
+ * AuthorizationError for permission/authorization issues
+ * Requirements: 10.11
+ */
+export class AuthorizationError extends AppError {
+  constructor(message: string = 'Insufficient permissions') {
+    super(403, message, true);
+    this.name = 'AuthorizationError';
+    Object.setPrototypeOf(this, AuthorizationError.prototype);
+  }
+}
+
+/**
+ * RateLimitError for rate limit violations
+ * Requirements: 10.11
+ */
+export class RateLimitError extends AppError {
+  public retryAfter?: number; // seconds until next attempt allowed
+
+  constructor(message: string = 'Too many requests', retryAfter?: number) {
+    super(429, message, true);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+    Object.setPrototypeOf(this, RateLimitError.prototype);
+  }
+}
+
+// Error response interface
+interface ErrorResponse {
+  success: boolean;
+  message: string;
+  errors?: Array<{ field: string; message: string }>;
+  retryAfter?: number;
+  stack?: string;
+  code?: string;
+  retryable?: boolean;
+}
+
+/**
+ * Centralized error handler middleware
+ * Catches all errors, logs them with appropriate context, and returns user-friendly messages
+ * Requirements: 8.7, 10.11
+ */
 export function errorHandler(
   err: Error | AppError | ZodError,
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  // Log error with context
-  console.error('[API Error]', {
-    timestamp: new Date().toISOString(),
+  // Import Logger dynamically to avoid circular dependencies
+  const { Logger, LogCategory } = require('../utils/logger');
+
+  // Determine if this is an operational error (expected) or programming error (unexpected)
+  const isOperational = err instanceof AppError && err.isOperational;
+
+  // Log error with appropriate context
+  // Never expose sensitive information in logs
+  const logContext = {
     method: req.method,
     path: req.path,
-    userId: req.user?.userId,
-    error: err.message,
-    stack: err.stack
-  });
+    userId: (req as any).user?.id,
+    ipAddress: req.ip || req.socket.remoteAddress,
+    userAgent: req.get('user-agent'),
+    errorName: err.name,
+    errorMessage: err.message,
+    isOperational,
+  };
+
+  // Log with appropriate severity
+  if (isOperational) {
+    Logger.debug(LogCategory.SYSTEM, 'Operational error occurred', logContext);
+  } else {
+    Logger.error(LogCategory.SYSTEM, 'Unexpected error occurred', err, logContext);
+  }
+
+  // Handle AIError with specific error codes and user-friendly messages
+  if (err instanceof AIError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.userMessage,
+      code: err.code,
+      retryable: err.retryable,
+    };
+
+    // Log the original error for debugging
+    if (err.originalError) {
+      Logger.error(LogCategory.AI, 'AI Error details', err.originalError, {
+        code: err.code,
+        retryable: err.retryable,
+        ...logContext,
+      });
+    }
+
+    // Include stack trace only in development
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = err.stack;
+    }
+
+    // Return 503 for retryable errors, 500 for non-retryable
+    const statusCode = err.retryable ? 503 : 500;
+    return res.status(statusCode).json(errorResponse);
+  }
 
   // Handle Zod validation errors
   if (err instanceof ZodError) {
     const validationError = fromZodError(err);
     const errorResponse: ErrorResponse = {
+      success: false,
       message: "Validation error",
       errors: validationError.details.map((detail: any) => ({
         field: detail.path?.join('.') || 'unknown',
@@ -53,13 +161,65 @@ export function errorHandler(
     return res.status(400).json(errorResponse);
   }
 
-  // Handle custom AppError
+  // Handle RateLimitError with retry-after header
+  if (err instanceof RateLimitError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+    };
+
+    if (err.retryAfter) {
+      errorResponse.retryAfter = err.retryAfter;
+      res.setHeader('Retry-After', err.retryAfter.toString());
+    }
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle ValidationError with field-level errors
+  if (err instanceof ValidationError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+      errors: err.errors,
+    };
+
+    // Include stack trace only in development
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = err.stack;
+    }
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle AuthenticationError
+  if (err instanceof AuthenticationError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+    };
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle AuthorizationError
+  if (err instanceof AuthorizationError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+    };
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle other custom AppError instances
   if (err instanceof AppError) {
     const errorResponse: ErrorResponse = {
-      message: err.message
+      success: false,
+      message: err.message,
     };
     
-    // Include stack trace in development
+    // Include stack trace only in development
     if (process.env.NODE_ENV === 'development') {
       errorResponse.stack = err.stack;
     }
@@ -67,10 +227,13 @@ export function errorHandler(
     return res.status(err.statusCode).json(errorResponse);
   }
 
-  // Handle database errors
-  if (err.message.includes('Failed to')) {
+  // Handle database errors (sanitize message to avoid exposing internal details)
+  if (err.message.includes('Failed to') || err.message.includes('database')) {
     const errorResponse: ErrorResponse = {
-      message: err.message
+      success: false,
+      message: process.env.NODE_ENV === 'production'
+        ? 'A database error occurred'
+        : err.message,
     };
     
     if (process.env.NODE_ENV === 'development') {
@@ -80,13 +243,16 @@ export function errorHandler(
     return res.status(500).json(errorResponse);
   }
 
-  // Handle generic errors
+  // Handle all other unexpected errors
+  // Never expose sensitive information or internal details in production
   const errorResponse: ErrorResponse = {
+    success: false,
     message: process.env.NODE_ENV === 'production' 
-      ? "Internal server error" 
-      : err.message || "Internal server error"
+      ? "An unexpected error occurred" 
+      : err.message || "An unexpected error occurred"
   };
   
+  // Include stack trace only in development for debugging
   if (process.env.NODE_ENV === 'development') {
     errorResponse.stack = err.stack;
   }
@@ -105,6 +271,17 @@ export function asyncHandler(
 
 // Helper function to handle API errors (for use in route handlers)
 export function handleApiError(error: unknown, res: Response) {
+  // Handle AIError with specific error codes
+  if (error instanceof AIError) {
+    const statusCode = error.retryable ? 503 : 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.userMessage,
+      code: error.code,
+      retryable: error.retryable,
+    });
+  }
+
   if (error instanceof ZodError) {
     const validationError = fromZodError(error);
     return res.status(400).json({ 

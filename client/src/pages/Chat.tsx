@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Bot, User as UserIcon, Sparkles, Copy, Check, Menu, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { apiGet, apiPost, apiDelete, apiPatch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -75,9 +76,7 @@ export default function Chat() {
   const { data: chatHistory, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
     queryKey: ['/api/chat/history'],
     queryFn: async () => {
-      const response = await fetch('/api/chat/history', {
-        credentials: 'include',
-      });
+      const response = await apiGet('/api/chat/history');
       
       if (!response.ok) {
         throw new Error('Failed to fetch chat history');
@@ -93,9 +92,7 @@ export default function Chat() {
   // Load a specific chat session
   const loadChatSession = async (chatId: number) => {
     try {
-      const response = await fetch(`/api/chat/history/${chatId}`, {
-        credentials: 'include',
-      });
+      const response = await apiGet(`/api/chat/history/${chatId}`);
       
       if (!response.ok) {
         throw new Error('Failed to load chat session');
@@ -145,10 +142,7 @@ export default function Chat() {
     e.stopPropagation(); // Prevent loading the chat when clicking delete
     
     try {
-      const response = await fetch(`/api/chat/history/${chatId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      const response = await apiDelete(`/api/chat/history/${chatId}`);
       
       if (!response.ok) {
         throw new Error('Failed to delete chat');
@@ -192,15 +186,8 @@ export default function Chat() {
     }
     
     try {
-      const response = await fetch(`/api/chat/history/${chatId}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subject: editingTitle.trim(),
-        }),
+      const response = await apiPatch(`/api/chat/history/${chatId}`, {
+        subject: editingTitle.trim(),
       });
       
       if (!response.ok) {
@@ -262,17 +249,10 @@ export default function Chat() {
   // Set up chat mutation
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          message,
-          sessionId: sessionId,
-          subject: 'General Study Help'
-        }),
+      const response = await apiPost('/api/chat', { 
+        message,
+        sessionId: sessionId,
+        subject: 'General Study Help'
       });
       
       if (!response.ok) {
@@ -433,16 +413,9 @@ export default function Chat() {
     if (!sessionId) return;
 
     try {
-      const response = await fetch('/api/chat/regenerate', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId,
-          messageIndex,
-        }),
+      const response = await apiPost('/api/chat/regenerate', {
+        sessionId,
+        messageIndex,
       });
 
       if (!response.ok) {
