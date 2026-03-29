@@ -119,15 +119,15 @@ export class AchievementService {
       let description = '';
 
       // Determine badge based on score range
-      if (score > 90) {
+      if (score >= 90) {
         badgeType = 'gold_badge';
         badgeName = 'Gold Badge';
-        description = 'Achieved a score above 90%';
-      } else if (score >= 70 && score <= 89) {
+        description = 'Achieved a score of 90% or above';
+      } else if (score >= 70 && score < 90) {
         badgeType = 'silver_badge';
         badgeName = 'Silver Badge';
         description = 'Achieved a score between 70% and 89%';
-      } else if (score >= 50 && score <= 69) {
+      } else if (score >= 50 && score < 70) {
         badgeType = 'bronze_badge';
         badgeName = 'Bronze Badge';
         description = 'Achieved a score between 50% and 69%';
@@ -137,9 +137,9 @@ export class AchievementService {
         return null; // No badge for scores below 50%
       }
 
-      // Check if user already has this badge type recently (within last hour)
-      // to avoid duplicate badges for multiple quizzes in quick succession
-      const recentBadges = await db
+      // Check if user already has this EXACT badge type
+      // Award each badge type only ONCE in lifetime (not per quiz)
+      const existingBadges = await db
         .select()
         .from(achievements)
         .where(
@@ -148,21 +148,14 @@ export class AchievementService {
             eq(achievements.badge, badgeType)
           )
         )
-        .orderBy(desc(achievements.earnedAt))
         .limit(1);
 
-      if (recentBadges.length > 0) {
-        const lastBadgeTime = recentBadges[0].earnedAt.getTime();
-        const now = new Date().getTime();
-        const hourInMs = 60 * 60 * 1000;
-
-        if (now - lastBadgeTime < hourInMs) {
-          // Already awarded this badge recently, don't duplicate
-          return null;
-        }
+      if (existingBadges.length > 0) {
+        // User already has this badge type, don't award again
+        return null;
       }
 
-      // Award the badge
+      // Award the badge (first time only)
       const [newAchievement] = await db.insert(achievements).values({
         userId,
         badge: badgeType,
@@ -220,7 +213,7 @@ export class AchievementService {
         description: ach.description || '',
         badge: ach.badge,
         level: ach.level || 1,
-        earnedAt: ach.earnedAt,
+        earnedAt: ach.earnedAt instanceof Date ? ach.earnedAt.toISOString() : ach.earnedAt,
       }));
     } catch (error) {
       console.error('Error getting user achievements:', error);

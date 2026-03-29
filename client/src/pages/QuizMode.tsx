@@ -23,7 +23,7 @@
  * - Modern UI with glassmorphism and animations - Req 20-21
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -35,6 +35,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import QuizConfigurationPanel, { QuizConfig } from "@/components/quiz/QuizConfigurationPanel";
 import QuizPlayer, { QuizResults } from "@/components/quiz/QuizPlayer";
 import ResultsSummary from "@/components/quiz/ResultsSummary";
+import QuizReviewMode from "@/components/quiz/QuizReviewMode";
 import { QuizOfTheDay } from "@/components/quiz/QuizOfTheDay";
 import {
   Card,
@@ -71,17 +72,23 @@ export default function QuizMode() {
   // STATE MANAGEMENT
   // ============================================================================
   
-  // Navigation state
-  const [activeTab, setActiveTab] = useState("take-quiz");
+  // Navigation state - persist active tab across page refreshes
+  const [activeTab, setActiveTab] = useState(() => {
+    // Restore active tab from sessionStorage on mount
+    return sessionStorage.getItem('quizModeActiveTab') || "take-quiz";
+  });
   
   // Quiz lifecycle state
   const [isQuizStarted, setIsQuizStarted] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [showReviewMode, setShowReviewMode] = useState(false);
   
   // Quiz data state
   const [quizConfig, setQuizConfig] = useState<QuizConfig | null>(null);
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [quizResults, setQuizResults] = useState<QuizResults | null>(null);
+  const [userAnswers, setUserAnswers] = useState<Record<number, any>>({});
+  const [questionAttempts, setQuestionAttempts] = useState<Record<number, any>>({});
   
   // Social features state
   const [showShareModal, setShowShareModal] = useState(false);
@@ -92,10 +99,32 @@ export default function QuizMode() {
     `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
   );
   
+  // QOTD tracking
+  const [isQOTD, setIsQOTD] = useState(false);
+  const [qotdId, setQotdId] = useState<string | null>(null);
+  const [qotdAutoStarted, setQotdAutoStarted] = useState(false);
+  
   // Hooks
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('quizModeActiveTab', activeTab);
+  }, [activeTab]);
+  
+  // Parse URL parameters on mount to check for QOTD
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qotdParam = params.get('qotd');
+    if (qotdParam === 'true') {
+      setIsQOTD(true);
+      // Generate QOTD ID based on today's date
+      const today = new Date().toISOString().split('T')[0];
+      setQotdId(`qotd-${today}`);
+    }
+  }, []);
   
   // Adaptive difficulty notification state
   const [showAdaptiveNotification, setShowAdaptiveNotification] = useState(false);
@@ -255,6 +284,34 @@ export default function QuizMode() {
     }
   };
 
+  // Auto-start QOTD quiz when parameters are present (only on first load)
+  useEffect(() => {
+    if (isQOTD && !isQuizStarted && !isLoadingQuiz && !qotdAutoStarted && !showResults) {
+      const params = new URLSearchParams(window.location.search);
+      const category = params.get('category') || 'Tech';
+      const difficulty = params.get('difficulty') || 'hard';
+      const count = parseInt(params.get('count') || '10');
+      
+      // Create QOTD config and auto-start
+      const qotdConfig: QuizConfig = {
+        category,
+        difficulty: difficulty as 'easy' | 'medium' | 'hard',
+        questionCount: count,
+        questionTypes: ['mcq'], // QOTD uses MCQ only
+        timedMode: false,
+        voiceMode: false,
+        aiMode: true,
+        sessionId,
+      };
+      
+      // Mark as auto-started to prevent re-triggering
+      setQotdAutoStarted(true);
+      
+      // Auto-start the quiz
+      handleStartQuiz(qotdConfig);
+    }
+  }, [isQOTD, isQuizStarted, isLoadingQuiz, qotdAutoStarted, showResults]);
+
   // ============================================================================
   // DATA PERSISTENCE
   // ============================================================================
@@ -309,21 +366,141 @@ export default function QuizMode() {
    */
   const handleQuizComplete = async (results: QuizResults) => {
     setQuizResults(results);
+    setUserAnswers(results.userAnswers || {});
+    setQuestionAttempts(results.questionAttempts || {});
     setShowResults(true);
     setIsQuizStarted(false);
+    setShowReviewMode(false);
     
     // Requirement 8.6 & 19.2: Save quiz attempt to database
     if (quizConfig) {
-      saveQuizAttemptMutation.mutate({
-        score: results.score,
-        totalQuestions: results.totalQuestions,
-        correctAnswers: results.correctAnswers,
-        incorrectAnswers: results.incorrectAnswers,
-        timeSpent: results.timeSpent,
-        category: quizConfig.category,
-        difficulty: quizConfig.difficulty,
-        hintsUsed: results.hintsUsed,
-      });
+      try {
+        // Prepare question attempts data
+        const questionAttemptsData = Object.entries(results.questionAttempts || {}).map(([qId, attempt]: [string, any]) => ({
+          questionId: parseInt(qId),
+          userAnswer: attempt.userAnswer,
+          isCorrect: attempt.isCorrect,
+          timeSpent: attempt.timeSpent || 0,
+        }));
+
+        console.log('Saving quiz attempt:', {
+          questionsCount: quizQuestions.length,
+          questionAttemptsCount: questionAttemptsData.length,
+          questionAttemptsSample: questionAttemptsData[0],
+          score: results.score,
+          totalQuestions: results.totalQuestions,
+          correctAnswers: results.correctAnswers,
+          incorrectAnswers: results.incorrectAnswers,
+        });
+
+        const response = await apiRequest<{ id: number; newAchievements?: any[]; success?: boolean; message?: string }>('/api/quiz-attempts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            score: results.score,
+            totalQuestions: results.totalQuestions,
+            correctAnswers: results.correctAnswers,
+            incorrectAnswers: results.incorrectAnswers,
+            timeSpent: results.timeSpent,
+            category: quizConfig.category,
+            difficulty: quizConfig.difficulty,
+            hintsUsed: results.hintsUsed,
+            questionsData: quizQuestions, // Include full questions for review
+            questionAttempts: questionAttemptsData, // Include individual question attempts
+          }),
+        });
+        
+        console.log('Quiz attempt saved successfully:', response);
+        
+        // Store attempt ID for sharing functionality
+        if (response?.id) {
+          setCompletedQuizAttemptId(response.id);
+        }
+        
+        // Update results with achievements from backend
+        if (response?.newAchievements && response.newAchievements.length > 0) {
+          console.log('Achievements earned:', response.newAchievements);
+          setQuizResults({
+            ...results,
+            newAchievements: response.newAchievements,
+          });
+        }
+        
+        // If this is a Quiz of the Day, award bonus points
+        if (isQOTD && qotdId) {
+          try {
+            const qotdResponse = await apiRequest<{ bonusPoints: number; newAchievements?: any[]; message?: string }>('/api/quiz-of-the-day/complete', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                quizId: qotdId,
+                score: results.score,
+                totalQuestions: results.totalQuestions,
+                correctAnswers: results.correctAnswers,
+                incorrectAnswers: results.incorrectAnswers,
+                timeSpent: results.timeSpent,
+                accuracy: results.accuracy,
+                category: quizConfig.category,
+                difficulty: quizConfig.difficulty,
+              }),
+            });
+            
+            console.log('QOTD completion response:', qotdResponse);
+            
+            // Show bonus points notification
+            if (qotdResponse?.bonusPoints) {
+              toast({
+                title: "🎁 Quiz of the Day Bonus!",
+                description: `You earned ${qotdResponse.bonusPoints} bonus points!`,
+                duration: 5000,
+              });
+              
+              // Update results with bonus points
+              setQuizResults(prev => prev ? {
+                ...prev,
+                bonusPoints: qotdResponse.bonusPoints,
+                newAchievements: [
+                  ...(prev.newAchievements || []),
+                  ...(qotdResponse.newAchievements || [])
+                ],
+              } : null);
+            }
+          } catch (qotdError: any) {
+            console.error('Failed to complete QOTD:', qotdError);
+            
+            // If already completed today, show info message instead of error
+            if (qotdError?.message?.includes('already completed') || qotdError?.status === 400) {
+              console.log('User already completed QOTD today - this is a retry attempt');
+              // Don't show error for retry attempts
+            } else {
+              // Show error for other issues
+              console.error('QOTD completion error:', qotdError);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('Failed to save quiz attempt:', error);
+        
+        // Provide more detailed error message
+        let errorMessage = "Quiz completed but failed to save. Your progress may not be recorded.";
+        if (error?.message) {
+          console.error('Error details:', error.message);
+          errorMessage = `Failed to save: ${error.message}`;
+        }
+        if (error?.response) {
+          console.error('Server response:', error.response);
+        }
+        
+        toast({
+          title: "Warning",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     }
     
     // Requirement 6.5: Show confetti animation for high scores (>90%)
@@ -347,7 +524,31 @@ export default function QuizMode() {
    */
   const handleRetryQuiz = () => {
     if (quizConfig) {
-      handleStartQuiz(quizConfig);
+      // If this is a QOTD retry, clear the QOTD flag to allow normal quiz flow
+      // This prevents auto-completion tracking for retry attempts
+      if (isQOTD) {
+        setIsQOTD(false);
+        setQotdId(null);
+        
+        // Remove qotd parameter from URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('qotd');
+        window.history.replaceState({}, '', url.toString());
+      }
+      
+      // Reset to configuration screen instead of auto-starting
+      // This allows users to change parameters for different questions
+      setShowResults(false);
+      setIsQuizStarted(false);
+      setQuizResults(null);
+      setQuizQuestions([]);
+      setUserAnswers({});
+      setQuestionAttempts({});
+      
+      toast({
+        title: "Ready for a new quiz!",
+        description: "Configure your quiz settings or start with the same settings.",
+      });
     }
   };
 
@@ -356,12 +557,20 @@ export default function QuizMode() {
    * Implements Requirement 6.6: View detailed answers option
    */
   const handleViewAnswers = () => {
-    setShowResults(false);
-    setActiveTab("question-bank");
-    toast({
-      title: "Review Mode",
-      description: "Check the question bank to review answers and explanations.",
-    });
+    if (quizQuestions.length > 0) {
+      setShowResults(false);
+      setShowReviewMode(true);
+      toast({
+        title: "Review Mode",
+        description: "Review all questions with correct answers and explanations.",
+      });
+    } else {
+      toast({
+        title: "No questions to review",
+        description: "Quiz questions are no longer available.",
+        variant: "destructive",
+      });
+    }
   };
 
   /**
@@ -369,14 +578,68 @@ export default function QuizMode() {
    * Implements Requirement 23: Shareable quiz links
    */
   const handleShareResults = () => {
+    if (!quizResults) {
+      toast({
+        title: "No results to share",
+        description: "Please complete a quiz first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (completedQuizAttemptId) {
       setShowShareModal(true);
     } else {
       toast({
-        title: "Share unavailable",
-        description: "Unable to generate share link at this time.",
-        variant: "destructive",
+        title: "Generating share link...",
+        description: "Please wait while we prepare your results for sharing.",
       });
+      
+      // Retry saving the quiz attempt if it failed earlier
+      if (quizConfig) {
+        apiRequest<{ id: number }>('/api/quiz-attempts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            score: quizResults.score,
+            totalQuestions: quizResults.totalQuestions,
+            correctAnswers: quizResults.correctAnswers,
+            incorrectAnswers: quizResults.incorrectAnswers,
+            timeSpent: quizResults.timeSpent,
+            category: quizConfig.category,
+            difficulty: quizConfig.difficulty,
+            hintsUsed: quizResults.hintsUsed,
+          }),
+        })
+          .then((response) => {
+            if (response?.id) {
+              setCompletedQuizAttemptId(response.id);
+              setShowShareModal(true);
+              toast({
+                title: "Ready to share!",
+                description: "Your quiz results are ready to be shared.",
+              });
+            } else {
+              throw new Error('No attempt ID returned');
+            }
+          })
+          .catch((error) => {
+            console.error('Failed to save quiz attempt:', error);
+            toast({
+              title: "Share unavailable",
+              description: "Unable to generate share link. Please try again later.",
+              variant: "destructive",
+            });
+          });
+      } else {
+        toast({
+          title: "Share unavailable",
+          description: "Quiz configuration not found. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -508,7 +771,7 @@ export default function QuizMode() {
           <TabsContent value="take-quiz" className="space-y-6">
             <AnimatePresence mode="wait">
               {/* Quiz Configuration Phase */}
-              {!isQuizStarted && !showResults && (
+              {!isQuizStarted && !showResults && !showReviewMode && (
                 <motion.div
                   key="config"
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -525,7 +788,7 @@ export default function QuizMode() {
               )}
 
               {/* Quiz Taking Phase */}
-              {isQuizStarted && quizConfig && quizQuestions.length > 0 && (
+              {isQuizStarted && quizConfig && quizQuestions.length > 0 && !showReviewMode && (
                 <motion.div
                   key="player"
                   initial={{ opacity: 0, x: 20 }}
@@ -543,7 +806,7 @@ export default function QuizMode() {
               )}
 
               {/* Results Phase */}
-              {showResults && quizResults && (
+              {showResults && quizResults && !showReviewMode && (
                 <motion.div
                   key="results"
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -553,9 +816,30 @@ export default function QuizMode() {
                 >
                   <ResultsSummary
                     results={quizResults}
-                    onRetry={handleRetryQuiz}
                     onViewAnswers={handleViewAnswers}
                     onShare={handleShareResults}
+                    onRetry={handleRetryQuiz}
+                  />
+                </motion.div>
+              )}
+
+              {/* Review Mode Phase */}
+              {showReviewMode && quizQuestions.length > 0 && userAnswers && (
+                <motion.div
+                  key="review"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <QuizReviewMode
+                    questions={quizQuestions}
+                    userAnswers={userAnswers}
+                    questionAttempts={questionAttempts}
+                    onBack={() => {
+                      setShowReviewMode(false);
+                      setShowResults(true);
+                    }}
                   />
                 </motion.div>
               )}

@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { questions, quizAttempts, userQuizStats } from '../../shared/schema';
+import { questions, quizAttempts, userQuizStats, userPoints, quizOfTheDayCompletions, users } from '../../shared/schema';
 import { eq, desc, sql, and, gte } from 'drizzle-orm';
 import { Logger, LogCategory } from '../utils/logger';
 
@@ -103,29 +103,27 @@ export class QuizOfTheDayService {
   async hasCompletedToday(userId: number, date: Date = new Date()): Promise<boolean> {
     try {
       const dateString = this.getDateString(date);
-      const quizId = `qotd-${dateString}`;
 
-      // Check if user has a quiz attempt with this quiz ID today
+      // Check quiz_of_the_day_completions table for today's completion
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
 
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const attempts = await db
+      const completions = await db
         .select()
-        .from(quizAttempts)
+        .from(quizOfTheDayCompletions)
         .where(
           and(
-            eq(quizAttempts.userId, userId),
-            gte(quizAttempts.createdAt, startOfDay),
-            sql`${quizAttempts.createdAt} <= ${endOfDay}`,
-            eq(quizAttempts.completed, true)
+            eq(quizOfTheDayCompletions.userId, userId),
+            gte(quizOfTheDayCompletions.date, startOfDay),
+            sql`${quizOfTheDayCompletions.date} <= ${endOfDay}`
           )
         )
         .limit(1);
 
-      return attempts.length > 0;
+      return completions.length > 0;
     } catch (error) {
       Logger.error(LogCategory.BUSINESS, 'Error checking Quiz of the Day completion', error as Error);
       return false;
@@ -138,9 +136,22 @@ export class QuizOfTheDayService {
    * 
    * @param userId - User ID
    * @param quizId - Quiz of the Day ID
+   * @param completionData - Quiz completion data
    * @returns Bonus points awarded
    */
-  async awardBonusPoints(userId: number, quizId: string): Promise<number> {
+  async awardBonusPoints(
+    userId: number, 
+    quizId: string,
+    completionData: {
+      category: string;
+      difficulty: string;
+      score: number;
+      totalQuestions: number;
+      correctAnswers: number;
+      timeSpent: number;
+      accuracy: number;
+    }
+  ): Promise<number> {
     try {
       Logger.info(LogCategory.BUSINESS, 'Awarding Quiz of the Day bonus', { userId, quizId });
 
@@ -151,11 +162,56 @@ export class QuizOfTheDayService {
         return 0;
       }
 
-      // Award bonus points by updating user stats
-      // Note: In a real implementation, you might have a separate points/XP system
-      // For now, we'll just return the bonus amount
+      // Start a transaction to ensure data consistency
+      const bonusPoints = QuizOfTheDayService.BONUS_POINTS;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Insert into quiz_of_the_day_completions table
+      await db.insert(quizOfTheDayCompletions).values({
+        userId,
+        quizId,
+        date: today,
+        category: completionData.category,
+        difficulty: completionData.difficulty,
+        score: completionData.score,
+        totalQuestions: completionData.totalQuestions,
+        correctAnswers: completionData.correctAnswers,
+        timeSpent: completionData.timeSpent,
+        accuracy: completionData.accuracy,
+        bonusAwarded: bonusPoints,
+      });
+
+      // Insert into user_points table
+      await db.insert(userPoints).values({
+        userId,
+        points: bonusPoints,
+        source: 'qotd',
+        amount: bonusPoints,
+        description: `Quiz of the Day completion bonus - ${quizId}`,
+        metadata: {
+          quizId,
+          category: completionData.category,
+          difficulty: completionData.difficulty,
+          score: completionData.score,
+        },
+      });
+
+      // Update user's total points
+      await db
+        .update(users)
+        .set({
+          totalPoints: sql`${users.totalPoints} + ${bonusPoints}`,
+        })
+        .where(eq(users.id, userId));
+
+      Logger.info(LogCategory.BUSINESS, 'Bonus points awarded successfully', {
+        userId,
+        amount: bonusPoints,
+        quizId,
+      });
       
-      return QuizOfTheDayService.BONUS_POINTS;
+      return bonusPoints;
     } catch (error) {
       Logger.error(LogCategory.BUSINESS, 'Error awarding bonus points', error as Error);
       return 0;
@@ -265,13 +321,17 @@ export class QuizOfTheDayService {
   }
 
   /**
-   * Get date string in YYYY-MM-DD format
+   * Get date string in YYYY-MM-DD format (local timezone)
    * 
    * @param date - Date to format
-   * @returns Date string
+   * @returns Date string in local timezone
    */
   private getDateString(date: Date): string {
-    return date.toISOString().split('T')[0];
+    // Use local timezone instead of UTC to avoid date shift issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   /**
@@ -287,27 +347,29 @@ export class QuizOfTheDayService {
     totalBonusPoints: number;
   }> {
     try {
-      // Count total Quiz of the Day completions
-      // This is a simplified version - in production, you'd want to track this separately
+      // Get completions from quiz_of_the_day_completions table
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const completions = await db
         .select({
-          date: sql<string>`DATE(${quizAttempts.createdAt})`.as('date'),
+          date: sql<string>`DATE(${quizOfTheDayCompletions.date})`.as('date'),
+          bonusAwarded: sql<number>`SUM(${quizOfTheDayCompletions.bonusAwarded})`.as('bonusAwarded'),
         })
-        .from(quizAttempts)
+        .from(quizOfTheDayCompletions)
         .where(
           and(
-            eq(quizAttempts.userId, userId),
-            gte(quizAttempts.createdAt, thirtyDaysAgo),
-            eq(quizAttempts.completed, true)
+            eq(quizOfTheDayCompletions.userId, userId),
+            gte(quizOfTheDayCompletions.date, thirtyDaysAgo)
           )
         )
-        .groupBy(sql`DATE(${quizAttempts.createdAt})`)
-        .orderBy(desc(sql`DATE(${quizAttempts.createdAt})`));
+        .groupBy(sql`DATE(${quizOfTheDayCompletions.date})`)
+        .orderBy(desc(sql`DATE(${quizOfTheDayCompletions.date})`));
 
       const totalCompleted = completions.length;
+      
+      // Calculate total bonus points from actual completions
+      const totalBonusPoints = completions.reduce((sum: number, c: any) => sum + (c.bonusAwarded || 0), 0);
       
       // Calculate streaks
       let currentStreak = 0;
@@ -340,8 +402,6 @@ export class QuizOfTheDayService {
       if (tempStreak > longestStreak) {
         longestStreak = tempStreak;
       }
-
-      const totalBonusPoints = totalCompleted * QuizOfTheDayService.BONUS_POINTS;
 
       return {
         totalCompleted,

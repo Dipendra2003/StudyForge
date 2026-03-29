@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -82,11 +82,19 @@ interface CodeSnippet {
 }
 
 export default function CodeGenerator() {
-  const [activeTab, setActiveTab] = useState("generator");
+  // Persist active tab across page refreshes
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('codeGenActiveTab') || "generator";
+  });
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("all");
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('codeGenActiveTab', activeTab);
+  }, [activeTab]);
   
   // Define form with validation
   const form = useForm<CodeGenerationFormValues>({

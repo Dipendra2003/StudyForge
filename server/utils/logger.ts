@@ -25,6 +25,7 @@ export enum LogCategory {
   QUIZ = 'QUIZ', // Quiz-related operations
   BUSINESS = 'BUSINESS', // Business logic operations
   AI = 'AI', // AI service operations (Gemini, question generation)
+  CACHE = 'CACHE', // Cache operations (hits, misses, evictions)
 }
 
 interface LogContext {

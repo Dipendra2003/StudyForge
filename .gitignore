@@ -13,3 +13,7 @@ vite.config.ts.*
 
 # Keep example file
 !.env.example
+
+# Test and utility files
+check-models.js
+test-date-fix.js

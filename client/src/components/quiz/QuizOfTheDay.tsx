@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,13 +44,20 @@ interface QOTDStats {
 export function QuizOfTheDay() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { isAuthenticated, user } = useAuth();
   const [quizOfTheDay, setQuizOfTheDay] = useState<QuizOfTheDay | null>(null);
   const [stats, setStats] = useState<QOTDStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Only fetch if user is authenticated
+    if (!isAuthenticated || !user) {
+      setIsLoading(false);
+      return;
+    }
+    
     fetchQuizOfTheDay();
-  }, []);
+  }, [isAuthenticated, user]);
 
   const fetchQuizOfTheDay = async () => {
     try {
@@ -57,6 +65,11 @@ export function QuizOfTheDay() {
       const response = await apiGet("/api/quiz-of-the-day");
 
       if (!response.ok) {
+        // Silently handle authentication errors (user not logged in)
+        if (response.status === 401) {
+          console.log("Quiz of the Day requires authentication");
+          return;
+        }
         throw new Error("Failed to fetch Quiz of the Day");
       }
 
@@ -65,11 +78,14 @@ export function QuizOfTheDay() {
       setStats(data.stats);
     } catch (error) {
       console.error("Error fetching Quiz of the Day:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load Quiz of the Day. Please try again later.",
-      });
+      // Only show toast for non-auth errors
+      if (error instanceof Error && !error.message.includes('401')) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load Quiz of the Day. Please try again later.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -192,11 +208,16 @@ export function QuizOfTheDay() {
                 </CardTitle>
                 <CardDescription className="flex items-center gap-1 mt-1">
                   <Calendar className="h-3 w-3" />
-                  {new Date(quizOfTheDay.date).toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                  {(() => {
+                    // Parse date string without timezone conversion
+                    const [year, month, day] = quizOfTheDay.date.split('-').map(Number);
+                    const localDate = new Date(year, month - 1, day);
+                    return localDate.toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    });
+                  })()}
                 </CardDescription>
               </div>
             </div>

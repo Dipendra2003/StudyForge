@@ -47,6 +47,9 @@ export default function Header({ onNavigate }: HeaderProps) {
           </div>
           
           <nav className="hidden md:flex space-x-6">
+            <Link href="/" className="text-gray-600 hover:text-primary transition-colors font-medium">
+              Home
+            </Link>
             {isHomePage ? (
               <>
                 <button 
@@ -68,7 +71,19 @@ export default function Header({ onNavigate }: HeaderProps) {
                   FAQ
                 </button>
               </>
-            ) : null}
+            ) : (
+              <>
+                <Link href="/#features" className="text-gray-600 hover:text-primary transition-colors font-medium">
+                  Features
+                </Link>
+                <Link href="/#benefits" className="text-gray-600 hover:text-primary transition-colors font-medium">
+                  Benefits
+                </Link>
+                <Link href="/#faq" className="text-gray-600 hover:text-primary transition-colors font-medium">
+                  FAQ
+                </Link>
+              </>
+            )}
             <Link href="/about" className="text-gray-600 hover:text-primary transition-colors font-medium">
               About
             </Link>
@@ -162,6 +177,13 @@ export default function Header({ onNavigate }: HeaderProps) {
           >
             <div className="container mx-auto px-6 py-4">
               <nav className="flex flex-col space-y-4">
+                <Link 
+                  href="/" 
+                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Home
+                </Link>
                 {isHomePage ? (
                   <>
                     <button 
@@ -192,7 +214,31 @@ export default function Header({ onNavigate }: HeaderProps) {
                       FAQ
                     </button>
                   </>
-                ) : null}
+                ) : (
+                  <>
+                    <Link 
+                      href="/#features" 
+                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Features
+                    </Link>
+                    <Link 
+                      href="/#benefits" 
+                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Benefits
+                    </Link>
+                    <Link 
+                      href="/#faq" 
+                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      FAQ
+                    </Link>
+                  </>
+                )}
                 <Link 
                   href="/about" 
                   className="text-gray-600 hover:text-primary transition-colors font-medium"

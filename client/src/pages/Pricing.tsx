@@ -5,9 +5,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
+  
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   
   const scrollToSection = () => {
     // This is a placeholder since we're not scrolling on this page

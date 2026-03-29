@@ -91,10 +91,10 @@ export function registerQuizOfTheDayRoutes(router: Router): void {
         });
       }
 
-      const { quizId, score, totalQuestions, correctAnswers, incorrectAnswers, timeSpent, accuracy } = req.body;
+      const { quizId, score, totalQuestions, correctAnswers, incorrectAnswers, timeSpent, accuracy, category, difficulty } = req.body;
 
       // Validate required fields
-      if (!quizId || score === undefined || !totalQuestions || !correctAnswers || incorrectAnswers === undefined || !timeSpent || !accuracy) {
+      if (!quizId || score === undefined || !totalQuestions || !correctAnswers || incorrectAnswers === undefined || !timeSpent || !accuracy || !category || !difficulty) {
         return res.status(400).json({
           success: false,
           error: {
@@ -119,7 +119,15 @@ export function registerQuizOfTheDayRoutes(router: Router): void {
       }
 
       // Award bonus points
-      const bonusPoints = await quizOfTheDayService.awardBonusPoints(userId, quizId);
+      const bonusPoints = await quizOfTheDayService.awardBonusPoints(userId, quizId, {
+        category,
+        difficulty,
+        score,
+        totalQuestions,
+        correctAnswers,
+        timeSpent,
+        accuracy,
+      });
 
       // Check for special Quiz of the Day achievement
       const newAchievements = [];

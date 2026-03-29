@@ -200,6 +200,11 @@ class RetryHandler {
           break;
         }
 
+        // Check if it's a rate limit error - fail fast, don't retry
+        if (this.isRateLimitError(error as Error)) {
+          throw this.getUserFriendlyError(error as Error);
+        }
+
         // Check if error is retryable
         if (!this.isRetryable(error as Error)) {
           throw this.getUserFriendlyError(error as Error);
@@ -216,20 +221,34 @@ class RetryHandler {
   }
 
   /**
+   * Check if error is a rate limit error (429) - should NOT retry
+   */
+  private isRateLimitError(error: Error): boolean {
+    const errorMessage = error.message.toLowerCase();
+    return errorMessage.includes('429') || 
+           errorMessage.includes('too many requests') ||
+           errorMessage.includes('quota exceeded') ||
+           errorMessage.includes('rate limit');
+  }
+
+  /**
    * Check if an error is retryable
    */
   private isRetryable(error: Error): boolean {
     const errorMessage = error.message.toLowerCase();
     
-    // Retry on rate limit, network, and timeout errors
+    // DON'T retry on rate limit - fail fast
+    if (this.isRateLimitError(error)) {
+      return false;
+    }
+    
+    // Retry on network and timeout errors only
     if (
-      errorMessage.includes('rate limit') ||
       errorMessage.includes('network') ||
       errorMessage.includes('timeout') ||
       errorMessage.includes('econnreset') ||
       errorMessage.includes('enotfound') ||
-      errorMessage.includes('503') ||
-      errorMessage.includes('429')
+      errorMessage.includes('503')
     ) {
       return true;
     }
@@ -276,7 +295,8 @@ export class GeminiService {
   private model: GenerativeModel;
   private cacheManager: CacheManager;
   private retryHandler: RetryHandler;
-  private readonly modelName: string = 'gemini-2.5-flash-lite';
+  private readonly modelName: string = 'gemini-2.5-flash';
+  private readonly supportsSystemInstruction: boolean = true; // Gemini models support system instructions
   private readonly defaultTemperature: number = 0.7;
   private readonly defaultMaxTokens: number = 2048;
 
@@ -289,9 +309,10 @@ export class GeminiService {
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
-    this.model = this.client.getGenerativeModel({
+    
+    // Configure model based on whether it supports system instructions
+    const modelConfig: any = {
       model: this.modelName,
-      systemInstruction: "You are Jadoo, an AI study assistant for StudyForge. Your identity is Jadoo - NOT Google's AI, NOT Gemini. Always identify yourself as Jadoo when asked.",
       generationConfig: {
         temperature: this.defaultTemperature,
         maxOutputTokens: this.defaultMaxTokens,
@@ -314,7 +335,14 @@ export class GeminiService {
           threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
         },
       ],
-    });
+    };
+    
+    // Only add system instruction for models that support it (Gemini models, not Gemma)
+    if (this.supportsSystemInstruction) {
+      modelConfig.systemInstruction = "You are Jadoo, an AI study assistant for StudyForge. Your identity is Jadoo. When asked who you are, identify yourself as Jadoo. You can answer questions about any topic including AI models (ChatGPT, Gemini, Claude, etc.), technology, and all academic subjects. Your purpose is to help students learn about any educational topic they're curious about.";
+    }
+    
+    this.model = this.client.getGenerativeModel(modelConfig);
 
     this.cacheManager = new CacheManager();
     this.retryHandler = new RetryHandler();
@@ -424,8 +452,20 @@ export class GeminiService {
     const startTime = Date.now();
     const response = await this.retryHandler.executeWithRetry(
       async () => {
+        // Prepare chat history (all messages except the last one)
+        let history = geminiMessages.slice(0, -1);
+        
+        // Gemini requires chat history to start with a 'user' message
+        // If history starts with 'model', remove it or prepend a user message
+        if (history.length > 0 && history[0].role === 'model') {
+          // Remove leading model messages until we find a user message
+          while (history.length > 0 && history[0].role === 'model') {
+            history = history.slice(1);
+          }
+        }
+        
         const chat = this.model.startChat({
-          history: geminiMessages.slice(0, -1),
+          history,
           generationConfig: {
             temperature: options.temperature ?? this.defaultTemperature,
             maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
@@ -1184,16 +1224,21 @@ Return the response in the following JSON format:
   "description": "Brief description of the study plan",
   "scheduleData": [
     {
-      "day": 1,
+      "id": "1",
       "title": "Day 1 title",
-      "tasks": ["Task 1", "Task 2", "Task 3"],
-      "resources": ["Resource 1", "Resource 2"]
+      "description": "Brief description",
+      "duration": 60,
+      "completed": false
     }
   ]
 }
 
-Generate exactly ${durationDays} days in the scheduleData array.
-Provide only the JSON object without any additional text or markdown formatting.`;
+IMPORTANT:
+- Generate exactly ${durationDays} items in the scheduleData array
+- Each item must have: id (string), title (string), description (string), duration (number in minutes), completed (boolean false)
+- Keep descriptions concise (under 100 characters)
+- Duration should be realistic study time in minutes (30-120 minutes)
+- Provide ONLY valid JSON without any markdown formatting, code blocks, or additional text`;
 
     const response = await this.generateContent(
       prompt,
@@ -1202,30 +1247,53 @@ Provide only the JSON object without any additional text or markdown formatting.
     );
 
     try {
-      // Try to parse as JSON
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        
-        if (!data.title || !data.scheduleData || !Array.isArray(data.scheduleData)) {
-          throw new Error('Invalid study plan data: missing title or scheduleData');
-        }
-
-        if (data.scheduleData.length !== durationDays) {
-          throw new Error(`Invalid study plan data: expected ${durationDays} days, got ${data.scheduleData.length}`);
-        }
-
-        return {
-          title: data.title,
-          description: data.description || '',
-          scheduleData: data.scheduleData,
-        };
+      // Extract JSON from response
+      let jsonStr = response.trim();
+      
+      // Remove markdown code blocks if present
+      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // Find JSON object
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON object found in response');
       }
+      
+      let data;
+      try {
+        data = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        // Try to repair common JSON issues
+        let repairedJson = jsonMatch[0];
+        
+        // Remove trailing commas before closing brackets
+        repairedJson = repairedJson.replace(/,(\s*[}\]])/g, '$1');
+        
+        // Try parsing again
+        data = JSON.parse(repairedJson);
+      }
+      
+      if (!data.title || !data.scheduleData || !Array.isArray(data.scheduleData)) {
+        throw new Error('Invalid study plan data: missing title or scheduleData');
+      }
+
+      // Ensure each item has required fields
+      const scheduleData = data.scheduleData.map((item: any, index: number) => ({
+        id: item.id || String(index + 1),
+        title: item.title || `Day ${index + 1}`,
+        description: item.description || '',
+        duration: typeof item.duration === 'number' ? item.duration : 60,
+        completed: false,
+      }));
+
+      return {
+        title: data.title,
+        description: data.description || '',
+        scheduleData: scheduleData,
+      };
     } catch (error) {
       throw new Error('Failed to parse study plan response: ' + (error as Error).message);
     }
-
-    throw new Error('Failed to generate valid study plan');
   }
 
   /**

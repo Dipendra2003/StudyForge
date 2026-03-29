@@ -40,7 +40,7 @@ const connectMySQL = async () => {
       namedPlaceholders: true, // Better query performance
       decimalNumbers: true, // Parse decimals as numbers
       bigNumberStrings: false, // Better number handling
-      dateStrings: false, // Parse dates as Date objects
+      dateStrings: true, // Return dates as strings to avoid timezone conversion
       timezone: 'Z', // Use UTC timezone
     });
     

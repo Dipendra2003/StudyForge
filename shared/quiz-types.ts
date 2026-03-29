@@ -103,7 +103,7 @@ export interface Question {
   type: QuestionType;
   question: string;
   questionData: QuestionData;
-  correctAnswer: string | string[] | Record<string, string>;
+  correctAnswer: string | string[] | number[] | Record<string, string>;
   explanation: string;
   category: string;
   difficulty: 'easy' | 'medium' | 'hard';

@@ -89,7 +89,7 @@ export function registerQuizRoutes(router: Router): void {
           isCorrect = false;
         } else {
           isCorrect = userAnswer.every((ans, idx) => 
-            ans.trim().toLowerCase() === correctAnswer[idx].trim().toLowerCase()
+            String(ans).trim().toLowerCase() === String(correctAnswer[idx]).trim().toLowerCase()
           );
         }
       }

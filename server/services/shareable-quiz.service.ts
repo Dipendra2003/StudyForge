@@ -56,6 +56,9 @@ export class ShareableQuizService {
         ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
         : null;
 
+      // Ensure questionsData is not null - use empty array if not available
+      const questionsData = attempt.questionsData || [];
+
       // Create shareable link record
       const [shareableLink] = await db
         .insert(shareableQuizLinks)
@@ -65,7 +68,7 @@ export class ShareableQuizService {
           quizAttemptId,
           category: attempt.category || "General",
           difficulty: attempt.difficulty || "medium",
-          questionsData: attempt.questionsData,
+          questionsData: questionsData,
           totalQuestions: attempt.totalQuestions,
           expiresAt,
           isActive: true,
@@ -155,6 +158,7 @@ export class ShareableQuizService {
       const [creatorAttempt] = await db
         .select({
           score: quizAttempts.score,
+          correctAnswers: quizAttempts.correctAnswers,
           timeSpent: quizAttempts.timeSpent,
         })
         .from(quizAttempts)
@@ -179,7 +183,7 @@ export class ShareableQuizService {
         questionsData: link.questionsData,
         totalQuestions: link.totalQuestions,
         createdAt: link.createdAt,
-        creatorScore: creatorAttempt?.score || 0,
+        creatorScore: creatorAttempt?.correctAnswers || 0, // Use correctAnswers instead of score
         creatorTimeSpent: creatorAttempt?.timeSpent || 0,
       };
     } catch (error) {

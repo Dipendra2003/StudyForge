@@ -30,10 +30,12 @@ export function HintPanel({ questionId, sessionId, onHintUsed, disabled }: HintP
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem('accessToken');
       const response = await fetch('/api/quiz/hint', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
         },
         credentials: 'include',
         body: JSON.stringify({

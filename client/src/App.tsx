@@ -45,7 +45,7 @@ function HomePage() {
 
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   console.log('[PrivateRoute]', rest.path, '- isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user);
 
@@ -54,9 +54,11 @@ function PrivateRoute({ component: Component, ...rest }: { component: React.Comp
     console.log('[PrivateRoute] useEffect', rest.path, '- isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
     if (!isLoading && !isAuthenticated) {
       console.log('[PrivateRoute] Redirecting to /login from', rest.path);
+      // Store the current path to redirect back after login
+      sessionStorage.setItem('redirectAfterLogin', location);
       setLocation("/login");
     }
-  }, [isLoading, isAuthenticated, setLocation]);
+  }, [isLoading, isAuthenticated, setLocation, location]);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -79,6 +81,21 @@ function PrivateRoute({ component: Component, ...rest }: { component: React.Comp
 }
 
 function Router() {
+  const [location] = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Store the current page in sessionStorage whenever location changes (only for authenticated users)
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      // Only store private routes
+      const privateRoutes = ['/dashboard', '/chat', '/document-summarization', '/flashcards', '/quiz-mode', '/code-generator', '/study-planner', '/profile', '/settings', '/help'];
+      if (privateRoutes.some(route => location.startsWith(route))) {
+        sessionStorage.setItem('lastVisitedPage', location);
+        console.log('[Router] Stored last visited page:', location);
+      }
+    }
+  }, [location, isAuthenticated, isLoading]);
+
   return (
     <Switch>
       <Route path="/login" component={Login} />

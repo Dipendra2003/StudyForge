@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,11 @@ interface Summary {
 }
 
 export default function DocumentSummarization() {
+  // Persist active tab across page refreshes
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('docSummaryActiveTab') || "create";
+  });
+  
   const [documentTitle, setDocumentTitle] = useState<string>("");
   const [documentText, setDocumentText] = useState<string>("");
   const [currentSummary, setCurrentSummary] = useState<Summary | null>(null);
@@ -68,6 +73,11 @@ export default function DocumentSummarization() {
   const [showBulkGenerateDialog, setShowBulkGenerateDialog] = useState<boolean>(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('docSummaryActiveTab', activeTab);
+  }, [activeTab]);
 
   // Create document
   const createDocumentMutation = useMutation({
@@ -527,7 +537,11 @@ export default function DocumentSummarization() {
             </motion.div>
           </motion.div>
 
-        <Tabs defaultValue="create" className="w-full">
+        <Tabs 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2 mb-6 sm:mb-8 h-auto p-1">
             <TabsTrigger value="create" className="text-sm sm:text-base py-2 sm:py-2.5">
               <Upload className="h-4 w-4 mr-2" />

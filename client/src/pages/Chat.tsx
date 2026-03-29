@@ -51,7 +51,11 @@ const getPersonalizedGreeting = (user?: { username?: string; email?: string; ful
 export default function Chat() {
   const { user } = useAuth();
   const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  
+  // Persist active session ID across page refreshes
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    return sessionStorage.getItem('activeChatSessionId');
+  });
   
   // Generate personalized initial greeting
   const getInitialMessage = (): Message => ({
@@ -64,13 +68,33 @@ export default function Chat() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false); // Sidebar closed by default
+  const [showQuickActions, setShowQuickActions] = useState(false); // Quick actions hidden by default
   const [editingChatId, setEditingChatId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Save active session ID to sessionStorage whenever it changes
+  useEffect(() => {
+    if (sessionId) {
+      sessionStorage.setItem('activeChatSessionId', sessionId);
+    } else {
+      sessionStorage.removeItem('activeChatSessionId');
+    }
+  }, [sessionId]);
+
+  // Load active conversation on mount if sessionId exists
+  useEffect(() => {
+    if (sessionId && user) {
+      const chatId = parseInt(sessionId);
+      if (!isNaN(chatId)) {
+        loadChatSession(chatId);
+      }
+    }
+  }, []); // Run only once on mount
 
   // Fetch chat history
   const { data: chatHistory, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
@@ -131,6 +155,7 @@ export default function Chat() {
   const startNewChat = () => {
     setMessages([getInitialMessage()]);
     setSessionId(null);
+    sessionStorage.removeItem('activeChatSessionId');
     toast({
       title: "New chat started",
       description: "Ready for a new conversation",
@@ -798,14 +823,22 @@ export default function Chat() {
 
         {/* Input Area */}
         <div className="border-t bg-card/50 backdrop-blur-sm sticky bottom-0">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-4xl">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2 max-w-4xl">
             {/* Quick Actions - Show when input is empty */}
-            {!input && messages.length > 1 && (
-              <div className="mb-3">
-                <div className="flex items-center gap-2 mb-2">
+            {!input && messages.length > 1 && showQuickActions && (
+              <div className="mb-2">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
                   <span className="text-xs text-muted-foreground whitespace-nowrap">Quick actions:</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowQuickActions(false)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
                 </div>
-                <div className="quick-actions flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                <div className="quick-actions flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
                   {[
                     { icon: "🔄", text: "Explain differently", action: "Can you explain that in a different way?" },
                     { icon: "📝", text: "Summarize", action: "Can you summarize the key points?" },
@@ -816,7 +849,7 @@ export default function Chat() {
                       key={idx}
                       variant="outline"
                       size="sm"
-                      className="h-7 text-xs hover:bg-primary/10 hover:border-primary/50 whitespace-nowrap flex-shrink-0"
+                      className="h-6 text-xs hover:bg-primary/10 hover:border-primary/50 whitespace-nowrap flex-shrink-0"
                       onClick={() => setInput(quick.action)}
                     >
                       <span className="mr-1">{quick.icon}</span>
@@ -827,15 +860,30 @@ export default function Chat() {
               </div>
             )}
             
+            {/* Show Quick Actions button when hidden */}
+            {!input && messages.length > 1 && !showQuickActions && (
+              <div className="mb-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setShowQuickActions(true)}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Show Quick Actions
+                </Button>
+              </div>
+            )}
+            
             <form onSubmit={handleSubmit} className="relative">
-              <div className="relative flex items-end gap-2 p-2 rounded-2xl border-2 border-border bg-background shadow-lg hover:border-primary/50 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+              <div className="relative flex items-end gap-2 p-1.5 rounded-xl border border-border bg-background hover:border-primary/50 transition-colors focus-within:border-primary">
                 <Textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask any study question... (Shift + Enter for new line)"
-                  className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[44px] max-h-[200px] text-sm sm:text-base"
+                  className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[40px] max-h-[200px] text-sm"
                   rows={1}
                   maxLength={10000}
                   disabled={chatMutation.isPending}
@@ -848,7 +896,7 @@ export default function Chat() {
                 <Button 
                   type="submit" 
                   size="icon"
-                  className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md hover:shadow-lg transition-all flex-shrink-0"
+                  className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all flex-shrink-0"
                   disabled={chatMutation.isPending || !input.trim()}
                 >
                   {chatMutation.isPending ? (

@@ -13,15 +13,28 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { User, Mail, Calendar, Award, TrendingUp, BookOpen, Code, FileText } from "lucide-react";
+import { User, Mail, Calendar, Award, TrendingUp, BookOpen, Code, FileText, Eye, EyeOff } from "lucide-react";
 import BadgeCollection from "@/components/quiz/BadgeCollection";
 
 export default function Profile() {
+  // Persist active tab across page refreshes
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('profileActiveTab') || "overview";
+  });
+  
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('profileActiveTab', activeTab);
+  }, [activeTab]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [profile, setProfile] = useState({
     fullName: "",
@@ -159,8 +172,21 @@ export default function Profile() {
       
       toast({
         title: "Success",
-        description: "Password changed successfully",
+        description: data.message || "Password changed successfully. Logging out...",
       });
+      
+      // If requiresLogin is true, logout and redirect to login
+      if (data.requiresLogin) {
+        // Wait a moment for the toast to be visible
+        setTimeout(async () => {
+          // Clear tokens
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          
+          // Redirect to login page
+          window.location.href = '/login';
+        }, 1500);
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -220,7 +246,11 @@ export default function Profile() {
           </p>
         </motion.div>
 
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="badges">
@@ -411,36 +441,78 @@ export default function Profile() {
                   <form onSubmit={handleChangePassword} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="currentPassword">Current Password</Label>
-                      <Input
-                        id="currentPassword"
-                        type="password"
-                        value={passwordData.currentPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                        placeholder="Enter current password"
-                        required
-                      />
+                      <div className="relative">
+                        <Input
+                          id="currentPassword"
+                          type={showCurrentPassword ? 'text' : 'password'}
+                          value={passwordData.currentPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                          placeholder="Enter current password"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          tabIndex={-1}
+                        >
+                          {showCurrentPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="newPassword">New Password</Label>
-                      <Input
-                        id="newPassword"
-                        type="password"
-                        value={passwordData.newPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        placeholder="Enter new password (min 8 characters)"
-                        required
-                      />
+                      <div className="relative">
+                        <Input
+                          id="newPassword"
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={passwordData.newPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                          placeholder="Enter new password (min 8 characters)"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          tabIndex={-1}
+                        >
+                          {showNewPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        value={passwordData.confirmPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                        placeholder="Confirm new password"
-                        required
-                      />
+                      <div className="relative">
+                        <Input
+                          id="confirmPassword"
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          value={passwordData.confirmPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                          placeholder="Confirm new password"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          tabIndex={-1}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <Button type="submit" disabled={isChangingPassword} className="w-full">
                       {isChangingPassword ? (

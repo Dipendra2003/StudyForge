@@ -1,131 +1,55 @@
+/**
+ * AI Quiz Service
+ * 
+ * This service provides AI-powered quiz generation and assistance features.
+ * 
+ * IMPORTANT - REGRESSION PREVENTION (FIX-1):
+ * ==========================================
+ * Quiz generation MUST use BatchQuizGenerator which makes exactly ONE AI API call.
+ * Per-question AI generation has been REMOVED to prevent rate-limit issues.
+ * 
+ * DO NOT reintroduce:
+ * - Sequential question generation loops
+ * - Per-question AI calls for quiz generation
+ * - generateQuizWithRetry() or similar patterns
+ * 
+ * The ONLY entry point for quiz generation is generateQuiz() which delegates
+ * to quizCacheService.generateQuizWithCache() for caching support.
+ * 
+ * CACHING LAYER (FIX-2):
+ * ======================
+ * Quiz generation now uses QuizCacheService to cache AI-generated questions.
+ * When identical quiz configurations are requested, cached questions are returned
+ * instead of making new AI calls, reducing costs and improving performance.
+ */
+
 import { geminiService } from "./gemini";
 import { questionService } from "./question.service";
-import type { Question, QuestionType, QuestionData } from "../../shared/quiz-types";
+import { quizCacheService } from "./quiz-cache-service";
+import type { Question, QuestionType } from "../../shared/quiz-types";
 import { AIError } from "../utils/ai-errors";
 import { Logger, LogCategory } from "../utils/logger";
 
 /**
  * AI-powered quiz service for generating questions and providing assistance
+ * 
+ * ARCHITECTURE NOTE:
+ * - generateQuiz() → Uses QuizCacheService (caching layer over BatchQuizGenerator)
+ * - generateHint() → Single AI call for hint generation
+ * - generateExplanation() → Single AI call for explanation
+ * - generateMotivation() → Single AI call for motivation
+ * - adaptDifficulty() → Single AI call for notification
+ * - getWeakAreaRecommendations() → Single AI call for recommendations
  */
 export class AIQuizService {
   /**
-   * Generate a single question using AI
+   * Generate multiple questions in bulk using batch generation with caching
    * 
-   * @param topic - The topic for the question (takes precedence over category)
-   * @param difficulty - Difficulty level (easy, medium, hard)
-   * @param type - Type of question to generate
-   * @param userId - User ID for logging
-   * @param category - Category for the question (default: 'General Knowledge')
-   * @returns Generated question
-   */
-  async generateQuestion(
-    topic: string,
-    difficulty: 'easy' | 'medium' | 'hard',
-    type: QuestionType,
-    userId: number,
-    category: string = 'General Knowledge'
-  ): Promise<Question> {
-    // Validate inputs
-    if (!topic || topic.trim().length === 0) {
-      throw new Error('Topic is required for question generation');
-    }
-    
-    // Validate topic is not just whitespace
-    if (topic.trim().length === 0) {
-      throw new Error('Topic cannot be empty or whitespace-only');
-    }
-
-    try {
-      let questionData: QuestionData;
-      let correctAnswer: string | string[] | Record<string, string>;
-      let question: string;
-      let explanation: string;
-
-      switch (type) {
-        case 'mcq':
-          const mcqResult = await this.generateMCQQuestion(topic, difficulty, userId);
-          questionData = mcqResult.questionData;
-          correctAnswer = mcqResult.correctAnswer;
-          question = mcqResult.question;
-          explanation = mcqResult.explanation;
-          break;
-
-        case 'true-false':
-          const tfResult = await this.generateTrueFalseQuestion(topic, difficulty, userId);
-          questionData = tfResult.questionData;
-          correctAnswer = tfResult.correctAnswer;
-          question = tfResult.question;
-          explanation = tfResult.explanation;
-          break;
-
-        case 'fill-blank':
-          const fbResult = await this.generateFillBlankQuestion(topic, difficulty, userId);
-          questionData = fbResult.questionData;
-          correctAnswer = fbResult.correctAnswer;
-          question = fbResult.question;
-          explanation = fbResult.explanation;
-          break;
-
-        case 'matching':
-          const matchResult = await this.generateMatchingQuestion(topic, difficulty, userId);
-          questionData = matchResult.questionData;
-          correctAnswer = matchResult.correctAnswer;
-          question = matchResult.question;
-          explanation = matchResult.explanation;
-          break;
-
-        case 'rearrange':
-          const rearrangeResult = await this.generateRearrangeQuestion(topic, difficulty, userId);
-          questionData = rearrangeResult.questionData;
-          correctAnswer = rearrangeResult.correctAnswer;
-          question = rearrangeResult.question;
-          explanation = rearrangeResult.explanation;
-          break;
-
-        default:
-          throw new Error(`Unsupported question type: ${type}`);
-      }
-
-      // PERFORMANCE FIX: Disabled uniqueness check for AI-generated questions
-      // The check was fetching 1000 questions from DB for every question generated
-      // AI-generated questions are naturally unique due to randomness in generation
-      // If needed in future, implement with caching or database-level duplicate detection
-
-      // Create the question in the database
-      const createdQuestion = await questionService.createQuestion({
-        userId,
-        type,
-        question,
-        questionData,
-        correctAnswer,
-        explanation,
-        category,
-        difficulty,
-        tags: [topic],
-        hints: [],
-        isPublic: true,
-      });
-
-      return createdQuestion;
-    } catch (error) {
-      // Convert to AIError with specific error code and user-friendly message
-      const aiError = AIError.fromError(error as Error);
-      
-      Logger.error(LogCategory.AI, 'Error generating question', error as Error, {
-        type,
-        topic,
-        difficulty,
-        userId,
-        errorCode: aiError.code,
-        retryable: aiError.retryable,
-      });
-      
-      throw aiError;
-    }
-  }
-
-  /**
-   * Generate multiple questions in bulk
+   * CRITICAL: This is the ONLY method for quiz generation.
+   * It uses QuizCacheService to check cache first, then falls back to
+   * BatchQuizGenerator for a SINGLE AI API call if cache miss.
+   * 
+   * Quiz generation must NEVER call AI more than once per quiz request.
    * 
    * @param topic - The topic for the questions (takes precedence over category when provided)
    * @param count - Number of questions to generate
@@ -134,6 +58,9 @@ export class AIQuizService {
    * @param questionTypes - Types of questions to generate (if not specified, uses all types)
    * @param category - Category for the questions (ONLY used if topic is empty/not provided)
    * @returns Array of generated questions
+   * 
+   * Requirements: 1.1, 1.2 - Single batch AI request, no sequential generation loops
+   * Requirements: 3.1, 3.2, 3.3, 3.4 - Cache lookup flow
    */
   async generateQuiz(
     topic: string,
@@ -151,13 +78,17 @@ export class AIQuizService {
     // FIX: When topic is provided, use ONLY the topic and ignore category
     // When topic is empty, fall back to category
     const actualTopic = (topic && topic.trim().length > 0) ? topic.trim() : category;
+    const actualCategory = (category && category.trim().length > 0) ? category.trim() : actualTopic;
     
     // Validate topic is not empty or whitespace-only
     if (!actualTopic || actualTopic.trim().length === 0) {
       throw new Error('Topic or category must be provided');
     }
 
-    Logger.info(LogCategory.AI, 'Quiz generation requested', {
+    // Default to all question types if not specified
+    const types: QuestionType[] = questionTypes || ['mcq', 'true-false', 'fill-blank', 'matching', 'rearrange'];
+
+    Logger.info(LogCategory.AI, 'Quiz generation requested (cache-aware batch mode)', {
       providedTopic: topic,
       providedCategory: category,
       actualTopicUsed: actualTopic,
@@ -165,191 +96,30 @@ export class AIQuizService {
       count,
       difficulty,
       userId,
+      questionTypes: types,
     });
 
-    // Use generateQuizWithRetry to ensure exact count
-    // Pass actualTopic as both topic and category to ensure consistency
-    return this.generateQuizWithRetry(actualTopic, count, difficulty, userId, questionTypes, actualTopic);
-  }
-
-  /**
-   * Generate multiple questions with retry logic to ensure exact count
-   * 
-   * @param topic - The topic for the questions (MUST be the actual topic to use)
-   * @param count - Number of questions to generate
-   * @param difficulty - Difficulty level
-   * @param userId - User ID for logging
-   * @param questionTypes - Types of questions to generate (if not specified, uses all types)
-   * @param category - Category for database storage (should match topic when topic is provided)
-   * @param maxRetries - Maximum number of retry attempts (default: 1, reduced for faster response)
-   * @returns Array of generated questions with exact count
-   */
-  async generateQuizWithRetry(
-    topic: string,
-    count: number,
-    difficulty: 'easy' | 'medium' | 'hard',
-    userId: number,
-    questionTypes?: QuestionType[],
-    category: string = 'General Knowledge',
-    maxRetries: number = 1
-  ): Promise<Question[]> {
-    const types: QuestionType[] = questionTypes || ['mcq', 'true-false', 'fill-blank', 'matching', 'rearrange'];
-    
-    // Validate topic is not empty or whitespace-only
-    if (!topic || topic.trim().length === 0) {
-      throw new Error('Topic cannot be empty or whitespace-only');
-    }
-    
-    // FIX: Use topic as the actual generation subject, not category
-    const actualTopic = topic.trim();
-    
-    // Log start time for performance monitoring
-    const startTime = Date.now();
-    Logger.info(LogCategory.AI, 'Starting quiz generation', {
-      topic,
-      count,
+    // Use QuizCacheService for cache-aware generation
+    // This checks cache first, then falls back to BatchQuizGenerator on cache miss
+    // Requirements: 3.1 (check cache first), 3.2 (return cached on hit), 3.3 (AI on miss), 3.4 (store on success)
+    const cacheResponse = await quizCacheService.generateQuizWithCache({
+      category: actualCategory,
+      topic: actualTopic,
       difficulty,
+      questionTypes: types,
+      questionCount: count,
       userId,
-      types: types.length,
     });
-    
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const questions: Question[] = [];
-      const errors: string[] = [];
 
-      // Generate questions in parallel for better performance
-      const generationPromises: Promise<{
-        success: boolean;
-        question?: Question;
-        error?: any;
-        index: number;
-        type?: QuestionType;
-      }>[] = [];
-      
-      for (let i = 0; i < count; i++) {
-        const typeIndex = i % types.length;
-        const questionType = types[typeIndex];
+    Logger.info(LogCategory.AI, 'Quiz generation completed (cache-aware batch mode)', {
+      questionCount: cacheResponse.questions.length,
+      source: cacheResponse.source,
+      cacheHit: cacheResponse.cacheHit,
+      generationTimeMs: cacheResponse.generationTimeMs,
+      userId,
+    });
 
-        // Create promise for parallel execution
-        // FIX: Use actualTopic to ensure questions are generated from the correct topic
-        const promise = this.generateQuestion(
-          actualTopic,
-          difficulty,
-          questionType,
-          userId,
-          category
-        ).then(question => {
-          return { success: true, question, index: i };
-        }).catch(error => {
-          console.error(`Failed to generate question ${i + 1}:`, error);
-          return { success: false, error, index: i, type: questionType };
-        });
-        
-        generationPromises.push(promise);
-      }
-
-      // Wait for all questions to generate in parallel
-      const results = await Promise.all(generationPromises);
-      
-      // Process results
-      for (const result of results) {
-        if (result.success && result.question) {
-          questions.push(result.question);
-        } else if (!result.success && result.error) {
-          errors.push(`Question ${result.index + 1}: ${result.error.message}`);
-          
-          // Try to fall back to database questions
-          if (result.type) {
-            try {
-              const fallbackQuestions = await questionService.getQuestions({
-                category,
-                difficulty,
-                questionTypes: [result.type],
-                limit: 1,
-                isPublic: true,
-              });
-
-              if (fallbackQuestions.length > 0) {
-                questions.push(fallbackQuestions[0]);
-                console.log(`Used fallback question for ${result.type}`);
-              }
-            } catch (fallbackError) {
-              console.error('Fallback to database also failed:', fallbackError);
-            }
-          }
-        }
-      }
-
-      const elapsedTime = Date.now() - startTime;
-      Logger.info(LogCategory.AI, 'Quiz generation attempt completed', {
-        attempt: attempt + 1,
-        requestedCount: count,
-        generatedCount: questions.length,
-        elapsedMs: elapsedTime,
-      });
-
-      // Validate that we got the exact count
-      if (questions.length === count) {
-        // Success! Return the questions
-        if (attempt > 0) {
-          console.log(`Successfully generated ${count} questions after ${attempt} retry attempt(s) in ${elapsedTime}ms`);
-        }
-        return questions;
-      }
-
-      // If we didn't get the exact count, log and retry
-      if (attempt < maxRetries) {
-        const backoffMs = 500; // Reduced backoff time for faster retry
-        console.warn(
-          `Generated ${questions.length} questions but expected ${count}. ` +
-          `Retrying in ${backoffMs}ms (attempt ${attempt + 1}/${maxRetries})...`
-        );
-        
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, backoffMs));
-      } else {
-        // Final attempt failed
-        if (questions.length === 0) {
-          // Create a specific AIError for complete failure
-          const aiError = new AIError(
-            'GENERATION_FAILED' as any,
-            `AI question generation unavailable. Failed to generate any questions after ${maxRetries + 1} attempts. Please try again or use database questions.`,
-            true
-          );
-          
-          Logger.error(LogCategory.AI, 'Complete quiz generation failure', aiError, {
-            topic,
-            count,
-            difficulty,
-            userId,
-            attempts: maxRetries + 1,
-            elapsedMs: elapsedTime,
-            errors: errors.slice(0, 3), // Log first 3 errors
-          });
-          
-          throw aiError;
-        } else {
-          // Return what we have with a warning
-          Logger.warn(LogCategory.AI, 'Partial quiz generation - returning available questions', {
-            topic,
-            requestedCount: count,
-            generatedCount: questions.length,
-            attempts: maxRetries + 1,
-            elapsedMs: elapsedTime,
-          });
-          
-          return questions;
-        }
-      }
-    }
-
-    // This should never be reached, but TypeScript needs it
-    const aiError = new AIError(
-      'UNKNOWN_ERROR' as any,
-      'AI question generation unavailable. Please try again or use database questions.',
-      true
-    );
-    throw aiError;
+    return cacheResponse.questions;
   }
 
   /**
@@ -359,7 +129,7 @@ export class AIQuizService {
    * @param attemptNumber - Which hint attempt this is (for progressive hints)
    * @returns Hint text
    */
-  async generateHint(question: Question, attemptNumber: number = 1): Promise<string> {
+  async generateHint(question: Question, attemptNumber: number = 1, userId?: number): Promise<string> {
     const hintLevel = attemptNumber === 1 ? 'subtle' : attemptNumber === 2 ? 'moderate' : 'specific';
     
     const prompt = `Generate a ${hintLevel} hint for this question. The hint should help the user think about the answer WITHOUT revealing it directly.
@@ -379,7 +149,8 @@ Rules:
 Provide only the hint text, nothing else.`;
 
     try {
-      const hint = await geminiService.generateContent(prompt, { temperature: 0.7 }, question.userId);
+      // Use the provided userId or fall back to question.userId
+      const hint = await geminiService.generateContent(prompt, { temperature: 0.7 }, userId || question.userId);
       return hint.trim();
     } catch (error) {
       throw new Error(`Failed to generate hint: ${(error as Error).message}`);
@@ -579,7 +350,7 @@ Keep the explanation concise (2-3 sentences) and educational.`;
    * @param direction - Whether difficulty increased or decreased
    * @returns Notification message
    */
-  async generateDifficultyChangeNotification(
+  private async generateDifficultyChangeNotification(
     oldDifficulty: 'easy' | 'medium' | 'hard',
     newDifficulty: 'easy' | 'medium' | 'hard',
     averageScore: number,
@@ -667,365 +438,6 @@ Provide specific, encouraging suggestions for how they can improve. Keep each re
         ],
       };
     }
-  }
-
-  // ===== PRIVATE HELPER METHODS =====
-
-  /**
-   * Generate an MCQ question
-   */
-  private async generateMCQQuestion(
-    topic: string,
-    difficulty: 'easy' | 'medium' | 'hard',
-    userId: number
-  ): Promise<{
-    question: string;
-    questionData: QuestionData;
-    correctAnswer: string;
-    explanation: string;
-  }> {
-    const prompt = `Generate EXACTLY ONE ${difficulty} multiple choice question STRICTLY AND EXCLUSIVELY about: "${topic}"
-
-CRITICAL REQUIREMENTS:
-1. The question MUST be DIRECTLY related to "${topic}" - NO OTHER TOPICS ALLOWED
-2. If "${topic}" is "big data", generate ONLY about big data concepts (NOT cloud computing, NOT databases, NOT networking)
-3. If "${topic}" is "Java", generate ONLY about Java programming (NOT Python, NOT C++, NOT general programming)
-4. The question content, all options, and explanation MUST focus on "${topic}" ONLY
-5. Generate EXACTLY 1 question. Do NOT generate fewer or more.
-
-Create a clear question with EXACTLY 4 options. Make sure:
-- The question is clear and unambiguous
-- All options are plausible
-- Only one option is clearly correct
-- Options are roughly the same length
-- The correct answer is not always in the same position
-
-Return ONLY a JSON object in this exact format (no additional text):
-{
-  "question": "Your question text here",
-  "options": [
-    {"id": "a", "text": "First option"},
-    {"id": "b", "text": "Second option"},
-    {"id": "c", "text": "Third option"},
-    {"id": "d", "text": "Fourth option"}
-  ],
-  "correctAnswer": "a",
-  "explanation": "Brief explanation of why this is correct"
-}`;
-
-    const response = await geminiService.generateContent(prompt, { temperature: 0.7 }, userId);
-    
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-
-      const data = JSON.parse(jsonMatch[0]);
-      
-      if (!data.question || !data.options || !data.correctAnswer || !data.explanation) {
-        throw new Error('Missing required fields in MCQ response');
-      }
-
-      if (data.options.length !== 4) {
-        throw new Error('MCQ must have exactly 4 options');
-      }
-
-      return {
-        question: data.question,
-        questionData: {
-          options: data.options,
-        },
-        correctAnswer: data.correctAnswer,
-        explanation: data.explanation,
-      };
-    } catch (error) {
-      throw new Error(`Failed to parse MCQ response: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Generate a True/False question
-   */
-  private async generateTrueFalseQuestion(
-    topic: string,
-    difficulty: 'easy' | 'medium' | 'hard',
-    userId: number
-  ): Promise<{
-    question: string;
-    questionData: QuestionData;
-    correctAnswer: string;
-    explanation: string;
-  }> {
-    const prompt = `Generate a ${difficulty} true/false question STRICTLY AND EXCLUSIVELY about: "${topic}"
-
-CRITICAL REQUIREMENTS:
-1. The statement MUST be DIRECTLY related to "${topic}" - NO OTHER TOPICS ALLOWED
-2. If "${topic}" is "big data", generate ONLY about big data concepts (NOT cloud computing, NOT databases, NOT networking)
-3. If "${topic}" is "Java", generate ONLY about Java programming (NOT Python, NOT C++, NOT general programming)
-4. The statement and explanation MUST focus on "${topic}" ONLY
-
-Create a clear statement that is either true or false. Make sure:
-- The statement is unambiguous
-- It's not a trick question
-- The answer is definitively true or false
-
-Return ONLY a JSON object in this exact format:
-{
-  "statement": "Your statement here",
-  "correctAnswer": "true",
-  "explanation": "Brief explanation of why this is true/false"
-}`;
-
-    const response = await geminiService.generateContent(prompt, { temperature: 0.7 }, userId);
-    
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-
-      const data = JSON.parse(jsonMatch[0]);
-      
-      if (!data.statement || !data.correctAnswer || !data.explanation) {
-        throw new Error('Missing required fields in True/False response');
-      }
-
-      return {
-        question: data.statement,
-        questionData: {
-          statement: data.statement,
-        },
-        correctAnswer: data.correctAnswer.toLowerCase(),
-        explanation: data.explanation,
-      };
-    } catch (error) {
-      throw new Error(`Failed to parse True/False response: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Generate a Fill-in-the-Blank question
-   */
-  private async generateFillBlankQuestion(
-    topic: string,
-    difficulty: 'easy' | 'medium' | 'hard',
-    userId: number
-  ): Promise<{
-    question: string;
-    questionData: QuestionData;
-    correctAnswer: string[];
-    explanation: string;
-  }> {
-    const prompt = `Generate a ${difficulty} fill-in-the-blank question STRICTLY AND EXCLUSIVELY about: "${topic}"
-
-CRITICAL REQUIREMENTS:
-1. The question MUST be DIRECTLY related to "${topic}" - NO OTHER TOPICS ALLOWED
-2. If "${topic}" is "big data", generate ONLY about big data concepts (NOT cloud computing, NOT databases, NOT networking)
-3. If "${topic}" is "Java", generate ONLY about Java programming (NOT Python, NOT C++, NOT general programming)
-4. The sentence and blanks MUST focus on "${topic}" ONLY
-
-IMPORTANT: Generate questions EXCLUSIVELY from the topic "${topic}". Do not deviate from this topic.
-
-Create a sentence with 1-3 blanks (use ___ for blanks). Make sure:
-- The blanks test important concepts
-- The answers are specific words or short phrases
-- The sentence makes sense with the blanks filled in
-
-Return ONLY a JSON object in this exact format:
-{
-  "template": "The capital of France is ___",
-  "blanks": [
-    {"id": "blank1", "position": 0, "correctAnswer": "Paris", "caseSensitive": false}
-  ],
-  "explanation": "Brief explanation"
-}`;
-
-    const response = await geminiService.generateContent(prompt, { temperature: 0.7 }, userId);
-    
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-
-      const data = JSON.parse(jsonMatch[0]);
-      
-      if (!data.template || !data.blanks || !data.explanation) {
-        throw new Error('Missing required fields in Fill-in-the-Blank response');
-      }
-
-      const correctAnswers = data.blanks.map((blank: any) => blank.correctAnswer);
-
-      return {
-        question: data.template,
-        questionData: {
-          template: data.template,
-          blanks: data.blanks,
-        },
-        correctAnswer: correctAnswers,
-        explanation: data.explanation,
-      };
-    } catch (error) {
-      throw new Error(`Failed to parse Fill-in-the-Blank response: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Generate a Matching question
-   */
-  private async generateMatchingQuestion(
-    topic: string,
-    difficulty: 'easy' | 'medium' | 'hard',
-    userId: number
-  ): Promise<{
-    question: string;
-    questionData: QuestionData;
-    correctAnswer: Record<string, string>;
-    explanation: string;
-  }> {
-    const prompt = `Generate a ${difficulty} matching question STRICTLY AND EXCLUSIVELY about: "${topic}"
-
-CRITICAL REQUIREMENTS:
-1. ALL items MUST be DIRECTLY related to "${topic}" - NO OTHER TOPICS ALLOWED
-2. If "${topic}" is "big data", generate ONLY about big data concepts (NOT cloud computing, NOT databases, NOT networking)
-3. If "${topic}" is "Java", generate ONLY about Java programming (NOT Python, NOT C++, NOT general programming)
-4. Both columns and all matches MUST focus on "${topic}" ONLY
-
-Create two columns of 4 items each that need to be matched. Make sure:
-- Items in each column are related but distinct
-- There's a clear correct pairing for each item
-- The matches test understanding of relationships
-
-Return ONLY a JSON object in this exact format:
-{
-  "question": "Match the following items",
-  "leftColumn": [
-    {"id": "l1", "text": "Item 1"},
-    {"id": "l2", "text": "Item 2"},
-    {"id": "l3", "text": "Item 3"},
-    {"id": "l4", "text": "Item 4"}
-  ],
-  "rightColumn": [
-    {"id": "r1", "text": "Match 1"},
-    {"id": "r2", "text": "Match 2"},
-    {"id": "r3", "text": "Match 3"},
-    {"id": "r4", "text": "Match 4"}
-  ],
-  "correctPairs": [["l1", "r1"], ["l2", "r2"], ["l3", "r3"], ["l4", "r4"]],
-  "explanation": "Brief explanation of the matches"
-}`;
-
-    const response = await geminiService.generateContent(prompt, { temperature: 0.7 }, userId);
-    
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-
-      const data = JSON.parse(jsonMatch[0]);
-      
-      if (!data.question || !data.leftColumn || !data.rightColumn || !data.correctPairs || !data.explanation) {
-        throw new Error('Missing required fields in Matching response');
-      }
-
-      // Convert correctPairs array to object format
-      const correctAnswer: Record<string, string> = {};
-      for (const [leftId, rightId] of data.correctPairs) {
-        correctAnswer[leftId] = rightId;
-      }
-
-      return {
-        question: data.question,
-        questionData: {
-          leftColumn: data.leftColumn,
-          rightColumn: data.rightColumn,
-          correctPairs: data.correctPairs,
-        },
-        correctAnswer,
-        explanation: data.explanation,
-      };
-    } catch (error) {
-      throw new Error(`Failed to parse Matching response: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Generate a Rearrange question
-   */
-  private async generateRearrangeQuestion(
-    topic: string,
-    difficulty: 'easy' | 'medium' | 'hard',
-    userId: number
-  ): Promise<{
-    question: string;
-    questionData: QuestionData;
-    correctAnswer: string | string[] | Record<string, string>;
-    explanation: string;
-  }> {
-    const prompt = `Generate a ${difficulty} rearranging question STRICTLY AND EXCLUSIVELY about: "${topic}"
-
-CRITICAL REQUIREMENTS:
-1. ALL items MUST be DIRECTLY related to "${topic}" - NO OTHER TOPICS ALLOWED
-2. If "${topic}" is "big data", generate ONLY about big data concepts (NOT cloud computing, NOT databases, NOT networking)
-3. If "${topic}" is "Java", generate ONLY about Java programming (NOT Python, NOT C++, NOT general programming)
-4. The items and their order MUST focus on "${topic}" ONLY
-
-Create 4-6 items that need to be arranged in the correct order. Make sure:
-- The items have a clear logical order (chronological, process steps, size, etc.)
-- The order tests understanding of the concept
-- Items are distinct and unambiguous
-
-Return ONLY a JSON object in this exact format:
-{
-  "question": "Arrange these items in the correct order",
-  "items": ["Item 1", "Item 2", "Item 3", "Item 4"],
-  "correctOrder": [2, 0, 3, 1],
-  "explanation": "Brief explanation of the correct order"
-}
-
-Note: correctOrder should be an array of indices (0-based) representing the correct sequence.`;
-
-    const response = await geminiService.generateContent(prompt, { temperature: 0.7 }, userId);
-    
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
-      }
-
-      const data = JSON.parse(jsonMatch[0]);
-      
-      if (!data.question || !data.items || !data.correctOrder || !data.explanation) {
-        throw new Error('Missing required fields in Rearrange response');
-      }
-
-      return {
-        question: data.question,
-        questionData: {
-          items: data.items,
-          correctOrder: data.correctOrder,
-        },
-        correctAnswer: data.correctOrder as unknown as string | string[] | Record<string, string>,
-        explanation: data.explanation,
-      };
-    } catch (error) {
-      throw new Error(`Failed to parse Rearrange response: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Check if a question already exists in the database
-   * 
-   * DEPRECATED: This method was causing severe performance issues by fetching
-   * 1000 questions from the database for every question generated.
-   * AI-generated questions are naturally unique due to randomness.
-   * If duplicate detection is needed, implement with database-level checks or caching.
-   */
-  private async checkQuestionUniqueness(questionText: string): Promise<boolean> {
-    // Always return false (no duplicate) to skip the expensive check
-    return false;
   }
 }
 

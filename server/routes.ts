@@ -1,6 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db/index";
+import { quizAttempts, questionAttempts, questions } from "@shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { registerQuizRoutes } from "./routes/quiz.routes";
 import { registerLeaderboardRoutes } from "./routes/leaderboard.routes";
 import { registerShareableQuizRoutes } from "./routes/shareable-quiz.routes";
@@ -8,6 +11,7 @@ import { registerAchievementRoutes } from "./routes/achievement.routes";
 import { registerQuizOfTheDayRoutes } from "./routes/quiz-of-the-day.routes";
 import { registerSavedFavoriteQuizRoutes } from "./routes/saved-favorite-quiz.routes";
 import { AnalyticsService } from "./services/analytics.service";
+import { AchievementService } from "./services/achievement.service";
 import { 
   registerSchema,
   documentUploadSchema,
@@ -20,6 +24,7 @@ import {
 } from "@shared/schema";
 import { handleApiError } from "./middleware/errorHandler";
 import { validateFlashcardUpdate } from "./middleware/validateFlashcard";
+import { aiModeAwareRateLimiter } from "./middleware/ai-rate-limiter";
 import { Logger, LogCategory } from "./utils/logger";
 import multer from "multer";
 import mammoth from "mammoth";
@@ -29,6 +34,7 @@ import { requireAuth as jwtAuth } from "./middleware/auth.middleware";
 import bcrypt from "bcrypt";
 import { EmailService } from "./services/email.service";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 
 // Initialize email service
 const emailService = new EmailService();
@@ -36,7 +42,7 @@ const emailService = new EmailService();
 // Token generator utility
 const TokenGenerator = {
   generateToken: () => {
-    return require('crypto').randomBytes(32).toString('hex');
+    return crypto.randomBytes(32).toString('hex');
   },
   generateOTP: () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -1041,8 +1047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Dynamically import pdf-parse (CommonJS module)
           const require = createRequire(import.meta.url);
           // @ts-ignore
-          const pdfParseModule = require("pdf-parse");
-          const pdfParse = pdfParseModule.default || pdfParseModule;
+          const { PDFParse } = require("pdf-parse");
           
           // Custom render function to better handle text extraction
           const renderPage = (pageData: any) => {
@@ -1070,16 +1075,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
           };
           
-          const pdfData = await pdfParse(file.buffer, {
-            max: 0, // Parse all pages
+          // Instantiate PDFParse class with options
+          const parser = new PDFParse({ data: file.buffer });
+          const result = await parser.getText({
             pagerender: renderPage
           });
-          extractedText = pdfData.text;
+          extractedText = result.text;
           
           Logger.debug(LogCategory.SECURITY, 'PDF text extraction successful', {
             userId: req.user?.id,
             fileName: file.originalname,
-            pages: pdfData.numpages,
+            pages: result.total,
             textLength: extractedText.length,
           });
         } catch (pdfError) {
@@ -1704,11 +1710,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiMessages.unshift({
           role: "system",
           content: "You are Jadoo, an AI-powered study assistant created specifically for StudyForge platform. " +
-            "Your identity is Jadoo - NOT Google's AI, NOT Gemini, NOT any other AI. " +
-            "When asked 'who are you' or similar questions, ALWAYS respond that you are Jadoo, the StudyForge AI study assistant. " +
-            "\n\nYour purpose is to help students learn effectively across multiple subjects. " +
-            "You can explain complex topics in simple terms, provide examples, create study materials, and answer questions. " +
+            "Your identity is Jadoo. When asked 'who are you', identify yourself as Jadoo, the StudyForge AI study assistant. " +
+            "\n\nYour purpose is to help students learn effectively across ALL subjects and topics, including: " +
+            "- Academic subjects (math, science, history, languages, etc.)" +
+            "- Technology and computer science (including AI, machine learning, programming)" +
+            "- AI models and how they work (ChatGPT, Gemini, Claude, Perplexity, Grok, etc.)" +
+            "- General knowledge and educational topics" +
+            "\n\nYou can explain complex topics in simple terms, provide examples, create study materials, and answer questions about any educational topic. " +
             "Always be encouraging, helpful, patient, and focus on explaining concepts clearly. " +
+            "\n\nCRITICAL COMMUNICATION STYLE (MUST FOLLOW):" +
+            "- LANGUAGE MATCHING: If user writes in pure English, respond in pure English. If user uses Hinglish (mix of Hindi+English), then use Hinglish. NEVER use Hinglish if user is using only English." +
+            "- Be conversational and friendly, NOT formal or textbook-like" +
+            "- Use emojis frequently (🔥, 👉, ✅, 💡, 🚀, ⚡, 🧠, 🎯) to make responses engaging" +
+            "- Keep responses concise - aim for 50% shorter than a formal explanation" +
+            "- Provide clear winners and direct recommendations, not just comparisons" +
+            "- Use comparison tables when comparing multiple things" +
+            "- Structure with clear sections using emojis as headers" +
+            "- End with actionable advice or offer to help more" +
             `\n\nIMPORTANT: For your FIRST response in a new conversation, start with a personalized greeting: "${selectedGreeting} I'm Jadoo, your AI study assistant" and then naturally continue with your response to help the user.\n` +
             "\n\nFORMATTING RULES:\n" +
             "1. When providing code examples, ALWAYS use this format:\n" +
@@ -1720,6 +1738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "3. Use proper markdown: # for h1, ## for h2, ### for h3\n" +
             "4. Use - for bullet points\n" +
             "5. Use **text** for bold\n" +
+            "6. Use emojis as section headers (e.g., '🔥 Main Point', '✅ Winner', '💡 Advice')\n" +
             `${subject ? `This conversation is about ${subject}.` : ""}`
         });
       }
@@ -1954,11 +1973,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiMessages.unshift({
           role: "system",
           content: "You are Jadoo, an AI-powered study assistant created specifically for StudyForge platform. " +
-            "Your identity is Jadoo - NOT Google's AI, NOT Gemini, NOT any other AI. " +
-            "When asked 'who are you' or similar questions, ALWAYS respond that you are Jadoo, the StudyForge AI study assistant. " +
-            "\n\nYour purpose is to help students learn effectively across multiple subjects. " +
-            "You can explain complex topics in simple terms, provide examples, create study materials, and answer questions. " +
+            "Your identity is Jadoo. When asked 'who are you', identify yourself as Jadoo, the StudyForge AI study assistant. " +
+            "\n\nYour purpose is to help students learn effectively across ALL subjects and topics, including: " +
+            "- Academic subjects (math, science, history, languages, etc.)" +
+            "- Technology and computer science (including AI, machine learning, programming)" +
+            "- AI models and how they work (ChatGPT, Gemini, Claude, Perplexity, Grok, etc.)" +
+            "- General knowledge and educational topics" +
+            "\n\nYou can explain complex topics in simple terms, provide examples, create study materials, and answer questions about any educational topic. " +
             "Always be encouraging, helpful, patient, and focus on explaining concepts clearly. " +
+            "\n\nCRITICAL COMMUNICATION STYLE (MUST FOLLOW):" +
+            "- LANGUAGE MATCHING: If user writes in pure English, respond in pure English. If user uses Hinglish (mix of Hindi+English), then use Hinglish. NEVER use Hinglish if user is using only English." +
+            "- Be conversational and friendly, NOT formal or textbook-like" +
+            "- Use emojis frequently (🔥, 👉, ✅, 💡, 🚀, ⚡, 🧠, 🎯) to make responses engaging" +
+            "- Keep responses concise - aim for 50% shorter than a formal explanation" +
+            "- Provide clear winners and direct recommendations, not just comparisons" +
+            "- Use comparison tables when comparing multiple things" +
+            "- Structure with clear sections using emojis as headers" +
+            "- End with actionable advice or offer to help more" +
             "\n\nFORMATTING RULES:\n" +
             "1. When providing code examples, ALWAYS use this format:\n" +
             "   - Write the heading OUTSIDE the code block (e.g., 'Example 1: Printing Numbers')\n" +
@@ -1968,7 +1999,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "2. NEVER merge headings and code in the same block\n" +
             "3. Use proper markdown: # for h1, ## for h2, ### for h3\n" +
             "4. Use - for bullet points\n" +
-            "5. Use **text** for bold"
+            "5. Use **text** for bold\n" +
+            "6. Use emojis as section headers (e.g., '🔥 Main Point', '✅ Winner', '💡 Advice')"
         });
       }
 
@@ -2815,16 +2847,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save quiz attempt
   app.post('/api/quiz-attempts', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const { score, totalQuestions, correctAnswers, wrongAnswers, timeSpent, category, difficulty, questionsData } = req.body;
-      const userId = req.user?.id!;
+      const { score, totalQuestions, correctAnswers, wrongAnswers, incorrectAnswers: reqIncorrectAnswers, timeSpent, category, difficulty, questionsData, questionAttempts: questionAttemptsData } = req.body;
+      const userId = req.user?.id;
       
-      // Calculate accuracy
+      // Validate required fields
+      if (!userId) {
+        console.error('Quiz attempt save failed: No user ID');
+        return res.status(401).json({ 
+          success: false,
+          message: "Authentication required" 
+        });
+      }
+      
+      if (score === undefined || totalQuestions === undefined || correctAnswers === undefined) {
+        console.error('Quiz attempt save failed: Missing required fields', {
+          hasScore: score !== undefined,
+          hasTotalQuestions: totalQuestions !== undefined,
+          hasCorrectAnswers: correctAnswers !== undefined
+        });
+        return res.status(400).json({ 
+          success: false,
+          message: "Missing required fields: score, totalQuestions, or correctAnswers" 
+        });
+      }
+      
+      console.log('Saving quiz attempt:', {
+        userId,
+        questionsDataCount: questionsData?.length || 0,
+        questionAttemptsCount: questionAttemptsData?.length || 0,
+        questionAttemptsSample: questionAttemptsData?.[0]
+      });
+      
+      // Fetch full question data from database including correctAnswer
+      // The questionsData from frontend doesn't have correctAnswer for security
+      let fullQuestionsData = questionsData;
+      if (questionsData && Array.isArray(questionsData) && questionsData.length > 0) {
+        try {
+          const questionIds = questionsData.map((q: any) => q.id).filter(Boolean);
+          if (questionIds.length > 0) {
+            const dbQuestions = await db
+              .select()
+              .from(questions)
+              .where(inArray(questions.id, questionIds));
+            
+            // Map database questions to include all necessary fields
+            fullQuestionsData = dbQuestions.map((q: any) => ({
+              id: q.id,
+              type: q.type,
+              question: q.question,
+              questionData: q.questionData,
+              correctAnswer: q.correctAnswer, // Include correct answer for review
+              explanation: q.explanation,
+              category: q.category,
+              difficulty: q.difficulty,
+              tags: q.tags,
+              hints: q.hints,
+            }));
+            
+            console.log('Fetched full questions with correct answers:', {
+              count: fullQuestionsData.length,
+              sample: fullQuestionsData[0] ? {
+                id: fullQuestionsData[0].id,
+                hasCorrectAnswer: 'correctAnswer' in fullQuestionsData[0]
+              } : null
+            });
+          }
+        } catch (fetchError) {
+          console.error('Failed to fetch full question data:', fetchError);
+          // Continue with original data if fetch fails
+        }
+      }
+      
+      // Calculate accuracy - support both wrongAnswers and incorrectAnswers field names
       const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-      const incorrectAnswers = wrongAnswers !== undefined ? wrongAnswers : (totalQuestions - correctAnswers);
+      const incorrectAnswers = reqIncorrectAnswers !== undefined 
+        ? reqIncorrectAnswers 
+        : (wrongAnswers !== undefined ? wrongAnswers : (totalQuestions - correctAnswers));
+      
+      console.log('Quiz attempt data:', {
+        userId,
+        score,
+        totalQuestions,
+        correctAnswers,
+        incorrectAnswers,
+        accuracy,
+        category: category || 'general',
+        difficulty: difficulty || 'medium'
+      });
       
       // Use AnalyticsService to record quiz attempt
       const analyticsService = new AnalyticsService();
-      await analyticsService.recordQuizAttempt({
+      const attemptId = await analyticsService.recordQuizAttempt({
         userId,
         category: category || 'general',
         difficulty: difficulty || 'medium',
@@ -2834,16 +2947,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
         score,
         accuracy,
         timeSpent,
-        questionsData,
+        questionsData: fullQuestionsData, // Use full questions data with correct answers
         completed: true
       });
       
+      console.log('Quiz attempt saved with ID:', attemptId);
+      
+      // Save individual question attempts if provided
+      if (questionAttemptsData && Array.isArray(questionAttemptsData) && questionAttemptsData.length > 0) {
+        try {
+          const questionAttemptsToInsert = questionAttemptsData.map((qa: any) => ({
+            quizAttemptId: attemptId,
+            questionId: qa.questionId,
+            userAnswer: JSON.stringify(qa.userAnswer),
+            isCorrect: qa.isCorrect,
+            timeSpent: qa.timeSpent || 0,
+          }));
+          
+          console.log('Inserting question attempts:', questionAttemptsToInsert.length);
+          await db.insert(questionAttempts).values(questionAttemptsToInsert);
+          console.log('Question attempts saved successfully');
+        } catch (qaError) {
+          console.error('Failed to save question attempts:', qaError);
+          // Don't fail the whole request if question attempts fail
+        }
+      } else {
+        console.log('No question attempts data to save');
+      }
+      
+      // Check and award achievements
+      const achievementService = new AchievementService();
+      let newAchievements: any[] = [];
+      
+      try {
+        newAchievements = await achievementService.checkAndAwardBadges(userId, {
+          score,
+          totalQuestions,
+          correctAnswers,
+          incorrectAnswers,
+          timeSpent,
+          accuracy,
+          category: category || 'general',
+          difficulty: difficulty || 'medium',
+        });
+        
+        console.log('Achievements checked:', {
+          userId,
+          newAchievementsCount: newAchievements.length,
+          achievements: newAchievements.map(a => a.name)
+        });
+      } catch (achievementError) {
+        console.error('Failed to check achievements:', achievementError);
+        // Don't fail the request if achievements fail
+      }
+      
       return res.status(201).json({
         success: true,
-        message: "Quiz attempt saved successfully"
+        message: "Quiz attempt saved successfully",
+        id: attemptId,
+        newAchievements,
+        achievementsEarned: newAchievements.length,
       });
-    } catch (error) {
-      return handleApiError(error, res);
+    } catch (error: any) {
+      console.error('Error saving quiz attempt:', error);
+      
+      // Return detailed error response
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to save quiz attempt",
+        error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 
@@ -2872,9 +3045,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get individual quiz attempt details with questions and answers
+  app.get('/api/quiz-attempts/:id', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const attemptId = parseInt(req.params.id);
+
+      if (isNaN(attemptId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid attempt ID',
+        });
+      }
+
+      // Get quiz attempt
+      const [attempt] = await db
+        .select()
+        .from(quizAttempts)
+        .where(
+          and(
+            eq(quizAttempts.id, attemptId),
+            eq(quizAttempts.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (!attempt) {
+        return res.status(404).json({
+          success: false,
+          error: 'Quiz attempt not found',
+        });
+      }
+
+      // Get question attempts
+      const questionAttemptsList = await db
+        .select()
+        .from(questionAttempts)
+        .where(eq(questionAttempts.quizAttemptId, attemptId));
+
+      // Get questions data - stored in questionsData field
+      const questionsData = attempt.questionsData as any[] || [];
+      
+      console.log('Quiz attempt details:', {
+        attemptId,
+        questionsDataLength: questionsData.length,
+        questionAttemptsLength: questionAttemptsList.length,
+        firstQuestionSample: questionsData[0] ? {
+          id: questionsData[0].id,
+          type: questionsData[0].type,
+          hasCorrectAnswer: 'correctAnswer' in questionsData[0],
+          correctAnswer: questionsData[0].correctAnswer
+        } : null
+      });
+      
+      return res.status(200).json({
+        success: true,
+        data: {
+          attempt: {
+            id: attempt.id,
+            score: attempt.score,
+            totalQuestions: attempt.totalQuestions,
+            correctAnswers: attempt.correctAnswers,
+            timeSpent: attempt.timeSpent,
+            category: attempt.category,
+            difficulty: attempt.difficulty,
+            createdAt: attempt.createdAt,
+          },
+          questions: questionsData,
+          questionAttempts: questionAttemptsList,
+        },
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
+  // Delete quiz attempt
+  app.delete('/api/quiz-attempts/:id', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const attemptId = parseInt(req.params.id);
+
+      if (isNaN(attemptId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid attempt ID',
+        });
+      }
+
+      // Verify ownership
+      const [attempt] = await db
+        .select()
+        .from(quizAttempts)
+        .where(
+          and(
+            eq(quizAttempts.id, attemptId),
+            eq(quizAttempts.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (!attempt) {
+        return res.status(404).json({
+          success: false,
+          error: 'Quiz attempt not found',
+        });
+      }
+
+      // Delete question attempts first (foreign key constraint)
+      await db
+        .delete(questionAttempts)
+        .where(eq(questionAttempts.quizAttemptId, attemptId));
+
+      // Delete quiz attempt
+      await db
+        .delete(quizAttempts)
+        .where(eq(quizAttempts.id, attemptId));
+
+      return res.status(200).json({
+        success: true,
+        message: 'Quiz attempt deleted successfully',
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
   // ===== Quiz Endpoints =====
   
   // Validate answer endpoint - secure answer checking
+  // Get correct answer for a question (only after quiz completion for review)
+  app.post('/api/quiz/get-correct-answer', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { questionId } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Not authenticated',
+        });
+      }
+
+      if (!questionId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing questionId',
+        });
+      }
+
+      // Fetch the question from database to get correct answer
+      const { questionService } = await import('./services/question.service');
+      const question = await questionService.getQuestionById(questionId);
+
+      if (!question) {
+        return res.status(404).json({
+          success: false,
+          error: 'Question not found',
+        });
+      }
+
+      // Return correct answer for review mode
+      return res.status(200).json({
+        success: true,
+        correctAnswer: question.correctAnswer,
+      });
+    } catch (error) {
+      Logger.error(LogCategory.API, 'Error fetching correct answer', error as Error);
+      return handleApiError(error, res);
+    }
+  });
+
+  // Validate answer endpoint
   // This endpoint validates answers on the server side to prevent cheating
   // Returns both validation result AND correct answer (only after submission)
   app.post('/api/quiz/validate-answer', jwtAuth, async (req: Request, res: Response) => {
@@ -2907,12 +3249,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // IMPORTANT: Validate question correctness before checking answer
+      // This prevents issues where AI generated wrong correctAnswer
+      if (question.type === 'mcq') {
+        const { validateMCQQuestion, attemptAutoFix } = await import('./utils/question-validator');
+        const validation = validateMCQQuestion(question);
+        
+        if (!validation.isValid) {
+          console.error('Question validation failed:', {
+            questionId,
+            errors: validation.errors,
+            question: question.question.substring(0, 100)
+          });
+          
+          // Try to auto-fix the question
+          const fixed = attemptAutoFix(question);
+          if (fixed) {
+            console.log('Question auto-fixed:', {
+              questionId,
+              oldAnswer: question.correctAnswer,
+              newAnswer: fixed.correctAnswer
+            });
+            
+            // Update the question in database with fixed answer
+            try {
+              await db
+                .update(questions)
+                .set({ correctAnswer: fixed.correctAnswer })
+                .where(eq(questions.id, questionId));
+              
+              // Use the fixed question for validation
+              question.correctAnswer = fixed.correctAnswer;
+              
+              console.log('Question updated in database with correct answer');
+            } catch (updateError) {
+              console.error('Failed to update question:', updateError);
+            }
+          } else {
+            console.error('Could not auto-fix question - manual review needed');
+          }
+        }
+      }
+
       // Validate answer based on question type
       let isCorrect = false;
       const correctAnswer = question.correctAnswer;
 
+      console.log('Validating answer:', {
+        questionId,
+        questionType: question.type,
+        userAnswer,
+        correctAnswer,
+        question: question.question.substring(0, 100)
+      });
+
       if (question.type === 'mcq') {
         isCorrect = userAnswer === correctAnswer;
+        console.log('MCQ validation:', { userAnswer, correctAnswer, isCorrect });
       } else if (question.type === 'true-false') {
         isCorrect = userAnswer.toString().toLowerCase() === correctAnswer.toString().toLowerCase();
       } else if (question.type === 'fill-blank' && Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
@@ -2948,8 +3341,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Get questions based on filters or generate with AI
   // Requirements: 2.1, 2.2, 2.4, 2.5, 10.1, 10.6, 28.2
+  // Rate limiting: aiModeAwareRateLimiter only applies when aiMode=true (Requirements 4.3, 4.4)
   // SECURITY: Correct answers are NOT sent to frontend before submission
-  app.get('/api/questions', jwtAuth, async (req: Request, res: Response) => {
+  app.get('/api/questions', jwtAuth, aiModeAwareRateLimiter, async (req: Request, res: Response) => {
     try {
       const { category, difficulty, types, limit, aiMode, topic } = req.query;
       const userId = req.user?.id!;
@@ -3339,7 +3733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate hint based on attempt number (default to 1 for first hint)
       const hintAttempt = attemptNumber || 1;
-      const hint = await aiQuizService.generateHint(question, hintAttempt);
+      const hint = await aiQuizService.generateHint(question, hintAttempt, userId);
 
       // If sessionId is provided, update the session to track hint usage
       if (sessionId) {
@@ -3921,9 +4315,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.id!;
       
       const plan = await storage.createStudyPlan({
-        ...planData,
-        userId
-      });
+        userId,
+        title: planData.title,
+        description: planData.description || null,
+        scheduleData: planData.scheduleData || null,
+        startDate: planData.startDate || null,
+        endDate: planData.endDate || null,
+      } as any);
       
       return res.status(201).json({
         message: "Study plan created successfully",
@@ -4020,11 +4418,223 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       return res.status(200).json({
         message: "Study plan generated successfully",
-        ...planData,
+        title: planData.title,
+        description: planData.description,
+        scheduleData: planData.scheduleData,
         subject: topic,
         difficulty: "medium",
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString()
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Generate study items for an existing plan
+  app.post('/api/study-plans/:id/generate-items', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      // Check if plan belongs to the user
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Calculate duration in days
+      const startDate = plan.startDate ? new Date(plan.startDate) : new Date();
+      const endDate = plan.endDate ? new Date(plan.endDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Import and use the Gemini service
+      const { geminiService } = await import('./services/gemini');
+      
+      let planData;
+      try {
+        planData = await geminiService.generateStudyPlan(
+          plan.title, 
+          durationDays, 
+          plan.description || `Learn ${plan.title}`,
+          req.user?.id
+        );
+      } catch (error) {
+        console.error("Error generating study items:", error);
+        return res.status(500).json({ message: "Failed to generate study items" });
+      }
+      
+      // Update the plan with the generated items
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        scheduleData: planData.scheduleData 
+      });
+      
+      return res.status(200).json({
+        message: "Study items generated successfully",
+        plan: updatedPlan
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Add a single study item to a plan
+  app.post('/api/study-plans/:id/items', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const { title, description, duration } = req.body;
+      
+      if (!title) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      // Check if plan belongs to the user
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Parse existing scheduleData
+      let scheduleData = typeof plan.scheduleData === 'string' 
+        ? JSON.parse(plan.scheduleData || '[]') 
+        : plan.scheduleData || [];
+      
+      // Create new item with unique ID
+      const newItem = {
+        id: String(Date.now()),
+        title: title.trim(),
+        description: description?.trim() || '',
+        duration: typeof duration === 'number' ? duration : 60,
+        completed: false,
+      };
+      
+      // Add the new item
+      scheduleData.push(newItem);
+      
+      // Update the plan
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        scheduleData 
+      });
+      
+      return res.status(201).json({
+        message: "Study item added successfully",
+        plan: updatedPlan,
+        item: newItem
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Edit a study item
+  app.patch('/api/study-plans/:id/items/:itemId', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const itemId = req.params.itemId;
+      const { title, description, duration } = req.body;
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      // Check if plan belongs to the user
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Parse scheduleData
+      let scheduleData = typeof plan.scheduleData === 'string' 
+        ? JSON.parse(plan.scheduleData || '[]') 
+        : plan.scheduleData || [];
+      
+      // Find and update the item
+      let itemFound = false;
+      scheduleData = scheduleData.map((item: any) => {
+        if (item.id === itemId) {
+          itemFound = true;
+          return {
+            ...item,
+            title: title?.trim() || item.title,
+            description: description !== undefined ? description.trim() : item.description,
+            duration: typeof duration === 'number' ? duration : item.duration,
+          };
+        }
+        return item;
+      });
+      
+      if (!itemFound) {
+        return res.status(404).json({ message: "Study item not found" });
+      }
+      
+      // Update the plan
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        scheduleData 
+      });
+      
+      return res.status(200).json({
+        message: "Study item updated successfully",
+        plan: updatedPlan
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Delete a study item
+  app.delete('/api/study-plans/:id/items/:itemId', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const itemId = req.params.itemId;
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      // Check if plan belongs to the user
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Parse scheduleData
+      let scheduleData = typeof plan.scheduleData === 'string' 
+        ? JSON.parse(plan.scheduleData || '[]') 
+        : plan.scheduleData || [];
+      
+      // Filter out the item
+      const originalLength = scheduleData.length;
+      scheduleData = scheduleData.filter((item: any) => item.id !== itemId);
+      
+      if (scheduleData.length === originalLength) {
+        return res.status(404).json({ message: "Study item not found" });
+      }
+      
+      // Calculate new completion percentage
+      const totalItems = scheduleData.length;
+      const completedItems = scheduleData.filter((item: any) => item.completed).length;
+      const completedPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      
+      // Update the plan
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        scheduleData,
+        completedPercentage,
+        status: completedPercentage === 100 ? 'completed' : 'active'
+      });
+      
+      return res.status(200).json({
+        message: "Study item deleted successfully",
+        plan: updatedPlan
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -4056,17 +4666,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Find and update the item in scheduleData
       let itemFound = false;
       if (Array.isArray(scheduleData)) {
-        scheduleData = scheduleData.map((day: any) => {
-          if (day.tasks && Array.isArray(day.tasks)) {
-            day.tasks = day.tasks.map((task: any) => {
-              if (task.id === itemId) {
-                itemFound = true;
-                return { ...task, completed: true };
-              }
-              return task;
-            });
+        scheduleData = scheduleData.map((item: any) => {
+          if (item.id === itemId) {
+            itemFound = true;
+            return { ...item, completed: true };
           }
-          return day;
+          return item;
         });
       }
       
@@ -4074,8 +4679,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Study item not found" });
       }
       
-      // Update the study plan with the modified scheduleData
-      const updatedPlan = await storage.updateStudyPlan(planId, { scheduleData });
+      // Calculate completion percentage
+      const totalItems = scheduleData.length;
+      const completedItems = scheduleData.filter((item: any) => item.completed).length;
+      const completedPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      
+      // Update the study plan with the modified scheduleData and completion percentage
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        scheduleData,
+        completedPercentage,
+        status: completedPercentage === 100 ? 'completed' : 'active'
+      });
       
       return res.status(200).json({
         message: "Study item completed successfully",
@@ -4277,6 +4891,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
       
+      // Revoke all refresh tokens to logout from all devices
+      await jwtService.revokeAllUserTokens(userId);
+      Logger.info(LogCategory.AUTH, 'All user sessions revoked after password change', { userId });
+      
       // Send password changed email
       try {
         await emailService.sendPasswordChangedEmail(user.id, user.email, user.username);
@@ -4284,7 +4902,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Email service already logs the error
       }
       
-      return res.status(200).json({ message: "Password changed successfully" });
+      return res.status(200).json({ 
+        message: "Password changed successfully. You have been logged out from all devices.",
+        requiresLogin: true 
+      });
     } catch (error) {
       return handleApiError(error, res);
     }
@@ -4404,6 +5025,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register saved and favorite quiz routes
   registerSavedFavoriteQuizRoutes(app);
+  
+  // Admin endpoint to clear quiz cache
+  app.post('/api/admin/clear-cache', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      
+      // Only allow admin users (you can add role check here)
+      // For now, any authenticated user can clear cache
+      
+      const { quizCacheService } = require('./services/quiz-cache-service');
+      quizCacheService.clear();
+      
+      console.log(`Cache cleared by user ${userId}`);
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Quiz cache cleared successfully',
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

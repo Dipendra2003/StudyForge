@@ -82,7 +82,7 @@ export default function QuizConfigurationPanel({
     questionTypes: ['mcq'],
     voiceMode: false,
     topic: '',
-    aiMode: false,
+    aiMode: true,
   });
 
   const [errors, setErrors] = useState<string[]>([]);
@@ -128,9 +128,6 @@ export default function QuizConfigurationPanel({
     // When AI mode is enabled, skip database question availability check (Req 28.2)
     // Only validate AI mode requirements
     if (config.aiMode) {
-      // Check if Gemini API key is configured (validate AI mode requirements)
-      // Note: We can't directly check the API key from the frontend for security reasons
-      // The backend will handle this validation, but we can check basic config validity
       if (!config.category || config.category.trim() === '') {
         newErrors.push("Category is required for AI question generation");
       }

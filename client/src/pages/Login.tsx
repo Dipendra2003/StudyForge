@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,26 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Redirect to intended page or dashboard if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Priority order: redirectAfterLogin > lastVisitedPage > dashboard
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin') || 
+                          sessionStorage.getItem('lastVisitedPage') || 
+                          '/dashboard';
+      
+      console.log('[Login] User is authenticated, redirecting to:', redirectPath);
+      
+      // Clear the redirect flag
+      sessionStorage.removeItem('redirectAfterLogin');
+      
+      setLocation(redirectPath);
+    }
+  }, [isAuthenticated, setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,20 +45,15 @@ export default function Login() {
       console.log('[Login] Attempting login...');
       await login(identifier, password);
       
-      console.log('[Login] Login successful, checking localStorage');
-      const token = localStorage.getItem('accessToken');
-      console.log('[Login] Token in localStorage:', !!token);
+      console.log('[Login] Login successful');
       
-      console.log('[Login] Showing toast');
       // Show success toast
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
       });
       
-      console.log('[Login] Navigating to /dashboard');
-      // Use wouter navigation instead of hard redirect
-      setLocation('/dashboard');
+      // Navigation will happen automatically via useEffect when isAuthenticated becomes true
     } catch (err: any) {
       console.error('[Login] Login failed:', err);
       const errorMessage = err.message || 'Login failed. Please try again.';

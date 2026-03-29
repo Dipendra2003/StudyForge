@@ -19,35 +19,32 @@ import {
   Target,
   CheckCircle2,
   XCircle,
-  RotateCcw,
   Eye,
   Share2,
   Award,
   TrendingUp,
   Lightbulb,
   Quote,
+  Star,
 } from "lucide-react";
 import { QuizResults } from "./QuizPlayer";
 
 interface ResultsSummaryProps {
   results: QuizResults;
-  onRetry: () => void;
   onViewAnswers: () => void;
   onShare: () => void;
+  onRetry?: () => void;
 }
 
 export default function ResultsSummary({
   results,
-  onRetry,
   onViewAnswers,
   onShare,
+  onRetry,
 }: ResultsSummaryProps) {
-  const [showConfetti, setShowConfetti] = useState(false);
-
   // Trigger confetti for high scores (>90%)
   useEffect(() => {
     if (results.score > 90) {
-      setShowConfetti(true);
       
       // Fire confetti animation
       const duration = 3000;
@@ -63,7 +60,6 @@ export default function ResultsSummary({
 
         if (timeLeft <= 0) {
           clearInterval(interval);
-          setShowConfetti(false);
           return;
         }
 
@@ -330,6 +326,19 @@ export default function ResultsSummary({
                 </CardContent>
               </Card>
             )}
+            
+            {/* Bonus Points - Only show if bonus points were awarded */}
+            {results.bonusPoints !== undefined && results.bonusPoints > 0 && (
+              <Card className="glass-light bg-purple-50/50 dark:bg-purple-950/50 border-purple-200 dark:border-purple-800">
+                <CardContent className="pt-6 text-center">
+                  <Star className="h-8 w-8 mx-auto mb-2 text-purple-600 dark:text-purple-400" />
+                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    +{results.bonusPoints}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Bonus Points</div>
+                </CardContent>
+              </Card>
+            )}
           </motion.div>
 
           {/* Accuracy Bar */}
@@ -371,15 +380,6 @@ export default function ResultsSummary({
 
         <CardFooter className="flex flex-col sm:flex-row gap-3 justify-center pt-6">
           <Button
-            onClick={onRetry}
-            size="lg"
-            variant="default"
-            className="w-full sm:w-auto"
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Retry Quiz
-          </Button>
-          <Button
             onClick={onViewAnswers}
             size="lg"
             variant="outline"
@@ -396,6 +396,20 @@ export default function ResultsSummary({
           >
             <Share2 className="mr-2 h-4 w-4" />
             Share Results
+          </Button>
+          <Button
+            onClick={onRetry || (() => {
+              // Remove qotd parameter if present
+              const url = new URL(window.location.href);
+              url.searchParams.delete('qotd');
+              window.location.href = url.toString();
+            })}
+            size="lg"
+            variant="default"
+            className="w-full sm:w-auto"
+          >
+            <Trophy className="mr-2 h-4 w-4" />
+            Start New Quiz
           </Button>
         </CardFooter>
       </Card>

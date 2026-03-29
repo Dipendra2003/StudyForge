@@ -39,7 +39,7 @@ export interface CreateQuestionDTO {
   type: QuestionType;
   question: string;
   questionData: QuestionData;
-  correctAnswer: string | string[] | Record<string, string>;
+  correctAnswer: string | string[] | number[] | Record<string, string>;
   explanation: string;
   category: string;
   difficulty: 'easy' | 'medium' | 'hard';
@@ -155,14 +155,37 @@ export class QuestionService {
 
     const result = await db.insert(questions).values(insertData);
 
-    // Fetch the created question
-    // Convert insertId to number, handling BigInt and ensuring it's valid
-    const insertId = result.insertId;
-    const questionId = typeof insertId === 'bigint' ? Number(insertId) : Number(insertId);
+    // Handle different database driver return formats
+    let questionId: number;
+    
+    // Check for insertId (MySQL/MySQL2)
+    if (result && typeof (result as any).insertId !== 'undefined') {
+      const insertId = (result as any).insertId;
+      questionId = typeof insertId === 'bigint' ? Number(insertId) : Number(insertId);
+    } 
+    // Check for returning clause result (PostgreSQL style)
+    else if (Array.isArray(result) && result.length > 0 && (result[0] as any)?.id) {
+      questionId = (result[0] as any).id;
+    }
+    // Fallback: query for the last inserted question by this user
+    else {
+      const lastQuestion = await db
+        .select()
+        .from(questions)
+        .where(eq(questions.userId, data.userId))
+        .orderBy(sql`${questions.id} DESC`)
+        .limit(1);
+      
+      if (lastQuestion.length > 0) {
+        questionId = lastQuestion[0].id;
+      } else {
+        throw new Error('Failed to retrieve created question ID');
+      }
+    }
     
     // Validate the ID is a valid number
     if (isNaN(questionId) || questionId <= 0) {
-      throw new Error(`Invalid question ID returned from database: ${insertId}`);
+      throw new Error(`Invalid question ID returned from database: ${questionId}`);
     }
     
     const createdQuestion = await this.getQuestionById(questionId);

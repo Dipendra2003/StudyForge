@@ -145,10 +145,10 @@ export class AnalyticsService {
    * 
    * @param attempt - Quiz attempt data
    */
-  async recordQuizAttempt(attempt: QuizAttemptDTO): Promise<void> {
+  async recordQuizAttempt(attempt: QuizAttemptDTO): Promise<number> {
     try {
       // Insert quiz attempt record
-      await db.insert(quizAttempts).values({
+      const result = await db.insert(quizAttempts).values({
         userId: attempt.userId,
         score: attempt.score,
         totalQuestions: attempt.totalQuestions,
@@ -160,11 +160,16 @@ export class AnalyticsService {
         completed: attempt.completed,
       });
 
+      // Get the inserted ID
+      const insertId = result[0]?.insertId || result.insertId;
+
       // Update user quiz stats
       await this.updateUserStats(attempt);
 
       // Update streak
       await this.updateStreak(attempt.userId);
+
+      return insertId;
     } catch (error) {
       console.error('Error recording quiz attempt:', error);
       throw new Error('Failed to record quiz attempt');

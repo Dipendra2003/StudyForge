@@ -191,12 +191,15 @@ export default function BadgeCollection({ userId }: BadgeCollectionProps) {
   const lockedBadges = BADGE_DEFINITIONS.filter(def => !isEarned(def.type));
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    // Convert UTC date to local timezone
+    const localDate = new Date(date);
+    return localDate.toLocaleString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -467,12 +470,15 @@ interface BadgeDetailViewProps {
 
 function BadgeDetailView({ badgeDef, earned, earnedBadge, onClose }: BadgeDetailViewProps) {
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    // Convert to local timezone for display
+    const localDate = new Date(date);
+    return localDate.toLocaleString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true,
     });
   };
 

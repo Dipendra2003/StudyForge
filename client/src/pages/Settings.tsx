@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { motion } from "framer-motion";
-import { Settings as SettingsIcon, Globe, Mail, Shield, Trash2, AlertTriangle, Mic, Volume2, Info } from "lucide-react";
+import { Settings as SettingsIcon, Globe, Mail, Shield, Trash2, AlertTriangle, Mic, Volume2, Info, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 export default function Settings() {
@@ -44,6 +44,7 @@ export default function Settings() {
   const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(true);
   const [deletePassword, setDeletePassword] = useState("");
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -477,14 +478,28 @@ export default function Settings() {
                           </p>
                           <div className="space-y-2">
                             <Label htmlFor="deletePassword">Enter your password to confirm</Label>
-                            <Input
-                              id="deletePassword"
-                              type="password"
-                              value={deletePassword}
-                              onChange={(e) => setDeletePassword(e.target.value)}
-                              placeholder="Enter your password"
-                              className="border-red-300 focus:border-red-500"
-                            />
+                            <div className="relative">
+                              <Input
+                                id="deletePassword"
+                                type={showDeletePassword ? 'text' : 'password'}
+                                value={deletePassword}
+                                onChange={(e) => setDeletePassword(e.target.value)}
+                                placeholder="Enter your password"
+                                className="border-red-300 focus:border-red-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowDeletePassword(!showDeletePassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                tabIndex={-1}
+                              >
+                                {showDeletePassword ? (
+                                  <EyeOff className="w-4 h-4" />
+                                ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
                           </div>
                         </AlertDialogDescription>
                       </AlertDialogHeader>

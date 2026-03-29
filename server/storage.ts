@@ -345,6 +345,7 @@ export class MemStorage implements IStorage {
       failedLoginAttempts: 0,
       lastFailedLogin: null,
       accountLockedUntil: null,
+      totalPoints: 0,
       createdAt: now,
       updatedAt: now,
     };

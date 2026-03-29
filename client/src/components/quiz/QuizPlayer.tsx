@@ -50,7 +50,7 @@ import { QuizConfig } from "./QuizConfigurationPanel";
 import { HintPanel } from "./HintPanel";
 import { useHintTracking } from "@/hooks/useHintTracking";
 import { MotivationalFeedback } from "./MotivationalFeedback";
-import { generateMotivation } from "@/lib/api";
+import { generateMotivation, apiPost } from "@/lib/api";
 import { useTTSReader } from "./TTSReader";
 import { getRandomMotivationalQuote } from "@/lib/motivationalQuotes";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -65,6 +65,7 @@ export interface QuizResults {
   accuracy: number;
   badge?: 'gold' | 'silver' | 'bronze';
   newAchievements: Achievement[];
+  bonusPoints?: number;
   performanceByCategory: Record<string, number>;
   hintsUsed?: number;
   questionsWithHints?: number[];
@@ -72,6 +73,8 @@ export interface QuizResults {
     text: string;
     author?: string;
   };
+  userAnswers?: Record<number, any>;
+  questionAttempts?: Record<number, QuestionAttempt>;
 }
 
 interface Achievement {
@@ -168,17 +171,21 @@ export default function QuizPlayer({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [config.timedMode, config.timeLimit, currentQuestionIndex, currentAnswer, answers, questions, correctCount, incorrectCount]);
+  }, [config.timedMode, config.timeLimit]);
 
-  // Reset answer state when question changes
+  // Reset answer state when question changes - ONLY when currentQuestionIndex changes
   useEffect(() => {
+    console.log('[QuizPlayer] Question changed to index:', currentQuestionIndex);
     setCurrentAnswer(null);
     currentAnswerRef.current = null;
     setHasSubmitted(false);
     setShowFeedbackAnimation(false);
     setShowMotivation(false); // Hide motivation when moving to next question
     setQuestionStartTime(Date.now());
+  }, [currentQuestionIndex]); // Only reset when question index changes
 
+  // Handle voice mode for reading questions - separate effect
+  useEffect(() => {
     // Read question aloud if voice mode is enabled
     if (config.voiceMode && currentQuestion && ttsReader.isSupported) {
       // Stop any ongoing speech (audio interruption on navigation - Requirement 16.5)
@@ -194,7 +201,7 @@ export default function QuizPlayer({
     if (currentQuestionIndex > 0 && currentQuestionIndex % 5 === 0) {
       fetchPeriodicEncouragement();
     }
-  }, [currentQuestionIndex, config.voiceMode, currentQuestion, ttsReader]);
+  }, [currentQuestionIndex, config.voiceMode]);
 
   // Fetch periodic encouragement
   const fetchPeriodicEncouragement = async () => {
@@ -338,7 +345,7 @@ export default function QuizPlayer({
     if (question.type === 'fill-blank' && Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
       if (userAnswer.length !== correctAnswer.length) return false;
       return userAnswer.every((ans, idx) => 
-        ans.trim().toLowerCase() === correctAnswer[idx].trim().toLowerCase()
+        String(ans).trim().toLowerCase() === String(correctAnswer[idx]).trim().toLowerCase()
       );
     }
 
@@ -362,16 +369,9 @@ export default function QuizPlayer({
   // Submit answer to backend for validation
   const submitAnswerToBackend = async (questionId: number, userAnswer: string | string[] | Record<string, string>): Promise<{ isCorrect: boolean; correctAnswer: any }> => {
     try {
-      const response = await fetch('/api/quiz/validate-answer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          questionId,
-          userAnswer,
-        }),
+      const response = await apiPost('/api/quiz/validate-answer', {
+        questionId,
+        userAnswer,
       });
 
       if (!response.ok) {
@@ -395,46 +395,57 @@ export default function QuizPlayer({
   // Handle answer submission
   const handleSubmitAnswer = async () => {
     // Use ref value which is always up-to-date (no async state issues)
-    const answerToSubmit = currentAnswerRef.current;
-    console.log('=== SUBMIT DEBUG ===');
-    console.log('currentAnswer (state):', currentAnswer);
-    console.log('currentAnswerRef.current (ref):', currentAnswerRef.current);
-    console.log('answerToSubmit:', answerToSubmit);
-    console.log('hasSubmitted:', hasSubmitted);
-    console.log('===================');
+    // Also check state value as fallback - try both sources
+    let answerToSubmit = currentAnswerRef.current;
+    
+    // If ref is empty, try state value
+    if (answerToSubmit === null || answerToSubmit === undefined) {
+      answerToSubmit = currentAnswer;
+    }
+    
+    // Debug logging to help diagnose issues
+    console.log('[QuizPlayer] Submit attempt:', {
+      refValue: currentAnswerRef.current,
+      stateValue: currentAnswer,
+      finalAnswer: answerToSubmit,
+      hasSubmitted
+    });
     
     // Prevent double submission
     if (hasSubmitted) {
-      console.log('Already submitted, returning');
+      console.log('[QuizPlayer] Already submitted, ignoring');
       return;
     }
     
-    // Validate we have an answer - use ref value which is synchronously updated
+    // Validate we have an answer
     if (answerToSubmit === null || answerToSubmit === undefined) {
-      console.log('❌ VALIDATION FAILED - answerToSubmit is null/undefined');
+      console.log('[QuizPlayer] No answer selected');
       alert('Please select an answer before submitting');
       return;
     }
     
-    console.log('✅ VALIDATION PASSED - Proceeding with submission');
-    
     // Check for empty arrays
     if (Array.isArray(answerToSubmit) && answerToSubmit.length === 0) {
+      console.log('[QuizPlayer] Empty array answer');
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty strings
     if (typeof answerToSubmit === 'string' && answerToSubmit.trim() === '') {
+      console.log('[QuizPlayer] Empty string answer');
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty objects (matching questions)
     if (typeof answerToSubmit === 'object' && !Array.isArray(answerToSubmit) && Object.keys(answerToSubmit).length === 0) {
+      console.log('[QuizPlayer] Empty object answer');
       alert('Please select an answer before submitting');
       return;
     }
+    
+    console.log('[QuizPlayer] Submitting answer:', answerToSubmit);
 
     const questionTime = Math.floor((Date.now() - questionStartTime) / 1000);
     
@@ -634,6 +645,12 @@ export default function QuizPlayer({
     // Get a random motivational quote for the results
     const motivationalQuote = getRandomMotivationalQuote();
 
+    // Extract user answers from attempts
+    const userAnswers: Record<number, any> = {};
+    Object.values(answers).forEach(attempt => {
+      userAnswers[attempt.questionId] = attempt.userAnswer;
+    });
+
     const results: QuizResults = {
       score: Math.round(accuracy),
       totalQuestions,
@@ -650,6 +667,8 @@ export default function QuizPlayer({
         text: motivationalQuote.text,
         author: motivationalQuote.author,
       },
+      userAnswers,
+      questionAttempts: answers,
     };
 
     onComplete(results);
@@ -691,23 +710,15 @@ export default function QuizPlayer({
 
     return (
       <RadioGroup
-        value={userAnswer || undefined}
+        value={userAnswer || ""}
         onValueChange={(value) => {
-          console.log('=== RADIO CHANGE DEBUG ===');
-          console.log('Selected value:', value);
-          console.log('hasSubmitted:', hasSubmitted);
-          console.log('Before - currentAnswer:', currentAnswer);
-          console.log('Before - currentAnswerRef.current:', currentAnswerRef.current);
-          if (!hasSubmitted) {
+          console.log('[QuizPlayer] MCQ onValueChange called:', { value, hasSubmitted });
+          if (!hasSubmitted && value) {
+            // Update ref FIRST (synchronous) then state
+            currentAnswerRef.current = value;
             setCurrentAnswer(value);
-            currentAnswerRef.current = value; // Update ref synchronously
-            console.log('After - currentAnswer (state set, may not be updated yet):', value);
-            console.log('After - currentAnswerRef.current:', currentAnswerRef.current);
-            console.log('✅ Answer updated successfully');
-          } else {
-            console.log('⚠️ Skipped update - already submitted');
+            console.log('[QuizPlayer] MCQ answer set:', { refValue: currentAnswerRef.current, stateValue: value });
           }
-          console.log('========================');
         }}
         className="space-y-3"
       >
@@ -730,7 +741,7 @@ export default function QuizPlayer({
           return (
             <motion.div
               key={option.id}
-              className={optionClassName}
+              className={`${optionClassName} ${!hasSubmitted ? 'cursor-pointer' : ''}`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ 
                 opacity: 1, 
@@ -740,6 +751,13 @@ export default function QuizPlayer({
               transition={{ 
                 delay: index * 0.05,
                 scale: { duration: 0.3 }
+              }}
+              onClick={() => {
+                if (!hasSubmitted) {
+                  console.log('[QuizPlayer] Option container clicked:', option.id);
+                  currentAnswerRef.current = option.id;
+                  setCurrentAnswer(option.id);
+                }
               }}
             >
               <div className="flex items-start">
@@ -811,9 +829,12 @@ export default function QuizPlayer({
         <RadioGroup
           value={userAnswer}
           onValueChange={(value) => {
+            console.log('[QuizPlayer] TrueFalse onValueChange called:', { value, hasSubmitted });
             if (!hasSubmitted) {
+              // Update ref FIRST (synchronous) then state
+              currentAnswerRef.current = value;
               setCurrentAnswer(value);
-              currentAnswerRef.current = value; // Update ref synchronously
+              console.log('[QuizPlayer] TrueFalse answer set:', { refValue: currentAnswerRef.current, stateValue: value });
             }
           }}
           className="space-y-3"
@@ -837,7 +858,7 @@ export default function QuizPlayer({
             return (
               <motion.div
                 key={option.id}
-                className={optionClassName}
+                className={`${optionClassName} ${!hasSubmitted ? 'cursor-pointer' : ''}`}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ 
                   opacity: 1, 
@@ -847,6 +868,13 @@ export default function QuizPlayer({
                 transition={{ 
                   delay: index * 0.1,
                   scale: { duration: 0.3 }
+                }}
+                onClick={() => {
+                  if (!hasSubmitted) {
+                    console.log('[QuizPlayer] TrueFalse option clicked:', option.id);
+                    currentAnswerRef.current = option.id;
+                    setCurrentAnswer(option.id);
+                  }
                 }}
               >
                 <div className="flex items-center">

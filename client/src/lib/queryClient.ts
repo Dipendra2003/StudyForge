@@ -83,13 +83,33 @@ export async function apiRequest<T = any>(
   // Handle errors
   if (!response.ok) {
     let errorMessage: string;
+    let errorCode: string | undefined;
+    let errorData: any;
+    
     try {
-      const errorData = await response.json();
+      errorData = await response.json();
       errorMessage = errorData.message || `API request failed with status ${response.status}`;
+      errorCode = errorData.code;
     } catch (e) {
       errorMessage = `API request failed with status ${response.status}`;
     }
-    throw new Error(errorMessage);
+    
+    // Create error with additional context
+    const error: any = new Error(errorMessage);
+    error.status = response.status;
+    error.code = errorCode;
+    error.response = errorData;
+    
+    console.error('API Request Error:', {
+      url,
+      method,
+      status: response.status,
+      message: errorMessage,
+      code: errorCode,
+      data: errorData
+    });
+    
+    throw error;
   }
 
   // Return the data

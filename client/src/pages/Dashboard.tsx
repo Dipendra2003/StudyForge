@@ -24,7 +24,7 @@ import { AIInsightsPanel } from "@/components/quiz/AIInsightsPanel";
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [stats, setStats] = useState({
     documents: 0,
@@ -41,11 +41,21 @@ export default function Dashboard() {
   const [loadingRecommendations, setLoadingRecommendations] = useState(true);
 
   useEffect(() => {
+    // Only fetch data if user is authenticated
+    if (!isAuthenticated || !user) {
+      return;
+    }
+
     const fetchUserStats = async () => {
       try {
         const response = await apiGet("/api/user-stats");
         
         if (!response.ok) {
+          // Silently handle authentication errors
+          if (response.status === 401) {
+            console.log("User statistics requires authentication");
+            return;
+          }
           throw new Error("Failed to load user statistics");
         }
         
@@ -61,11 +71,14 @@ export default function Dashboard() {
         });
       } catch (error) {
         console.error("Error fetching user stats:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to load your statistics. Please try again later.",
-        });
+        // Only show toast for non-auth errors
+        if (error instanceof Error && !error.message.includes('401')) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to load your statistics. Please try again later.",
+          });
+        }
       } finally {
         setIsLoading(false);
       }
@@ -104,7 +117,7 @@ export default function Dashboard() {
     fetchUserStats();
     fetchDueFlashcards();
     fetchRecommendations();
-  }, [toast]);
+  }, [toast, isAuthenticated, user]);
 
   // Calculate stats for display
   const formatStudyTime = (minutes: number) => {

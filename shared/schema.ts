@@ -33,6 +33,9 @@ export const users = mysqlTable("users", {
   lastFailedLogin: timestamp("last_failed_login", { mode: 'date' }),
   accountLockedUntil: timestamp("account_locked_until", { mode: 'date' }),
   
+  // Gamification fields
+  totalPoints: int("total_points").default(0).notNull(),
+  
   createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
 }, (table) => {
@@ -305,7 +308,7 @@ export const questionAttempts = mysqlTable("question_attempts", {
   id: int().autoincrement().primaryKey(),
   quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
   questionId: int("question_id").notNull(), // MCQ or other question ID
-  userAnswer: int("user_answer"), // User's selected option
+  userAnswer: text("user_answer"), // User's selected answer (can be string, number, or JSON)
   isCorrect: boolean("is_correct").notNull(),
   timeSpent: int("time_spent"), // Time spent on this question in seconds
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -363,7 +366,7 @@ export const achievements = mysqlTable("achievements", {
   badge: varchar("badge", { length: 50 }).notNull(),
   description: text("description"),
   level: int("level").default(1), // For leveled achievements
-  earnedAt: timestamp("earned_at").defaultNow().notNull(),
+  earnedAt: timestamp("earned_at", { mode: 'string' }).defaultNow().notNull(),
 }, (table) => {
   return {
     userIdIdx: index("ach_user_id_idx").on(table.userId),
@@ -568,6 +571,48 @@ export const favoriteQuizzes = mysqlTable("favorite_quizzes", {
   }
 });
 
+// User points tracking for gamification
+export const userPoints = mysqlTable("user_points", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  points: int("points").notNull(),
+  source: varchar("source", { length: 50 }).notNull(), // 'qotd', 'quiz', 'achievement', 'streak'
+  amount: int("amount").notNull(),
+  description: text("description"),
+  metadata: json("metadata"), // Additional context (quizId, achievementId, etc.)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("up_user_id_idx").on(table.userId),
+    sourceIdx: index("up_source_idx").on(table.source),
+    createdAtIdx: index("up_created_at_idx").on(table.createdAt),
+  }
+});
+
+// Quiz of the Day completions tracking
+export const quizOfTheDayCompletions = mysqlTable("quiz_of_the_day_completions", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  quizId: varchar("quiz_id", { length: 50 }).notNull(), // 'qotd-2026-03-14'
+  date: timestamp("date").notNull(), // Date of the quiz
+  category: varchar("category", { length: 50 }).notNull(),
+  difficulty: varchar("difficulty", { length: 10 }).notNull(),
+  score: int("score").notNull(),
+  totalQuestions: int("total_questions").notNull(),
+  correctAnswers: int("correct_answers").notNull(),
+  timeSpent: int("time_spent").notNull(), // seconds
+  accuracy: int("accuracy").notNull(), // percentage
+  bonusAwarded: int("bonus_awarded").notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("qotd_user_id_idx").on(table.userId),
+    dateIdx: index("qotd_date_idx").on(table.date),
+    quizIdIdx: index("qotd_quiz_id_idx").on(table.quizId),
+    userDateIdx: unique("qotd_user_date_unique").on(table.userId, table.date),
+  }
+});
+
 // Define insertion schemas
 export const insertUserSchema = createInsertSchema(users, {
   username: z.string(),
@@ -730,13 +775,18 @@ export const insertFeedbackSchema = createInsertSchema(feedback, {
 });
 
 export const insertStudyPlanSchema = createInsertSchema(studyPlans, {
-  userId: z.number(),
-  title: z.string(),
-  description: z.string(),
-  scheduleData: z.any(),
-  startDate: z.date(),
-  endDate: z.date(),
-});
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional().nullable(),
+  scheduleData: z.any().optional().nullable(),
+  startDate: z.string().or(z.date()).optional().nullable().transform(val => {
+    if (!val) return null;
+    return typeof val === 'string' ? new Date(val) : val;
+  }),
+  endDate: z.string().or(z.date()).optional().nullable().transform(val => {
+    if (!val) return null;
+    return typeof val === 'string' ? new Date(val) : val;
+  }),
+}).omit({ userId: true, id: true, createdAt: true, updatedAt: true, completedPercentage: true, status: true });
 
 // User registration schema removed - authentication disabled
 

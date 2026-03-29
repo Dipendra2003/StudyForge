@@ -71,7 +71,10 @@ interface Flashcard {
 }
 
 export default function Flashcards() {
-  const [activeTab, setActiveTab] = useState("study");
+  // Persist active tab across page refreshes
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('flashcardsActiveTab') || "study";
+  });
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isCreatingCard, setIsCreatingCard] = useState(false);
@@ -103,6 +106,11 @@ export default function Flashcards() {
   const [addingToDeckCardId, setAddingToDeckCardId] = useState<number | null>(null);
   
   const { toast } = useToast();
+  
+  // Save active tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('flashcardsActiveTab', activeTab);
+  }, [activeTab]);
   
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
