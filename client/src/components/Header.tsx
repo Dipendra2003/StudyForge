@@ -35,7 +35,7 @@ export default function Header({ onNavigate }: HeaderProps) {
   }, []);
 
   return (
-    <header className={`fixed w-full top-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/80 backdrop-blur-md shadow-sm' : 'bg-transparent'}`}>
+    <header className={`fixed w-full top-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm' : 'bg-transparent'}`}>
       <div className="container mx-auto px-6 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center">
@@ -47,47 +47,47 @@ export default function Header({ onNavigate }: HeaderProps) {
           </div>
           
           <nav className="hidden md:flex space-x-6">
-            <Link href="/" className="text-gray-600 hover:text-primary transition-colors font-medium">
+            <Link href="/" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
               Home
             </Link>
             {isHomePage ? (
               <>
                 <button 
                   onClick={() => onNavigate('features')} 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                 >
                   Features
                 </button>
                 <button 
                   onClick={() => onNavigate('benefits')} 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                 >
                   Benefits
                 </button>
                 <button 
                   onClick={() => onNavigate('faq')} 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                 >
                   FAQ
                 </button>
               </>
             ) : (
               <>
-                <Link href="/#features" className="text-gray-600 hover:text-primary transition-colors font-medium">
+                <Link href="/#features" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
                   Features
                 </Link>
-                <Link href="/#benefits" className="text-gray-600 hover:text-primary transition-colors font-medium">
+                <Link href="/#benefits" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
                   Benefits
                 </Link>
-                <Link href="/#faq" className="text-gray-600 hover:text-primary transition-colors font-medium">
+                <Link href="/#faq" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
                   FAQ
                 </Link>
               </>
             )}
-            <Link href="/about" className="text-gray-600 hover:text-primary transition-colors font-medium">
+            <Link href="/about" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
               About
             </Link>
-            <Link href="/pricing" className="text-gray-600 hover:text-primary transition-colors font-medium">
+            <Link href="/pricing" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
               Pricing
             </Link>
           </nav>
@@ -173,13 +173,13 @@ export default function Header({ onNavigate }: HeaderProps) {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-white/90 backdrop-blur-md border-t"
+            className="md:hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t"
           >
             <div className="container mx-auto px-6 py-4">
               <nav className="flex flex-col space-y-4">
                 <Link 
                   href="/" 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Home
@@ -191,7 +191,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                         onNavigate('features');
                         setMobileMenuOpen(false);
                       }} 
-                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                     >
                       Features
                     </button>
@@ -200,7 +200,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                         onNavigate('benefits');
                         setMobileMenuOpen(false);
                       }} 
-                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                     >
                       Benefits
                     </button>
@@ -209,7 +209,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                         onNavigate('faq');
                         setMobileMenuOpen(false);
                       }} 
-                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                     >
                       FAQ
                     </button>
@@ -218,21 +218,21 @@ export default function Header({ onNavigate }: HeaderProps) {
                   <>
                     <Link 
                       href="/#features" 
-                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Features
                     </Link>
                     <Link 
                       href="/#benefits" 
-                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Benefits
                     </Link>
                     <Link 
                       href="/#faq" 
-                      className="text-gray-600 hover:text-primary transition-colors font-medium"
+                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       FAQ
@@ -241,34 +241,34 @@ export default function Header({ onNavigate }: HeaderProps) {
                 )}
                 <Link 
                   href="/about" 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   About
                 </Link>
                 <Link 
                   href="/pricing" 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Pricing
                 </Link>
                 <Link 
                   href="/privacy-policy" 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Privacy Policy
                 </Link>
                 <Link 
                   href="/terms" 
-                  className="text-gray-600 hover:text-primary transition-colors font-medium"
+                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Terms
                 </Link>
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-gray-600">Theme</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-300">Theme</span>
                   <ThemeToggle />
                 </div>
                 

@@ -31,7 +31,7 @@ const faqs = [
 
 export default function FAQSection() {
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 bg-white dark:bg-gray-900">
       <div className="container mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -41,7 +41,7 @@ export default function FAQSection() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
             Get answers to common questions about Jadoo 2.0 and how it can help with your studies.
           </p>
         </motion.div>
@@ -59,7 +59,7 @@ export default function FAQSection() {
                 <AccordionTrigger className="font-bold text-xl hover:no-underline">
                   {faq.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-gray-600 mt-2">
+                <AccordionContent className="text-gray-600 dark:text-gray-300 mt-2">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>

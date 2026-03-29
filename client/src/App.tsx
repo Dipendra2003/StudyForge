@@ -31,6 +31,7 @@ import Pricing from "@/pages/Pricing";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Help from "@/pages/Help";
+import Contact from "@/pages/Contact";
 import AuthDebug from "@/pages/AuthDebug";
 
 // Auth context is now imported from @/contexts/AuthContext
@@ -118,6 +119,7 @@ function Router() {
       <Route path="/privacy-policy" component={Policy} />
       <Route path="/terms" component={Terms} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/contact" component={Contact} />
       <Route path="/auth-debug" component={AuthDebug} />
       <Route path="/" component={HomePage} />
     </Switch>

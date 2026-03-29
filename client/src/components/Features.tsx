@@ -50,7 +50,7 @@ const item = {
 
 export default function Features() {
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 bg-white dark:bg-gray-900">
       <div className="container mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -60,7 +60,7 @@ export default function Features() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">AI Study Tools</h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
             Jadoo 2.0 offers powerful learning assistance with these cutting-edge features designed to enhance your study experience.
           </p>
         </motion.div>
@@ -76,13 +76,13 @@ export default function Features() {
             <motion.div 
               key={index}
               variants={item}
-              className="bg-gray-50 rounded-xl p-8 hover:shadow-md transition-shadow duration-300"
+              className="bg-gray-50 dark:bg-gray-800 rounded-xl p-8 hover:shadow-md transition-shadow duration-300"
             >
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-6">
                 <i className={`fas fa-${feature.icon} text-primary text-2xl`}></i>
               </div>
               <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-300">
                 {feature.description}
               </p>
             </motion.div>

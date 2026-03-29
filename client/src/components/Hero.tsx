@@ -27,7 +27,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
               Your AI Study <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Assistant</span> For Success
             </h1>
-            <p className="text-lg text-gray-600 mb-8 max-w-lg">
+            <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 max-w-lg">
               Jadoo 2.0 combines advanced AI capabilities to help you learn faster, understand deeper, and study smarter with personalized assistance.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
@@ -41,7 +41,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
               </Link>
               <Button 
                 variant="outline" 
-                className="bg-white text-primary border border-primary font-bold py-6 px-8 rounded-full hover:bg-primary/5 transition-all text-center"
+                className="bg-white dark:bg-gray-800 text-primary border border-primary font-bold py-6 px-8 rounded-full hover:bg-primary/5 transition-all text-center"
                 onClick={() => {
                   document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
                 }}
@@ -51,20 +51,20 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
               </Button>
             </div>
             
-            <div className="mt-8 flex items-center text-gray-500">
+            <div className="mt-8 flex items-center text-gray-500 dark:text-gray-400">
               <div className="flex -space-x-2">
                 {/* We use SVG avatars instead of images */}
-                <svg className="h-8 w-8 rounded-full border-2 border-white bg-primary/20" viewBox="0 0 40 40">
+                <svg className="h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 bg-primary/20" viewBox="0 0 40 40">
                   <circle cx="20" cy="20" r="20" fill="currentColor" fillOpacity="0.2" />
                   <path d="M20 11C17.7909 11 16 12.7909 16 15V17C16 19.2091 17.7909 21 20 21C22.2091 21 24 19.2091 24 17V15C24 12.7909 22.2091 11 20 11Z" fill="currentColor" />
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 25.5C12 24.1193 13.1193 23 14.5 23H25.5C26.8807 23 28 24.1193 28 25.5V27C28 28.1046 27.1046 29 26 29H14C12.8954 29 12 28.1046 12 27V25.5Z" fill="currentColor" />
                 </svg>
-                <svg className="h-8 w-8 rounded-full border-2 border-white bg-emerald-500/20" viewBox="0 0 40 40">
+                <svg className="h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 bg-emerald-500/20" viewBox="0 0 40 40">
                   <circle cx="20" cy="20" r="20" fill="currentColor" fillOpacity="0.2" />
                   <path d="M20 11C17.7909 11 16 12.7909 16 15V17C16 19.2091 17.7909 21 20 21C22.2091 21 24 19.2091 24 17V15C24 12.7909 22.2091 11 20 11Z" fill="currentColor" />
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 25.5C12 24.1193 13.1193 23 14.5 23H25.5C26.8807 23 28 24.1193 28 25.5V27C28 28.1046 27.1046 29 26 29H14C12.8954 29 12 28.1046 12 27V25.5Z" fill="currentColor" />
                 </svg>
-                <svg className="h-8 w-8 rounded-full border-2 border-white bg-amber-500/20" viewBox="0 0 40 40">
+                <svg className="h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 bg-amber-500/20" viewBox="0 0 40 40">
                   <circle cx="20" cy="20" r="20" fill="currentColor" fillOpacity="0.2" />
                   <path d="M20 11C17.7909 11 16 12.7909 16 15V17C16 19.2091 17.7909 21 20 21C22.2091 21 24 19.2091 24 17V15C24 12.7909 22.2091 11 20 11Z" fill="currentColor" />
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 25.5C12 24.1193 13.1193 23 14.5 23H25.5C26.8807 23 28 24.1193 28 25.5V27C28 28.1046 27.1046 29 26 29H14C12.8954 29 12 28.1046 12 27V25.5Z" fill="currentColor" />
@@ -88,14 +88,14 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                 transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
               >
                 {/* Abstract product mockup using SVG */}
-                <div className="rounded-2xl shadow-2xl bg-white p-6 h-[350px] w-full">
+                <div className="rounded-2xl shadow-2xl bg-white dark:bg-gray-800 p-6 h-[350px] w-full">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex space-x-2">
                       <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                       <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                       <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     </div>
-                    <div className="w-1/3 h-4 bg-gray-200 rounded-md"></div>
+                    <div className="w-1/3 h-4 bg-gray-200 dark:bg-gray-700 rounded-md"></div>
                   </div>
                   <div className="grid grid-cols-3 gap-4 mb-6">
                     <div className="col-span-2 h-32 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -105,7 +105,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                         <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </div>
-                    <div className="h-32 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <div className="h-32 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
                       <svg className="w-12 h-12 text-emerald-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M16 4H8V20H16V4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         <path d="M4 8H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -116,8 +116,8 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                     </div>
                   </div>
                   <div className="flex space-x-4">
-                    <div className="w-2/3 h-20 bg-gray-100 rounded-lg"></div>
-                    <div className="w-1/3 h-20 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <div className="w-2/3 h-20 bg-gray-100 dark:bg-gray-700 rounded-lg"></div>
+                    <div className="w-1/3 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
                       <svg className="w-10 h-10 text-amber-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         <path d="M12 18V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -132,10 +132,10 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                   </div>
                 </div>
               </motion.div>
-              <div className="absolute -bottom-4 -right-4 bg-white p-4 rounded-xl shadow-lg">
+              <div className="absolute -bottom-4 -right-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg">
                 <div className="flex items-center gap-2">
                   <div className="h-4 w-4 rounded-full bg-emerald-500"></div>
-                  <p className="font-semibold text-gray-800">AI-Powered Learning</p>
+                  <p className="font-semibold text-gray-800 dark:text-gray-200">AI-Powered Learning</p>
                 </div>
               </div>
             </div>
