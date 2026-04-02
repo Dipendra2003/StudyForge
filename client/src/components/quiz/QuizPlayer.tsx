@@ -124,6 +124,10 @@ export default function QuizPlayer({
   const [motivationType, setMotivationType] = useState<'success' | 'support' | 'periodic'>('success');
   const [currentStreak, setCurrentStreak] = useState(0);
   
+  // Skip functionality
+  const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
+  const [isReviewingSkipped, setIsReviewingSkipped] = useState(false);
+  
   // Store correct answers after submission (received from backend)
   const [revealedCorrectAnswers, setRevealedCorrectAnswers] = useState<Record<number, string | string[] | Record<string, string>>>({});
   
@@ -154,7 +158,10 @@ export default function QuizPlayer({
 
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const answeredCount = Object.keys(answers).length;
+  const totalAnswered = answeredCount + skippedQuestions.size;
+  const progress = (totalAnswered / questions.length) * 100;
+  const isCurrentQuestionSkipped = skippedQuestions.has(currentQuestion.id);
 
   // Timer effect
   useEffect(() => {
@@ -537,10 +544,72 @@ export default function QuizPlayer({
     }
   };
 
+  // Handle skip question
+  const handleSkipQuestion = () => {
+    // Mark question as skipped
+    setSkippedQuestions(prev => new Set(prev).add(currentQuestion.id));
+    
+    // Move to next question
+    if (isLastQuestion) {
+      // If last question and there are skipped questions, start review
+      if (skippedQuestions.size > 0 || !answers[currentQuestion.id]) {
+        startSkippedReview();
+      } else {
+        handleQuizComplete();
+      }
+    } else {
+      setCurrentQuestionIndex(prev => prev + 1);
+    }
+  };
+
+  // Start reviewing skipped questions
+  const startSkippedReview = () => {
+    const skippedIds = Array.from(skippedQuestions);
+    if (skippedIds.length === 0) {
+      handleQuizComplete();
+      return;
+    }
+    
+    // Find first skipped question
+    const firstSkippedIndex = questions.findIndex(q => skippedIds.includes(q.id));
+    if (firstSkippedIndex !== -1) {
+      setIsReviewingSkipped(true);
+      setCurrentQuestionIndex(firstSkippedIndex);
+    } else {
+      handleQuizComplete();
+    }
+  };
+
   // Handle next question
   const handleNextQuestion = () => {
-    if (isLastQuestion) {
+    if (isReviewingSkipped) {
+      // Remove current question from skipped list
+      setSkippedQuestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(currentQuestion.id);
+        return newSet;
+      });
+      
+      // Find next skipped question
+      const remainingSkipped = Array.from(skippedQuestions).filter(id => id !== currentQuestion.id);
+      if (remainingSkipped.length > 0) {
+        const nextSkippedIndex = questions.findIndex(q => remainingSkipped.includes(q.id));
+        if (nextSkippedIndex !== -1) {
+          setCurrentQuestionIndex(nextSkippedIndex);
+          return;
+        }
+      }
+      
+      // No more skipped questions
+      setIsReviewingSkipped(false);
       handleQuizComplete();
+    } else if (isLastQuestion) {
+      // Check if there are skipped questions
+      if (skippedQuestions.size > 0) {
+        startSkippedReview();
+      } else {
+        handleQuizComplete();
+      }
     } else {
       setCurrentQuestionIndex(prev => prev + 1);
     }
@@ -1138,9 +1207,21 @@ export default function QuizPlayer({
         <CardHeader className="pb-3 px-4 md:px-6">
           <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
             <div className="space-y-1 flex-1">
-              <CardTitle className="text-lg md:text-xl">
-                Question {currentQuestionIndex + 1} of {questions.length}
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg md:text-xl">
+                  Question {currentQuestionIndex + 1} of {questions.length}
+                </CardTitle>
+                {isReviewingSkipped && (
+                  <Badge variant="secondary" className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
+                    Reviewing Skipped
+                  </Badge>
+                )}
+                {isCurrentQuestionSkipped && !isReviewingSkipped && (
+                  <Badge variant="secondary" className="text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">
+                    Skipped
+                  </Badge>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="text-xs">{currentQuestion.category}</Badge>
                 <Badge variant="outline" className="text-xs">
@@ -1373,7 +1454,7 @@ export default function QuizPlayer({
         </CardContent>
 
         <CardFooter className="flex flex-col md:flex-row justify-between items-center gap-3 md:gap-0 px-4 md:px-6 py-4 mt-auto border-t bg-card/50 backdrop-blur-sm sticky bottom-0 z-20">
-          <div className="flex items-center gap-2 w-full md:w-auto justify-center md:justify-start">
+          <div className="flex items-center gap-2 w-full md:w-auto justify-center md:justify-start flex-wrap">
             <Badge variant="secondary" className="flex items-center gap-1 text-xs md:text-sm">
               <CheckCircle2 className="h-3 w-3 text-green-600" />
               {correctCount} Correct
@@ -1382,24 +1463,47 @@ export default function QuizPlayer({
               <XCircle className="h-3 w-3 text-red-600" />
               {incorrectCount} Incorrect
             </Badge>
+            {skippedQuestions.size > 0 && (
+              <Badge variant="secondary" className="flex items-center gap-1 text-xs md:text-sm bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
+                <SkipForward className="h-3 w-3" />
+                {skippedQuestions.size} Skipped
+              </Badge>
+            )}
           </div>
 
           <div className="flex gap-2 w-full md:w-auto">
             {!hasSubmitted ? (
-              <Button
-                onClick={handleSubmitAnswer}
-                size="lg"
-                className="w-full md:w-auto h-12 md:h-10 text-base md:text-sm touch-manipulation font-semibold"
-              >
-                Submit Answer
-              </Button>
+              <>
+                <Button
+                  onClick={handleSkipQuestion}
+                  variant="outline"
+                  size="lg"
+                  className="flex-1 md:flex-none h-12 md:h-10 text-base md:text-sm touch-manipulation"
+                >
+                  <SkipForward className="mr-2 h-4 w-4" />
+                  Skip
+                </Button>
+                <Button
+                  onClick={handleSubmitAnswer}
+                  size="lg"
+                  className="flex-1 md:flex-none h-12 md:h-10 text-base md:text-sm touch-manipulation font-semibold"
+                >
+                  Submit Answer
+                </Button>
+              </>
             ) : (
               <Button 
                 onClick={handleNextQuestion} 
                 size="lg"
                 className="w-full md:w-auto h-12 md:h-10 text-base md:text-sm touch-manipulation"
               >
-                {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
+                {isReviewingSkipped 
+                  ? (skippedQuestions.size > 1 ? 'Next Skipped' : 'Finish Quiz')
+                  : (isLastQuestion 
+                      ? (skippedQuestions.size > 0 ? 'Review Skipped' : 'Finish Quiz')
+                      : 'Next Question'
+                    )
+                }
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
