@@ -286,11 +286,14 @@ export default function QuizMode() {
 
   // Auto-start QOTD quiz when parameters are present (only on first load)
   useEffect(() => {
-    if (isQOTD && !isQuizStarted && !isLoadingQuiz && !qotdAutoStarted && !showResults) {
+    if (isQOTD && !isQuizStarted && !qotdAutoStarted && !showResults) {
       const params = new URLSearchParams(window.location.search);
       const category = params.get('category') || 'Tech';
       const difficulty = params.get('difficulty') || 'hard';
       const count = parseInt(params.get('count') || '10');
+      
+      // Switch to take-quiz tab
+      setActiveTab('take-quiz');
       
       // Create QOTD config and auto-start
       const qotdConfig: QuizConfig = {
@@ -310,7 +313,7 @@ export default function QuizMode() {
       // Auto-start the quiz
       handleStartQuiz(qotdConfig);
     }
-  }, [isQOTD, isQuizStarted, isLoadingQuiz, qotdAutoStarted, showResults]);
+  }, [isQOTD, isQuizStarted, qotdAutoStarted, showResults, sessionId, handleStartQuiz]);
 
   // ============================================================================
   // DATA PERSISTENCE
@@ -383,16 +386,6 @@ export default function QuizMode() {
           timeSpent: attempt.timeSpent || 0,
         }));
 
-        console.log('Saving quiz attempt:', {
-          questionsCount: quizQuestions.length,
-          questionAttemptsCount: questionAttemptsData.length,
-          questionAttemptsSample: questionAttemptsData[0],
-          score: results.score,
-          totalQuestions: results.totalQuestions,
-          correctAnswers: results.correctAnswers,
-          incorrectAnswers: results.incorrectAnswers,
-        });
-
         const response = await apiRequest<{ id: number; newAchievements?: any[]; success?: boolean; message?: string }>('/api/quiz-attempts', {
           method: 'POST',
           headers: {
@@ -412,8 +405,6 @@ export default function QuizMode() {
           }),
         });
         
-        console.log('Quiz attempt saved successfully:', response);
-        
         // Store attempt ID for sharing functionality
         if (response?.id) {
           setCompletedQuizAttemptId(response.id);
@@ -421,7 +412,6 @@ export default function QuizMode() {
         
         // Update results with achievements from backend
         if (response?.newAchievements && response.newAchievements.length > 0) {
-          console.log('Achievements earned:', response.newAchievements);
           setQuizResults({
             ...results,
             newAchievements: response.newAchievements,
@@ -474,7 +464,6 @@ export default function QuizMode() {
             
             // If already completed today, show info message instead of error
             if (qotdError?.message?.includes('already completed') || qotdError?.status === 400) {
-              console.log('User already completed QOTD today - this is a retry attempt');
               // Don't show error for retry attempts
             } else {
               // Show error for other issues

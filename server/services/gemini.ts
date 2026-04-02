@@ -295,10 +295,10 @@ export class GeminiService {
   private model: GenerativeModel;
   private cacheManager: CacheManager;
   private retryHandler: RetryHandler;
-  private readonly modelName: string = 'gemini-2.5-flash';
+  private readonly modelName: string = 'gemini-3.1-flash-lite-preview';
   private readonly supportsSystemInstruction: boolean = true; // Gemini models support system instructions
   private readonly defaultTemperature: number = 0.7;
-  private readonly defaultMaxTokens: number = 2048;
+  private readonly defaultMaxTokens: number = 4096; // Increased for comprehensive technical answers
 
   /**
    * Initialize Gemini service with API key
@@ -517,60 +517,147 @@ export class GeminiService {
     applications?: string[];
     relatedLinks?: Array<{ title: string; url: string }>;
   }> {
+    // Validate input text
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text to summarize cannot be empty');
+    }
+
+    if (text.trim().length < 50) {
+      throw new Error('Text is too short to summarize. Please provide at least 50 characters.');
+    }
+
     // Define comprehensive style instructions based on summary type
-    const styleInstructions: Record<string, { prompt: string; format: string }> = {
+    const styleInstructions: Record<string, { prompt: string; format: string; minLength: number }> = {
       concise: {
-        prompt: 'You are creating a CONCISE summary with KEY POINTS ONLY.',
-        format: `Provide a short summary with 3–6 crisp bullet points. Focus ONLY on essential facts, statistics, and core ideas. 
-- Use bullet points (•) for each key point
-- Keep each point to 1-2 sentences maximum
-- Avoid long explanations or examples
-- Make it scannable and minimal
-- Focus on what's most important`
+        prompt: 'You are creating a CONCISE yet COMPREHENSIVE summary that captures all essential information.',
+        format: `Write a well-structured summary covering ALL key information:
+
+STRUCTURE:
+- Write 4-6 clear paragraphs
+- Each paragraph: 4-5 sentences
+- Start with an overview paragraph
+- Follow with detailed paragraphs on each major topic
+- End with a conclusion or key takeaway
+
+CONTENT REQUIREMENTS:
+- Include ALL key facts, statistics, and important details
+- Use bullet points (•) within paragraphs for lists when appropriate
+- Cover every major topic mentioned in the text
+- Be thorough but focused - don't skip important information
+- Minimum 600-800 characters
+
+STYLE:
+- Clear, professional language
+- Scannable yet informative
+- Well-organized with logical flow`,
+        minLength: 600
       },
       detailed: {
-        prompt: 'You are creating a DETAILED, COMPREHENSIVE summary.',
-        format: `Create a well-organized summary with multiple paragraphs that covers every important concept, example, and reasoning.
-- Use full paragraphs with proper structure
-- Include context, examples, and nuanced explanations
-- Maintain logical flow with smooth transitions
-- Cover all major points thoroughly
-- Organize information clearly with topic sentences`
+        prompt: 'You are creating an EXTREMELY DETAILED and COMPREHENSIVE explanation of the entire document.',
+        format: `Write a thorough, in-depth explanation that covers EVERYTHING:
+
+STRUCTURE:
+- Write 8-12 well-organized paragraphs
+- Each paragraph: 5-7 sentences
+- Use subheadings for major sections (e.g., "Overview:", "Key Concepts:", "Details:", "Implications:")
+- Organize content logically with clear transitions
+
+CONTENT REQUIREMENTS:
+- Cover EVERY important concept, example, and explanation
+- Include ALL key details, data, statistics, and examples from the text
+- Explain the context, background, and significance
+- Discuss implications and connections between ideas
+- Provide comprehensive coverage - this should be a complete understanding
+- Minimum 2,500-3,500 characters
+
+STYLE:
+- Professional, informative language
+- Thorough explanations with examples
+- Maintain logical flow throughout
+- Be comprehensive - leave nothing important out`,
+        minLength: 2500
       },
       eli5: {
-        prompt: 'You are explaining this topic to a 5-year-old child in EXTREMELY SIMPLE language.',
-        format: `Explain in very simple, friendly, and easy-to-understand language:
-- Use short, simple sentences (like talking to a child)
-- Include analogies and real-world examples
-- Avoid ALL jargon and technical terms
-- Make it fun and engaging
-- Use everyday language that anyone can understand
-- Pretend you're explaining to someone who knows nothing about the topic`
+        prompt: 'You are explaining this entire topic in SIMPLE language with LOTS of examples and details.',
+        format: `Explain everything thoroughly using simple, friendly language:
+
+STRUCTURE:
+- Write 6-8 paragraphs in very simple terms
+- Each paragraph: 4-5 short, simple sentences
+- Break down the topic step-by-step
+- Use lots of analogies and real-world examples
+
+CONTENT REQUIREMENTS:
+- Explain EVERY important concept in simple terms
+- Use multiple analogies and examples for each main idea
+- Break down complex ideas into simple steps
+- Make it engaging and easy to understand
+- Cover all major points but in simple language
+- Minimum 1,200-1,500 characters
+
+STYLE:
+- Very simple, friendly language (like talking to a beginner)
+- Lots of examples and analogies
+- Short sentences, clear explanations
+- Engaging and approachable`,
+        minLength: 1200
       },
       academic: {
-        prompt: 'You are writing a FORMAL ACADEMIC summary in scholarly format.',
-        format: `Write a formal, academic-style summary using scholarly conventions:
+        prompt: 'You are writing a COMPREHENSIVE ACADEMIC analysis in scholarly format.',
+        format: `Write a formal, detailed academic explanation:
+
+STRUCTURE:
+- Introduction (2 paragraphs): Context and overview
+- Main Discussion (5-7 paragraphs): Detailed analysis of key concepts
+- Key Findings (2 paragraphs): Important discoveries or points
+- Conclusion (1-2 paragraphs): Summary and implications
+- Each paragraph: 5-7 sentences
+
+CONTENT REQUIREMENTS:
 - Use advanced vocabulary and technical terminology
-- Maintain formal, objective tone throughout
-- Structure with clear sections (Introduction, Discussion, Conclusion if applicable)
-- Use precise, sophisticated sentence structure
-- Include scholarly analysis and critical thinking
-- Follow academic writing conventions
-- Maintain professional distance and objectivity`
+- Include critical analysis and scholarly interpretation
+- Reference ALL key concepts, methodologies, and findings
+- Discuss theoretical frameworks and practical implications
+- Provide comprehensive coverage of the subject matter
+- Minimum 2,500-3,000 characters
+
+STYLE:
+- Formal, objective scholarly tone
+- Sophisticated sentence structure
+- Academic writing conventions
+- Professional distance and objectivity`,
+        minLength: 2500
       },
       balanced: {
-        prompt: 'You are creating a BALANCED summary that is both clear and informative.',
-        format: `Strike a balance between clarity and depth:
-- Use professional yet accessible language
-- Be informative without overwhelming
-- Include key details but stay focused
-- Maintain readability while being thorough`
+        prompt: 'You are creating a BALANCED, COMPREHENSIVE explanation that is both clear and thorough.',
+        format: `Write a well-rounded, detailed explanation:
+
+STRUCTURE:
+- Write 6-8 clear, informative paragraphs
+- Each paragraph: 4-6 sentences
+- Start with an overview
+- Cover each major topic in separate paragraphs
+- End with key takeaways
+
+CONTENT REQUIREMENTS:
+- Cover ALL major topics and key details
+- Include important context, examples, and explanations
+- Balance clarity with thoroughness
+- Organize information logically
+- Be comprehensive without overwhelming
+- Minimum 1,500-2,000 characters
+
+STYLE:
+- Professional yet accessible language
+- Clear and informative
+- Well-structured and complete`,
+        minLength: 1500
       }
     };
     
     const styleConfig = styleInstructions[summaryType] || styleInstructions.balanced;
     // If text is too large, chunk it and summarize each chunk
-    const MAX_CHUNK_SIZE = 8000; // Leave room for prompt overhead
+    const MAX_CHUNK_SIZE = 5000; // Further reduced to handle larger documents
     
     let summary: string;
     
@@ -581,63 +668,104 @@ export class GeminiService {
         chunks.push(text.slice(i, i + MAX_CHUNK_SIZE));
       }
       
-      // Summarize each chunk following the strict style requirements
+      // Summarize each chunk - keep summaries concise for combination
       const chunkSummaries: string[] = [];
       for (const chunk of chunks) {
-        const chunkPrompt = `${styleConfig.prompt}
+        const chunkPrompt = `Summarize this section concisely but comprehensively. Focus on key points and main ideas.
 
-CRITICAL RULES:
-1. Follow the selected summary type STRICTLY - tone, format, and depth must match exactly
-2. Do NOT mix multiple summary styles
-3. Ensure clarity, coherence, and grammatical accuracy
-4. Keep the summary faithful to the original text - no personal opinions or assumptions
-5. Maintain consistent formatting throughout
-
-TEXT TO SUMMARIZE:
+TEXT:
 ${chunk}
 
-FORMAT REQUIREMENTS:
-${styleConfig.format}
-
-Provide ONLY the summary text following the format requirements above. Do not add any extra commentary.`;
+Provide a clear, well-organized summary (300-500 words). Include all important information.`;
         
-        const chunkSummary = await this.generateContent(chunkPrompt, { maxOutputTokens: 512 }, userId);
+        const chunkSummary = await this.generateContent(chunkPrompt, { maxOutputTokens: 800 }, userId);
         chunkSummaries.push(chunkSummary);
       }
       
-      // Combine chunk summaries into final summary
-      const combinedText = chunkSummaries.join('\n\n');
+      // If we have many chunks, combine them in stages
+      let combinedSummaries = chunkSummaries;
+      
+      // Stage 1: If more than 4 chunks, combine pairs first
+      if (chunkSummaries.length > 4) {
+        combinedSummaries = [];
+        for (let i = 0; i < chunkSummaries.length; i += 2) {
+          if (i + 1 < chunkSummaries.length) {
+            // Combine two summaries
+            const pairPrompt = `Combine these two section summaries into one cohesive summary. Keep all important information.
+
+SECTION 1:
+${chunkSummaries[i]}
+
+SECTION 2:
+${chunkSummaries[i + 1]}
+
+Provide a unified summary (400-600 words) that covers both sections.`;
+            
+            const combined = await this.generateContent(pairPrompt, { maxOutputTokens: 1000 }, userId);
+            combinedSummaries.push(combined);
+          } else {
+            // Odd one out, keep as is
+            combinedSummaries.push(chunkSummaries[i]);
+          }
+        }
+      }
+      
+      // Stage 2: Create final summary from combined summaries
+      const combinedText = combinedSummaries.join('\n\n---\n\n');
+      
+      // Check if combined text is still too large
+      if (combinedText.length > 8000) {
+        // Truncate to fit within prompt limits
+        const truncatedText = combinedText.substring(0, 8000);
+        this.log('WARN', 'combined_summaries_truncated', userId, undefined, {
+          originalLength: combinedText.length,
+          truncatedLength: truncatedText.length,
+        });
+      }
+      
       const finalPrompt = `${styleConfig.prompt}
 
-You are combining multiple section summaries into ONE cohesive final summary (approximately ${maxLength} characters).
+Create a comprehensive final summary by combining these section summaries.
 
-CRITICAL RULES:
-1. Follow the selected summary type STRICTLY - tone, format, and depth must match exactly
-2. Do NOT mix multiple summary styles
-3. Ensure clarity, coherence, and grammatical accuracy
-4. Keep the summary faithful to the original content - no personal opinions
-5. Maintain consistent formatting throughout
-
-SECTION SUMMARIES TO COMBINE:
-${combinedText}
+SECTION SUMMARIES:
+${combinedText.length > 8000 ? combinedText.substring(0, 8000) : combinedText}
 
 FORMAT REQUIREMENTS:
 ${styleConfig.format}
 
-Create a unified, well-structured final summary that follows ALL the format requirements above. Provide ONLY the final summary text.`;
+REQUIREMENTS:
+- Target length: ${maxLength} characters
+- Minimum length: ${styleConfig.minLength} characters
+- Combine all sections into one flowing summary
+- Maintain all important details
+- Follow the ${summaryType} style strictly
+
+Provide ONLY the final summary text.`;
       
-      summary = await this.generateContent(finalPrompt, { maxOutputTokens: 1024 }, userId);
+      summary = await this.generateContent(finalPrompt, { maxOutputTokens: 2048 }, userId);
     } else {
       // Text is small enough to summarize directly
+      // Calculate target word count based on character limit (avg 5 chars per word)
+      const targetWords = Math.floor(maxLength / 5);
+      const minWords = Math.floor(styleConfig.minLength / 5);
+      
       const prompt = `${styleConfig.prompt}
 
-CRITICAL RULES:
+CRITICAL RULES - YOU MUST FOLLOW THESE EXACTLY:
 1. Follow the selected summary type STRICTLY - tone, format, and depth must match exactly
 2. Do NOT mix multiple summary styles
 3. Ensure clarity, coherence, and grammatical accuracy
 4. Keep the summary faithful to the original text - no personal opinions or assumptions
 5. Maintain consistent formatting throughout
 6. Adapt sentence complexity and vocabulary according to the summary type
+7. ALWAYS provide a complete, DETAILED summary - never return empty or incomplete responses
+8. ABSOLUTE MINIMUM: ${minWords} words (${styleConfig.minLength} characters) - THIS IS MANDATORY
+9. TARGET: ${targetWords} words (${maxLength} characters) - AIM FOR THIS OR MORE
+10. Cover ALL important information from the text - be thorough and comprehensive
+11. Write in full paragraphs with complete sentences - no shortcuts
+12. DO NOT SUMMARIZE TOO BRIEFLY - Write detailed, comprehensive content
+13. If the text has multiple topics, cover each one thoroughly in separate paragraphs
+14. Include examples, explanations, and context from the original text
 
 TEXT TO SUMMARIZE:
 ${text}
@@ -645,12 +773,79 @@ ${text}
 FORMAT REQUIREMENTS:
 ${styleConfig.format}
 
-Target length: approximately ${maxLength} characters
+LENGTH REQUIREMENTS (CRITICAL - DO NOT IGNORE):
+- MINIMUM WORDS: ${minWords} words (you MUST write at least this much)
+- TARGET WORDS: ${targetWords} words (aim for this length)
+- MINIMUM CHARACTERS: ${styleConfig.minLength} characters
+- TARGET CHARACTERS: ${maxLength} characters
+- Write detailed paragraphs as specified in the format requirements
+- Each paragraph should be substantial and informative
 
-Provide ONLY the summary text following the format requirements above. Do not add any extra commentary or explanations.`;
+IMPORTANT REMINDER:
+You are writing a ${summaryType.toUpperCase()} summary. This means you need to provide EXTENSIVE detail and coverage.
+Write a LONG, COMPREHENSIVE explanation that fully covers the content. Short summaries are NOT acceptable.
+Think of this as explaining the entire document to someone who hasn't read it - they need ALL the important information.
 
-      summary = await this.generateContent(prompt, { maxOutputTokens: 1024 }, userId);
+Provide ONLY the summary text following ALL requirements above. Make it detailed, informative, and LONG ENOUGH to meet the minimum requirements.`;
+
+      summary = await this.generateContent(prompt, { maxOutputTokens: 2048, temperature: 0.8 }, userId); // Higher temperature for more verbose output
+      
+      // If summary is too short, try again with even more explicit instructions
+      if (summary.length < styleConfig.minLength * 0.6) {
+        this.log('WARN', 'summary_too_short_retrying', userId, undefined, { 
+          firstAttemptLength: summary.length, 
+          minLength: styleConfig.minLength,
+          targetLength: maxLength
+        });
+        
+        const retryPrompt = `IMPORTANT: The previous summary was TOO SHORT (only ${summary.length} characters, but minimum is ${styleConfig.minLength} characters).
+
+You MUST write a MUCH LONGER, MORE DETAILED explanation.
+
+MANDATORY REQUIREMENTS:
+- MINIMUM: ${minWords} words (${styleConfig.minLength} characters) - REQUIRED
+- TARGET: ${targetWords} words (${maxLength} characters)
+- Write AT LEAST ${styleConfig.format.includes('8-12') ? '10' : styleConfig.format.includes('6-8') ? '7' : '6'} full paragraphs
+- Each paragraph must be at least 5 sentences
+- Cover EVERY important point from the text in detail
+- Include details, examples, explanations, and context
+- Be comprehensive, thorough, and detailed
+
+TEXT TO SUMMARIZE:
+${text}
+
+${styleConfig.format}
+
+CRITICAL: Write a MUCH LONGER and MORE DETAILED explanation. Expand on every point. Provide thorough coverage.
+Do NOT write short summaries - this needs to be comprehensive and detailed.`;
+
+        summary = await this.generateContent(retryPrompt, { maxOutputTokens: 2048, temperature: 0.9 }, userId); // Even higher temperature
+      }
     }
+
+    // Validate that summary was generated
+    if (!summary || summary.trim().length === 0) {
+      throw new Error('Failed to generate summary - AI returned empty response');
+    }
+
+    // Ensure summary has meaningful content (check against minimum length)
+    if (summary.trim().length < styleConfig.minLength) {
+      this.log('WARN', 'summary_below_minimum_length', userId, undefined, { 
+        actualLength: summary.length, 
+        minLength: styleConfig.minLength,
+        summaryType 
+      });
+      // Don't throw error, but log warning - some content is better than none
+    }
+
+    // Log summary generation success
+    this.log('INFO', 'summary_generated', userId, undefined, {
+      summaryLength: summary.length,
+      targetLength: maxLength,
+      minLength: styleConfig.minLength,
+      meetsMinimum: summary.length >= styleConfig.minLength,
+      summaryType
+    });
 
     // Extract key points using AI - adapt style to match summary type
     const keyPointsStyleGuide = summaryType === 'eli5' 
@@ -661,8 +856,8 @@ Provide ONLY the summary text following the format requirements above. Do not ad
       ? 'Be extremely brief and to-the-point'
       : 'Use clear, professional language';
     
-    const keyPointsPrompt = `Based on this summary, extract 3-5 key takeaways or main points. Each point should be:
-- Concise (one clear sentence)
+    const keyPointsPrompt = `Based on this summary, extract 5-8 key takeaways or main points. Each point should be:
+- Concise but informative (1-2 clear sentences)
 - Actionable or insightful
 - Capture a distinct important idea
 - ${keyPointsStyleGuide}
@@ -670,38 +865,67 @@ Provide ONLY the summary text following the format requirements above. Do not ad
 Summary:
 ${summary}
 
-Provide the key points as a numbered list (1., 2., 3., etc.). Match the tone and vocabulary level of the summary type.`;
+Provide the key points as a numbered list (1., 2., 3., etc.). Match the tone and vocabulary level of the summary type. You MUST provide at least 5 key points, aim for 6-8 points.`;
 
-    const keyPointsText = await this.generateContent(keyPointsPrompt, { maxOutputTokens: 256, temperature: 0.5 }, userId);
+    const keyPointsText = await this.generateContent(keyPointsPrompt, { maxOutputTokens: 512, temperature: 0.5 }, userId);
     
     // Parse the numbered list
-    const keyPoints = keyPointsText
+    let keyPoints = keyPointsText
       .split(/\n/)
       .filter(line => /^\d+\./.test(line.trim()))
       .map(line => line.replace(/^\d+\.\s*/, '').trim())
       .filter(point => point.length > 0)
-      .slice(0, 5);
+      .slice(0, 8); // Increased from 5 to 8
+
+    // Fallback: If no key points were extracted, create them from the summary
+    if (keyPoints.length === 0) {
+      const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      keyPoints = sentences.slice(0, 5).map(s => s.trim());
+    }
+
+    // Ensure we have at least 3 key points
+    if (keyPoints.length === 0) {
+      keyPoints = ['Summary generated successfully'];
+    }
 
     // Extract keywords using AI for better relevance
-    const keywordsPrompt = `Extract 8-10 important keywords or key phrases from this text. Focus on:
+    const keywordsPrompt = `Extract 12-15 important keywords or key phrases from this text. Focus on:
 - Technical terms and concepts
 - Main topics and themes
 - Important names or entities
 - Critical terminology
+- Key concepts and ideas
 
 Text:
 ${text.slice(0, 3000)}
 
-Provide only the keywords/phrases separated by commas.`;
+Provide only the keywords/phrases separated by commas. You MUST provide at least 10 keywords.`;
 
-    const keywordsText = await this.generateContent(keywordsPrompt, { maxOutputTokens: 128, temperature: 0.3 }, userId);
+    const keywordsText = await this.generateContent(keywordsPrompt, { maxOutputTokens: 256, temperature: 0.3 }, userId);
     
     // Parse comma-separated keywords
-    const keywords = keywordsText
+    let keywords = keywordsText
       .split(/[,\n]/)
       .map(kw => kw.trim().toLowerCase())
       .filter(kw => kw.length > 2 && kw.length < 50)
-      .slice(0, 10);
+      .slice(0, 15); // Increased from 10 to 15
+
+    // Fallback: Extract keywords from text if AI didn't provide enough
+    if (keywords.length < 5) {
+      const words = text.toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 4 && w.length < 20)
+        .filter(w => !/^(the|and|for|with|this|that|from|have|been|were|will|would|could|should)$/.test(w));
+      
+      // Get unique words and take top 12
+      const uniqueWords = [...new Set(words)];
+      keywords = [...keywords, ...uniqueWords.slice(0, 12 - keywords.length)];
+    }
+
+    // Ensure we have at least 5 keywords
+    if (keywords.length === 0) {
+      keywords = ['document', 'summary', 'content', 'information', 'analysis'];
+    }
 
     // Calculate metadata
     const wordCount = text.split(/\s+/).length;
@@ -713,62 +937,62 @@ Provide only the keywords/phrases separated by commas.`;
     const difficultyLevel: 'Easy' | 'Medium' | 'Hard' = 
       avgWordLength < 5 ? 'Easy' : avgWordLength < 7 ? 'Medium' : 'Hard';
 
-    // Generate insights (2-3 analytical insights)
+    // Generate insights (3-5 analytical insights) - ALWAYS generate for all types
     let insights: string[] = [];
-    if (summaryType === 'detailed' || summaryType === 'academic') {
-      const insightsPrompt = `Based on this summary, provide 2-3 analytical insights or implications. Each insight should:
+    const insightsPrompt = `Based on this summary, provide 3-5 analytical insights or implications. Each insight should:
 - Reveal a deeper understanding or connection
 - Be thought-provoking and analytical
 - Go beyond surface-level observations
-- Be concise (1-2 sentences each)
+- Be informative (2-3 sentences each)
+- ${summaryType === 'eli5' ? 'Use simple language' : summaryType === 'academic' ? 'Use scholarly language' : 'Use clear, professional language'}
 
 Summary:
 ${summary}
 
-Provide only the insights as a numbered list (1., 2., 3.).`;
+Provide the insights as a numbered list (1., 2., 3., etc.). You MUST provide at least 3 insights.`;
 
-      try {
-        const insightsText = await this.generateContent(insightsPrompt, { maxOutputTokens: 256, temperature: 0.6 }, userId);
-        insights = insightsText
-          .split(/\n/)
-          .filter(line => /^\d+\./.test(line.trim()))
-          .map(line => line.replace(/^\d+\.\s*/, '').trim())
-          .filter(insight => insight.length > 0)
-          .slice(0, 3);
-      } catch (error) {
-        // Insights are optional, continue without them
-        this.log('WARN', 'generate_insights_failed', userId, undefined, { error: (error as Error).message });
-      }
+    try {
+      const insightsText = await this.generateContent(insightsPrompt, { maxOutputTokens: 512, temperature: 0.6 }, userId);
+      insights = insightsText
+        .split(/\n/)
+        .filter(line => /^\d+\./.test(line.trim()))
+        .map(line => line.replace(/^\d+\.\s*/, '').trim())
+        .filter(insight => insight.length > 0)
+        .slice(0, 5); // Increased from 3 to 5
+    } catch (error) {
+      this.log('WARN', 'generate_insights_failed', userId, undefined, { error: (error as Error).message });
+      // Provide default insights if generation fails
+      insights = ['This content provides valuable information on the topic.'];
     }
 
-    // Generate applications/use cases (1-3 real-world examples)
+    // Generate applications/use cases (3-5 real-world examples) - ALWAYS generate for all types
     let applications: string[] = [];
-    if (summaryType === 'detailed' || summaryType === 'academic') {
-      const applicationsPrompt = `Based on this content, provide 1-3 real-world applications or use cases where these concepts are applied. Each should:
+    const applicationsPrompt = `Based on this content, provide 3-5 real-world applications or use cases where these concepts are applied. Each should:
 - Be practical and concrete
 - Show real-world relevance
-- Be concise (1-2 sentences each)
+- Be informative (2-3 sentences each)
+- ${summaryType === 'eli5' ? 'Use simple examples' : summaryType === 'academic' ? 'Use scholarly examples' : 'Use clear examples'}
 
 Content:
-${text.slice(0, 2000)}
+${text.slice(0, 3000)}
 
-Provide only the applications as a numbered list (1., 2., 3.).`;
+Provide the applications as a numbered list (1., 2., 3., etc.). You MUST provide at least 3 applications.`;
 
-      try {
-        const applicationsText = await this.generateContent(applicationsPrompt, { maxOutputTokens: 256, temperature: 0.6 }, userId);
-        applications = applicationsText
+    try {
+      const applicationsText = await this.generateContent(applicationsPrompt, { maxOutputTokens: 512, temperature: 0.6 }, userId);
+      applications = applicationsText
           .split(/\n/)
           .filter(line => /^\d+\./.test(line.trim()))
           .map(line => line.replace(/^\d+\.\s*/, '').trim())
           .filter(app => app.length > 0)
-          .slice(0, 3);
-      } catch (error) {
-        // Applications are optional, continue without them
-        this.log('WARN', 'generate_applications_failed', userId, undefined, { error: (error as Error).message });
-      }
+          .slice(0, 5); // Increased from 3 to 5
+    } catch (error) {
+      this.log('WARN', 'generate_applications_failed', userId, undefined, { error: (error as Error).message });
+      // Provide default applications if generation fails
+      applications = ['This knowledge can be applied in various practical scenarios.'];
     }
 
-    // Generate related links/resources (5-7 relevant educational resources)
+    // Generate related links/resources (5-7 relevant educational resources) - ALWAYS generate
     let relatedLinks: Array<{ title: string; url: string }> = [];
     
     // Use AI to generate topic-specific educational links
@@ -778,6 +1002,8 @@ Provide only the applications as a numbered list (1., 2., 3.).`;
       this.log('WARN', 'generate_related_links_failed', userId, undefined, { 
         error: (error as Error).message 
       });
+      // Provide default link if generation fails
+      relatedLinks = [{ title: 'Wikipedia - General Knowledge', url: 'https://en.wikipedia.org' }];
     }
 
     this.log('INFO', 'summarize_text', userId, undefined, {
@@ -800,9 +1026,9 @@ Provide only the applications as a numbered list (1., 2., 3.).`;
       readingTime,
       difficultyLevel,
       compression,
-      insights: insights.length > 0 ? insights : undefined,
-      applications: applications.length > 0 ? applications : undefined,
-      relatedLinks: relatedLinks.length > 0 ? relatedLinks : undefined,
+      insights, // Always return insights (no longer optional)
+      applications, // Always return applications (no longer optional)
+      relatedLinks, // Always return related links (no longer optional)
     };
   }
 

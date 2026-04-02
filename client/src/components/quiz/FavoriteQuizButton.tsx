@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -20,21 +19,25 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, disabl
   const { data: isFavoriteData } = useQuery({
     queryKey: ["is-favorite", category, difficulty],
     queryFn: async () => {
-      if (category === 'all' || difficulty === 'all') return { isFavorite: false };
-      const response = await apiRequest(`/api/quiz/is-favorite?category=${category}&difficulty=${difficulty}`);
-      if (!response.ok) return { isFavorite: false };
-      return response.json();
+      // Don't check if category or difficulty is empty
+      if (!category || !difficulty || category === 'all' || difficulty === 'all') {
+        return { isFavorite: false };
+      }
+      try {
+        return await apiRequest(`/api/quiz/is-favorite?category=${category}&difficulty=${difficulty}`);
+      } catch (error) {
+        return { isFavorite: false };
+      }
     },
-    enabled: category !== 'all' && difficulty !== 'all',
+    enabled: !!category && !!difficulty && category !== 'all' && difficulty !== 'all',
   });
 
   const isFavorite = isFavoriteData?.isFavorite || false;
 
   const favoriteQuizMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/quiz/favorite", {
+      return apiRequest("/api/quiz/favorite", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category,
           difficulty,
@@ -44,13 +47,8 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, disabl
           description: `${questionCount} questions`,
         }),
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || "Failed to favorite quiz");
-      }
-      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["favorite-quizzes"] });
       queryClient.invalidateQueries({ queryKey: ["is-favorite", category, difficulty] });
       toast({
@@ -58,12 +56,21 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, disabl
         description: "Quiz added to favorites",
       });
     },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to favorite quiz",
-      });
+    onError: (error: any) => {
+      console.error('Failed to favorite quiz:', error);
+      // Handle already favorited case
+      if (error.status === 409) {
+        toast({
+          title: "Already Favorited",
+          description: "This quiz is already in your favorites",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to favorite quiz",
+        });
+      }
     },
   });
 
@@ -72,7 +79,7 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, disabl
       variant={isFavorite ? "default" : "outline"}
       className="flex-1"
       onClick={() => favoriteQuizMutation.mutate()}
-      disabled={disabled || favoriteQuizMutation.isPending || isFavorite}
+      disabled={disabled || favoriteQuizMutation.isPending}
     >
       {favoriteQuizMutation.isPending ? (
         <Loader2 className="h-4 w-4 animate-spin" />

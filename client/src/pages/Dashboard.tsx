@@ -53,7 +53,6 @@ export default function Dashboard() {
         if (!response.ok) {
           // Silently handle authentication errors
           if (response.status === 401) {
-            console.log("User statistics requires authentication");
             return;
           }
           throw new Error("Failed to load user statistics");

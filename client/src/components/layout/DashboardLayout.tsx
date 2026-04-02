@@ -27,7 +27,6 @@ import {
   MessageSquare,
   Code,
   Calendar,
-  HelpCircle,
   User,
   LogOut,
   Menu,
@@ -35,6 +34,7 @@ import {
   ChevronRight,
   ClipboardList,
   Settings,
+  LayoutDashboard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -46,12 +46,13 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Navigation links config
   const navLinks = [
-    { icon: Home, label: "Dashboard", path: "/dashboard" },
+    { icon: Home, label: "Home", path: "/" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: MessageSquare, label: "Chat Assistant", path: "/chat" },
     { icon: FileText, label: "Document Summarization", path: "/document-summarization" },
     { icon: BookOpen, label: "Flashcards", path: "/flashcards" },
@@ -65,6 +66,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     // Call the logout function from auth context
     // It handles the API call and state cleanup
     logout();
+    // Redirect to home page
+    setLocation("/");
   };
 
   // Determine if a nav link is active
@@ -194,12 +197,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     Settings
                   </DropdownMenuItem>
                 </Link>
-                <Link href="/help">
-                  <DropdownMenuItem>
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    Help
-                  </DropdownMenuItem>
-                </Link>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
@@ -228,12 +225,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <DropdownMenuItem>
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
-                  </DropdownMenuItem>
-                </Link>
-                <Link href="/help">
-                  <DropdownMenuItem>
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    Help
                   </DropdownMenuItem>
                 </Link>
                 <DropdownMenuSeparator />
@@ -327,14 +318,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         <Button variant="ghost" className="w-full justify-start">
                           <Settings className="mr-2 h-4 w-4" />
                           Settings
-                        </Button>
-                      </Link>
-                    </SheetClose>
-                    <SheetClose asChild>
-                      <Link href="/help">
-                        <Button variant="ghost" className="w-full justify-start">
-                          <HelpCircle className="mr-2 h-4 w-4" />
-                          Help
                         </Button>
                       </Link>
                     </SheetClose>

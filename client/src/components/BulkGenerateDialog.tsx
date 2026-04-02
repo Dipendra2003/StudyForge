@@ -43,7 +43,7 @@ interface GeneratedFlashcard {
 interface BulkGenerateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  documentId: number;
+  documentId: number | null;
   documentText: string;
   onSuccess?: () => void;
 }
@@ -64,14 +64,26 @@ export function BulkGenerateDialog({
 
   // Generate flashcards mutation
   const generateMutation = useMutation({
-    mutationFn: async ({ documentId, count, difficulty }: { documentId: number; count: number; difficulty: string }) => {
-      return apiRequest<{ flashcards: GeneratedFlashcard[] }>(`/api/documents/${documentId}/generate-flashcards`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ count, difficulty }),
-      });
+    mutationFn: async ({ documentId, text, count, difficulty }: { documentId: number | null; text: string; count: number; difficulty: string }) => {
+      // If documentId is available, use document-based endpoint
+      if (documentId) {
+        return apiRequest<{ flashcards: GeneratedFlashcard[] }>(`/api/documents/${documentId}/generate-flashcards`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ count, difficulty }),
+        });
+      } else {
+        // Otherwise, use text-based endpoint
+        return apiRequest<{ flashcards: GeneratedFlashcard[] }>('/api/flashcards/generate-from-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text, count, difficulty }),
+        });
+      }
     },
     onSuccess: (data) => {
       setGeneratedCards(data.flashcards || []);
@@ -93,13 +105,13 @@ export function BulkGenerateDialog({
 
   // Save all flashcards mutation
   const saveMutation = useMutation({
-    mutationFn: async ({ flashcards, documentId }: { flashcards: GeneratedFlashcard[]; documentId: number }) => {
+    mutationFn: async ({ flashcards, documentId }: { flashcards: GeneratedFlashcard[]; documentId: number | null }) => {
       return apiRequest<{ flashcards: any[]; count: number }>('/api/flashcards/bulk', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ flashcards, documentId }),
+        body: JSON.stringify({ flashcards, documentId: documentId || null }),
       });
     },
     onSuccess: (data) => {
@@ -134,7 +146,7 @@ export function BulkGenerateDialog({
       return;
     }
 
-    generateMutation.mutate({ documentId, count, difficulty });
+    generateMutation.mutate({ documentId, text: documentText, count, difficulty });
   };
 
   const handleSaveAll = () => {

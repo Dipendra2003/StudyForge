@@ -28,8 +28,6 @@ export default function SharedQuiz() {
   // Safely extract linkId with proper null checking
   const linkId = params?.linkId || '';
   
-  console.log('SharedQuiz - linkId:', linkId, 'params:', params);
-  
   const [quizStarted, setQuizStarted] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [, setQuizAttemptId] = useState<number | null>(null);
@@ -56,14 +54,11 @@ export default function SharedQuiz() {
   useEffect(() => {
     if (!data?.data) return; // Exit early if no data
     
-    console.log('SharedQuiz - Loading questions, raw questionsData:', data.data.questionsData);
-    
     // Parse questionsData if it's a string
     let parsedQuestionsData = data.data.questionsData;
     if (typeof parsedQuestionsData === 'string') {
       try {
         parsedQuestionsData = JSON.parse(parsedQuestionsData);
-        console.log('SharedQuiz - Parsed questionsData:', parsedQuestionsData);
       } catch (e) {
         console.error("Failed to parse questionsData:", e);
         parsedQuestionsData = [];
@@ -73,10 +68,8 @@ export default function SharedQuiz() {
     if (Array.isArray(parsedQuestionsData) && parsedQuestionsData.length > 0) {
       // Extract question IDs from questionsData
       const questionIds = parsedQuestionsData.map((q: any) => q.questionId || q.id).filter(Boolean);
-      console.log('SharedQuiz - Extracted question IDs:', questionIds);
       
       if (questionIds.length === 0) {
-        console.warn('SharedQuiz - No valid question IDs found, generating new questions');
         generateNewQuestions();
         return;
       }
@@ -87,12 +80,10 @@ export default function SharedQuiz() {
       })
         .then((res) => res.json())
         .then((result) => {
-          console.log('SharedQuiz - Fetched questions by IDs:', result);
           if (result.success && result.data && result.data.length > 0) {
             setQuestions(result.data);
           } else {
             // Fallback to generating new questions if IDs don't return results
-            console.warn('SharedQuiz - No questions found by IDs, generating new questions');
             generateNewQuestions();
           }
         })
@@ -102,7 +93,6 @@ export default function SharedQuiz() {
         });
     } else {
       // If no questionsData, generate new questions
-      console.log('SharedQuiz - No questionsData available, generating new questions');
       generateNewQuestions();
     }
     
@@ -117,14 +107,11 @@ export default function SharedQuiz() {
         types: 'mcq'
       });
       
-      console.log('SharedQuiz - Generating new questions with params:', params.toString());
-      
       fetch(`/api/questions?${params}`, {
         credentials: "include",
       })
         .then((res) => res.json())
         .then((result) => {
-          console.log('SharedQuiz - Generated questions:', result);
           if (result.success && result.data) {
             setQuestions(result.data);
           }

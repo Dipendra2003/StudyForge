@@ -27,6 +27,10 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
     let codeLines: string[] = [];
     let codeLanguage = '';
     let codeBlockIndex = 0;
+    let inTable = false;
+    let tableLines: string[] = [];
+    let inDiagram = false;
+    let diagramLines: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -84,6 +88,61 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
       if (inCodeBlock) {
         codeLines.push(line);
         continue;
+      }
+
+      // Detect ASCII diagram (lines with box drawing characters or arrows)
+      const isDiagramLine = /[─│┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬═║+\-\|]/.test(line) && 
+                           (line.includes('─') || line.includes('|') || line.includes('+') || 
+                            line.includes('-->') || line.includes('<--') || line.includes('|---'));
+
+      // Detect markdown table
+      const isTableLine = line.includes('|') && line.trim().startsWith('|') && !isDiagramLine;
+      
+      // Handle diagram detection
+      if (isDiagramLine && !inDiagram) {
+        inDiagram = true;
+        diagramLines = [line];
+        continue;
+      }
+
+      if (inDiagram) {
+        // Continue collecting diagram lines if they look like diagram content
+        const continuesDiagram = isDiagramLine || 
+                                line.trim() === '' || 
+                                /^\s*[A-Za-z0-9\s\(\)]+\s*$/.test(line);
+        
+        if (continuesDiagram) {
+          diagramLines.push(line);
+          continue;
+        } else {
+          // End of diagram - render it
+          inDiagram = false;
+          const diagram = renderDiagram(diagramLines, key++);
+          if (diagram) elements.push(diagram);
+          diagramLines = [];
+          // Process current line normally
+        }
+      }
+      
+      if (isTableLine && !inTable) {
+        // Start collecting table lines
+        inTable = true;
+        tableLines = [line];
+        continue;
+      }
+
+      if (inTable) {
+        if (isTableLine) {
+          tableLines.push(line);
+          continue;
+        } else {
+          // End of table - render it
+          inTable = false;
+          const table = renderTable(tableLines, key++);
+          if (table) elements.push(table);
+          tableLines = [];
+          // Process current line normally
+        }
       }
 
       // Skip empty lines but add spacing
@@ -168,6 +227,18 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
       );
     }
 
+    // Handle unclosed table
+    if (inTable && tableLines.length > 0) {
+      const table = renderTable(tableLines, key++);
+      if (table) elements.push(table);
+    }
+
+    // Handle unclosed diagram
+    if (inDiagram && diagramLines.length > 0) {
+      const diagram = renderDiagram(diagramLines, key++);
+      if (diagram) elements.push(diagram);
+    }
+
     // Handle unclosed code block
     if (inCodeBlock && codeLines.length > 0) {
       const codeContent = codeLines.join('\n');
@@ -208,6 +279,143 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
     return elements;
   };
 
+  // Render ASCII diagram
+  const renderDiagram = (diagramLines: string[], key: number) => {
+    if (diagramLines.length === 0) return null;
+
+    const diagramContent = diagramLines.join('\n');
+
+    const handleCopyDiagram = async () => {
+      try {
+        await navigator.clipboard.writeText(diagramContent);
+        setCopiedIndex(-2); // Use -2 for diagram copy
+        setTimeout(() => setCopiedIndex(null), 2000);
+      } catch (err) {
+        console.error('Failed to copy diagram:', err);
+      }
+    };
+
+    return (
+      <div key={key} className="my-4 rounded-lg border border-border bg-muted/30 max-w-full">
+        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
+          <span className="text-xs font-medium text-muted-foreground">
+            Diagram
+          </span>
+          <button
+            onClick={handleCopyDiagram}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+          >
+            {copiedIndex === -2 ? (
+              <>
+                <Check className="h-3 w-3" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>Copy diagram</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="overflow-x-auto max-w-full">
+          <pre className="p-4 bg-background/50 w-fit min-w-full">
+            <code className="text-xs font-mono leading-tight whitespace-pre block">
+              {diagramContent}
+            </code>
+          </pre>
+        </div>
+      </div>
+    );
+  };
+
+  // Render markdown table
+  const renderTable = (tableLines: string[], key: number) => {
+    if (tableLines.length < 2) return null;
+
+    // Parse table rows
+    const rows = tableLines.map(line => 
+      line.split('|')
+        .map(cell => cell.trim())
+        .filter(cell => cell !== '')
+    );
+
+    // First row is header
+    const headers = rows[0];
+    
+    // Second row is separator (ignore it)
+    // Remaining rows are data
+    const dataRows = rows.slice(2);
+
+    const handleCopyTable = async () => {
+      try {
+        // Create plain text version of the table
+        const tableText = tableLines.join('\n');
+        await navigator.clipboard.writeText(tableText);
+        setCopiedIndex(-1); // Use -1 for table copy
+        setTimeout(() => setCopiedIndex(null), 2000);
+      } catch (err) {
+        console.error('Failed to copy table:', err);
+      }
+    };
+
+    return (
+      <div key={key} className="my-4 rounded-lg overflow-hidden border border-border bg-muted/30">
+        <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
+          <span className="text-xs font-medium text-muted-foreground">
+            Table
+          </span>
+          <button
+            onClick={handleCopyTable}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+          >
+            {copiedIndex === -1 ? (
+              <>
+                <Check className="h-3 w-3" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>Copy table</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead className="bg-muted/50">
+              <tr>
+                {headers.map((header, idx) => (
+                  <th 
+                    key={idx} 
+                    className="border border-border px-4 py-2 text-left font-semibold text-sm"
+                  >
+                    {formatInlineText(header)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dataRows.map((row, rowIdx) => (
+                <tr key={rowIdx} className="hover:bg-muted/30 transition-colors">
+                  {row.map((cell, cellIdx) => (
+                    <td 
+                      key={cellIdx} 
+                      className="border border-border px-4 py-2 text-sm"
+                    >
+                      {formatInlineText(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   // Format inline text (bold, emojis, etc.)
   const formatInlineText = (text: string) => {
     // Handle both <bold>text</bold> and **text** patterns
@@ -227,7 +435,7 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
   };
 
   return (
-    <div className="message-content">
+    <div className="message-content max-w-full overflow-x-hidden">
       {formatMessage(content)}
     </div>
   );

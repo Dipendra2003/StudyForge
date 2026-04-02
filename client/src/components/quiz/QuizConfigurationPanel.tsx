@@ -34,6 +34,8 @@ import {
   Settings2,
 } from "lucide-react";
 import { QuestionType } from "@/../../shared/quiz-types";
+import { SaveQuizButton } from "./SaveQuizButton";
+import { FavoriteQuizButton } from "./FavoriteQuizButton";
 
 export interface QuizConfig {
   category: string;
@@ -74,8 +76,8 @@ export default function QuizConfigurationPanel({
   disabled = false,
 }: QuizConfigurationPanelProps) {
   const [config, setConfig] = useState<QuizConfig>({
-    category: availableCategories[0] || 'Tech',
-    difficulty: 'medium',
+    category: '', // Empty by default - user must select
+    difficulty: '' as any, // Empty by default - user must select
     questionCount: 10,
     timedMode: false,
     timeLimit: 300, // 5 minutes default
@@ -107,6 +109,9 @@ export default function QuizConfigurationPanel({
   useEffect(() => {
     const newErrors: string[] = [];
 
+    // Only validate if user has started configuring (category or difficulty selected)
+    const hasStartedConfig = config.category !== '' || config.difficulty !== '';
+
     // Validate question count is between 1 and 50 (Req 28.2)
     if (config.questionCount < 1) {
       newErrors.push("Question count must be at least 1");
@@ -125,30 +130,33 @@ export default function QuizConfigurationPanel({
       newErrors.push("Time limit must be at least 30 seconds");
     }
 
-    // When AI mode is enabled, skip database question availability check (Req 28.2)
-    // Only validate AI mode requirements
-    if (config.aiMode) {
-      if (!config.category || config.category.trim() === '') {
-        newErrors.push("Category is required for AI question generation");
-      }
-      if (!config.difficulty) {
-        newErrors.push("Difficulty is required for AI question generation");
-      }
-      // Don't check availableCount at all when AI mode is enabled (Req 28.2, 28.4)
-    } else {
-      // Only validate against database count when AI mode is disabled (Req 28.4)
-      // Also check that the query has completed (not loading) before showing error
-      if (!isCountLoading && availableCount !== undefined && config.questionCount > availableCount) {
-        newErrors.push(`Only ${availableCount} questions available for selected filters`);
-      }
-      // Show error if no questions available in database mode
-      if (!isCountLoading && availableCount !== undefined && availableCount === 0) {
-        newErrors.push("No questions match your selected criteria. Please try different settings or enable AI mode.");
+    // Only validate category/difficulty if user has started configuring
+    if (hasStartedConfig) {
+      // When AI mode is enabled, skip database question availability check (Req 28.2)
+      // Only validate AI mode requirements
+      if (config.aiMode) {
+        if (!config.category || config.category.trim() === '') {
+          newErrors.push("Category is required for AI question generation");
+        }
+        if (!config.difficulty) {
+          newErrors.push("Difficulty is required for AI question generation");
+        }
+        // Don't check availableCount at all when AI mode is enabled (Req 28.2, 28.4)
+      } else {
+        // Only validate against database count when AI mode is disabled (Req 28.4)
+        // Also check that the query has completed (not loading) before showing error
+        if (!isCountLoading && availableCount !== undefined && config.questionCount > availableCount) {
+          newErrors.push(`Only ${availableCount} questions available for selected filters`);
+        }
+        // Show error if no questions available in database mode
+        if (!isCountLoading && availableCount !== undefined && availableCount === 0) {
+          newErrors.push("No questions match your selected criteria. Please try different settings or enable AI mode.");
+        }
       }
     }
 
     setErrors(newErrors);
-  }, [config, availableCount]);
+  }, [config, availableCount, isCountLoading]);
 
   const handleStartQuiz = () => {
     // When AI mode is enabled, skip database question availability check (Req 28.2)
@@ -226,7 +234,7 @@ export default function QuizConfigurationPanel({
             disabled={disabled}
           >
             <SelectTrigger id="category">
-              <SelectValue placeholder="Select category" />
+              <SelectValue placeholder="Select a category" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -276,7 +284,7 @@ export default function QuizConfigurationPanel({
             disabled={disabled}
           >
             <SelectTrigger id="difficulty">
-              <SelectValue placeholder="Select difficulty" />
+              <SelectValue placeholder="Select a difficulty level" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -507,6 +515,27 @@ export default function QuizConfigurationPanel({
           </Alert>
           </motion.div>
         )}
+
+        {/* Save and Favorite Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.95, duration: 0.4 }}
+          className="flex gap-2"
+        >
+          <SaveQuizButton
+            category={config.category}
+            difficulty={config.difficulty}
+            questionCount={config.questionCount}
+            disabled={disabled}
+          />
+          <FavoriteQuizButton
+            category={config.category}
+            difficulty={config.difficulty}
+            questionCount={config.questionCount}
+            disabled={disabled}
+          />
+        </motion.div>
 
         {/* Start Quiz Button */}
         <motion.div

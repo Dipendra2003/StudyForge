@@ -10,6 +10,7 @@ import { registerShareableQuizRoutes } from "./routes/shareable-quiz.routes";
 import { registerAchievementRoutes } from "./routes/achievement.routes";
 import { registerQuizOfTheDayRoutes } from "./routes/quiz-of-the-day.routes";
 import { registerSavedFavoriteQuizRoutes } from "./routes/saved-favorite-quiz.routes";
+import contactRoutes from "./routes/contact";
 import { AnalyticsService } from "./services/analytics.service";
 import { AchievementService } from "./services/achievement.service";
 import { 
@@ -104,6 +105,23 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only PDF, Word, TXT, and RTF files are allowed.'));
+    }
+  },
+});
+
+// Configure multer for image uploads
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit for images
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.'));
     }
   },
 });
@@ -1049,9 +1067,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // @ts-ignore
           const { PDFParse } = require("pdf-parse");
           
-          // Custom render function to better handle text extraction
+          // Custom render function to better handle text extraction with formatting hints
           const renderPage = (pageData: any) => {
-            // Render text with proper spacing
+            // Render text with proper spacing and structure
             let renderOptions = {
               normalizeWhitespace: true,
               disableCombineTextItems: false
@@ -1060,15 +1078,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return pageData.getTextContent(renderOptions)
               .then((textContent: any) => {
                 let lastY: number | null = null;
+                let lastFontSize: number | null = null;
                 let text = '';
                 
                 for (let item of textContent.items) {
-                  // Add line break if Y position changed significantly
-                  if (lastY !== null && Math.abs(lastY - item.transform[5]) > 5) {
-                    text += '\n';
+                  const currentY = item.transform[5];
+                  const fontSize = item.height || 12;
+                  
+                  // Detect potential headings (larger font size)
+                  if (lastFontSize !== null && fontSize > lastFontSize * 1.2) {
+                    text += '\n\n'; // Extra spacing before heading
                   }
+                  
+                  // Add line break if Y position changed significantly
+                  if (lastY !== null && Math.abs(lastY - currentY) > 5) {
+                    // Double line break for larger gaps (paragraphs)
+                    if (Math.abs(lastY - currentY) > 15) {
+                      text += '\n\n';
+                    } else {
+                      text += '\n';
+                    }
+                  }
+                  
+                  // Add the text
                   text += item.str;
-                  lastY = item.transform[5];
+                  
+                  // Add space if next item is on same line
+                  if (item.str && !item.str.endsWith(' ') && !item.str.endsWith('-')) {
+                    text += ' ';
+                  }
+                  
+                  lastY = currentY;
+                  lastFontSize = fontSize;
                 }
                 
                 return text;
@@ -1102,24 +1143,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         file.mimetype === 'application/msword' ||
         file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       ) {
-        // Extract text from Word document
+        // Extract text from Word document with basic formatting preserved
         try {
-          const result = await mammoth.extractRawText({ buffer: file.buffer });
-          extractedText = result.value;
+          // Use convertToHtml to preserve some formatting, then convert to readable text
+          const htmlResult = await mammoth.convertToHtml({ buffer: file.buffer });
+          
+          // Convert HTML to formatted text (preserve structure)
+          let formattedText = htmlResult.value
+            // Convert headings to text with extra spacing
+            .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n\n$1\n')
+            // Convert paragraphs
+            .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+            // Convert line breaks
+            .replace(/<br\s*\/?>/gi, '\n')
+            // Convert bold (keep text, add emphasis with spacing)
+            .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '$1')
+            .replace(/<b[^>]*>(.*?)<\/b>/gi, '$1')
+            // Convert italic
+            .replace(/<em[^>]*>(.*?)<\/em>/gi, '$1')
+            .replace(/<i[^>]*>(.*?)<\/i>/gi, '$1')
+            // Convert lists
+            .replace(/<li[^>]*>(.*?)<\/li>/gi, '• $1\n')
+            .replace(/<ul[^>]*>/gi, '\n')
+            .replace(/<\/ul>/gi, '\n')
+            .replace(/<ol[^>]*>/gi, '\n')
+            .replace(/<\/ol>/gi, '\n')
+            // Remove remaining HTML tags
+            .replace(/<[^>]+>/g, '')
+            // Decode HTML entities
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'");
+          
+          extractedText = formattedText;
           
           Logger.debug(LogCategory.SECURITY, 'Word document text extraction successful', {
             userId: req.user?.id,
             fileName: file.originalname,
             textLength: extractedText.length,
-            messages: result.messages.length,
+            messages: htmlResult.messages.length,
           });
           
           // Log any warnings from mammoth
-          if (result.messages.length > 0) {
+          if (htmlResult.messages.length > 0) {
             Logger.security('Word extraction warnings', {
               userId: req.user?.id,
               fileName: file.originalname,
-              warnings: result.messages,
+              warnings: htmlResult.messages,
             });
           }
         } catch (wordError) {
@@ -1153,29 +1226,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Clean up the extracted text
+      // Clean up the extracted text while preserving structure
       extractedText = extractedText.trim();
       
-      // Fix line breaks and merge incomplete lines (common in PDF extraction)
-      // This handles cases where PDF text is cut off mid-sentence
+      // Improved text cleanup that preserves formatting better
       extractedText = extractedText
-        // Remove hyphenation at line breaks
-        .replace(/-\n/g, '')
-        .replace(/-\r\n/g, '')
-        // Merge lines that end with incomplete words (no punctuation)
-        // This fixes "from the s\nil" -> "from the soil"
-        .replace(/([a-z])\s*[\r\n]+\s*([a-z])/gi, '$1 $2')
-        // Merge lines that end with comma or other continuation
-        .replace(/([,;:])\s*[\r\n]+\s*/g, '$1 ')
-        // Fix lines that end mid-word (common in multi-column PDFs)
-        .replace(/([a-z])\s*[\r\n]+([a-z]{1,3})\s/gi, '$1$2 ')
-        // Normalize multiple spaces
+        // Remove hyphenation at line breaks (but preserve intentional hyphens)
+        .replace(/([a-z])-\s*[\r\n]+\s*([a-z])/gi, '$1$2')
+        // Preserve paragraph breaks (double line breaks)
+        .replace(/\n\n+/g, '\n\n')
+        // Fix broken sentences (merge lines that don't end with punctuation)
+        .replace(/([a-z,;:])\s*\n\s*([a-z])/gi, '$1 $2')
+        // Preserve bullet points and numbered lists
+        .replace(/\n\s*([•\-\*\d]+[\.\)])\s*/g, '\n$1 ')
+        // Normalize spaces (but not line breaks)
         .replace(/[ \t]+/g, ' ')
-        // Normalize multiple line breaks
-        .replace(/[\r\n]{3,}/g, '\n\n')
-        // Clean up any remaining odd spacing
-        .replace(/\s+\./g, '.')
-        .replace(/\s+,/g, ',')
+        // Clean up spacing around punctuation
+        .replace(/\s+([.,;:!?])/g, '$1')
+        // Preserve intentional line breaks after punctuation
+        .replace(/([.!?])\s*\n/g, '$1\n\n')
         .trim();
 
       // Validate extracted text
@@ -1352,20 +1421,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
       
-      // Determine max length based on summary type
-      let maxLength = 500;
+      // Determine max length based on summary type (significantly increased for better content)
+      let maxLength = 2000; // Default: comprehensive summary
       switch (type) {
         case 'concise':
-          maxLength = 200;
+          maxLength = 800; // Increased from 200 to 800
           break;
         case 'detailed':
-          maxLength = 800;
+          maxLength = 3500; // Increased from 800 to 3500
           break;
         case 'eli5':
-          maxLength = 300;
+          maxLength = 1500; // Increased from 300 to 1500
           break;
         case 'academic':
-          maxLength = 600;
+          maxLength = 3000; // Increased from 600 to 3000
           break;
       }
       
@@ -1400,6 +1469,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { documentId, originalText, type } = req.body;
       const userId = req.user?.id!;
       
+      Logger.info(LogCategory.API, 'Summary creation request', {
+        userId,
+        documentId,
+        textLength: originalText?.length || 0,
+        type,
+      });
+      
       if (!documentId && !originalText) {
         return res.status(400).json({ message: "Either documentId or originalText is required" });
       }
@@ -1424,40 +1500,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         docId = document.id;
       }
       
-      if (!textToSummarize) {
+      if (!textToSummarize || textToSummarize.trim().length === 0) {
         return res.status(400).json({ message: "No text content to summarize" });
+      }
+
+      // Validate text length
+      if (textToSummarize.trim().length < 50) {
+        return res.status(400).json({ 
+          message: "Text is too short",
+          error: "Please provide at least 50 characters of text to summarize."
+        });
       }
       
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
       
-      // Determine max length based on summary type
-      let maxLength = 500;
+      // Determine max length based on summary type (significantly increased for better content)
+      let maxLength = 2000; // Default: comprehensive summary
       switch (type) {
         case 'concise':
-          maxLength = 200;
+          maxLength = 800; // Increased from 200 to 800
           break;
         case 'detailed':
-          maxLength = 800;
+          maxLength = 3500; // Increased from 800 to 3500
           break;
         case 'eli5':
-          maxLength = 300;
+          maxLength = 1500; // Increased from 300 to 1500
           break;
         case 'academic':
-          maxLength = 600;
+          maxLength = 3000; // Increased from 600 to 3000
           break;
       }
       
       let summaryResult;
       try {
+        Logger.info(LogCategory.API, 'Generating summary with Gemini', {
+          userId,
+          textLength: textToSummarize.length,
+          type,
+          maxLength,
+        });
+
         summaryResult = await geminiService.summarizeText(
           textToSummarize, 
           maxLength, 
           userId,
           type as 'concise' | 'detailed' | 'eli5' | 'academic' | 'balanced'
         );
+
+        // Validate summary result
+        if (!summaryResult || !summaryResult.summary || summaryResult.summary.trim().length === 0) {
+          throw new Error('AI generated empty summary');
+        }
+
+        Logger.info(LogCategory.API, 'Summary generated successfully', {
+          userId,
+          summaryLength: summaryResult.summary.length,
+          keyPointsCount: summaryResult.keyPoints?.length || 0,
+          keywordsCount: summaryResult.keywords?.length || 0,
+        });
       } catch (error: any) {
         console.error("Error generating summary:", error);
+        Logger.error(LogCategory.API, 'Summary generation failed', error as Error, {
+          userId,
+          textLength: textToSummarize.length,
+          type,
+        });
         
         const errorMessage = error.message?.toLowerCase() || '';
         
@@ -1480,6 +1588,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             error: "The document is too long to summarize. Please reduce the text length and try again."
           });
         }
+
+        // Check for empty response errors
+        if (errorMessage.includes('empty') || errorMessage.includes('no response')) {
+          return res.status(500).json({ 
+            message: "Failed to generate summary",
+            error: "The AI service returned an empty response. Please try again."
+          });
+        }
         
         return res.status(500).json({ 
           message: "Failed to generate summary",
@@ -1495,25 +1611,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         summary: summaryResult.summary,
         keyPoints: summaryResult.keyPoints,
         keywords: summaryResult.keywords,
-      });
-      
-      // Return enhanced summary with all metadata
-      return res.status(201).json({
-        message: "Summary created successfully",
-        summary: {
-          ...savedSummary,
-          metadata: {
-            readingTime: summaryResult.readingTime,
-            difficultyLevel: summaryResult.difficultyLevel,
-            compression: summaryResult.compression,
-            status: 'Generated',
-            insights: summaryResult.insights,
-            applications: summaryResult.applications,
-            relatedLinks: summaryResult.relatedLinks,
-          }
+        metadata: {
+          readingTime: summaryResult.readingTime,
+          difficultyLevel: summaryResult.difficultyLevel,
+          compression: summaryResult.compression,
+          status: 'Generated',
+          insights: summaryResult.insights,
+          applications: summaryResult.applications,
+          relatedLinks: summaryResult.relatedLinks,
         }
       });
+
+      Logger.info(LogCategory.API, 'Summary saved to database', {
+        userId,
+        summaryId: savedSummary.id,
+      });
+      
+      // Return the saved summary
+      return res.status(201).json({
+        message: "Summary created successfully",
+        summary: savedSummary
+      });
     } catch (error) {
+      Logger.error(LogCategory.API, 'Summary creation error', error as Error);
       return handleApiError(error, res);
     }
   });
@@ -1719,7 +1839,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "\n\nYou can explain complex topics in simple terms, provide examples, create study materials, and answer questions about any educational topic. " +
             "Always be encouraging, helpful, patient, and focus on explaining concepts clearly. " +
             "\n\nCRITICAL COMMUNICATION STYLE (MUST FOLLOW):" +
-            "- LANGUAGE MATCHING: If user writes in pure English, respond in pure English. If user uses Hinglish (mix of Hindi+English), then use Hinglish. NEVER use Hinglish if user is using only English." +
+            "- LANGUAGE MATCHING: Analyze the user's message carefully and respond in the EXACT same language:" +
+            "  * If user writes ONLY in English (no Hindi words like 'kya', 'hai', 'mujhe', 'batao', 'kaise') → respond ONLY in pure English" +
+            "  * If user mixes Hindi words with English (Hinglish like 'kya hai', 'mujhe batao', 'kaise kare') → respond in Hinglish using English/Latin script ONLY" +
+            "  * If user writes in Hindi Devanagari script (हिंदी) → respond in Hindi Devanagari script" +
+            "  * DEFAULT: When in doubt, use pure English" +
+            "  * NEVER use Devanagari script if user used English/Latin script" +
+            "  * NEVER translate the user's language choice - mirror it exactly" +
             "- Be conversational and friendly, NOT formal or textbook-like" +
             "- Use emojis frequently (🔥, 👉, ✅, 💡, 🚀, ⚡, 🧠, 🎯) to make responses engaging" +
             "- Keep responses concise - aim for 50% shorter than a formal explanation" +
@@ -1739,6 +1865,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "4. Use - for bullet points\n" +
             "5. Use **text** for bold\n" +
             "6. Use emojis as section headers (e.g., '🔥 Main Point', '✅ Winner', '💡 Advice')\n" +
+            "\n\nTECHNICAL ANSWER REQUIREMENTS (PRODUCTION-LEVEL):\n" +
+            "For technical/programming questions, ALWAYS follow this structure:\n" +
+            "1. 🎯 Concept: Brief explanation of what it is\n" +
+            "2. 🔍 Detection/Identification: How to identify or detect the issue\n" +
+            "3. 💡 Examples: Practical code examples (MUST be syntactically correct)\n" +
+            "4. ⚠️ Root Causes: WHY this happens (e.g., global variables, unremoved listeners, timers not cleared, unbounded caching)\n" +
+            "5. ✅ Fix/Optimization: HOW to fix it (clearInterval, removeEventListener, cache limits, WeakMap/WeakSet)\n" +
+            "6. 🚀 Advanced Tools: Professional/senior-level tools (e.g., clinic.js, heapdump, node --inspect, v8.getHeapStatistics())\n" +
+            "\nCRITICAL CODE QUALITY RULES:\n" +
+            "- ALL code snippets MUST be syntactically correct and runnable\n" +
+            "- Use proper template literals: `text ${variable}` not 'text ${variable}'\n" +
+            "- Include proper imports/requires when needed\n" +
+            "- Test code logic mentally before providing\n" +
+            "- For every problem shown, provide the fix/solution\n" +
             `${subject ? `This conversation is about ${subject}.` : ""}`
         });
       }
@@ -1748,7 +1888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let aiResponseContent: string;
       
       try {
-        aiResponseContent = await geminiService.generateChatResponse(apiMessages, {}, userId);
+        aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
       } catch (error) {
         console.error("Error generating AI response:", error);
         aiResponseContent = "I'm sorry, I encountered an error processing your request. Please try again.";
@@ -1982,7 +2122,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "\n\nYou can explain complex topics in simple terms, provide examples, create study materials, and answer questions about any educational topic. " +
             "Always be encouraging, helpful, patient, and focus on explaining concepts clearly. " +
             "\n\nCRITICAL COMMUNICATION STYLE (MUST FOLLOW):" +
-            "- LANGUAGE MATCHING: If user writes in pure English, respond in pure English. If user uses Hinglish (mix of Hindi+English), then use Hinglish. NEVER use Hinglish if user is using only English." +
+            "- LANGUAGE MATCHING: Analyze the user's message carefully and respond in the EXACT same language:" +
+            "  * If user writes ONLY in English (no Hindi words like 'kya', 'hai', 'mujhe', 'batao', 'kaise') → respond ONLY in pure English" +
+            "  * If user mixes Hindi words with English (Hinglish like 'kya hai', 'mujhe batao', 'kaise kare') → respond in Hinglish using English/Latin script ONLY" +
+            "  * If user writes in Hindi Devanagari script (हिंदी) → respond in Hindi Devanagari script" +
+            "  * DEFAULT: When in doubt, use pure English" +
+            "  * NEVER use Devanagari script if user used English/Latin script" +
+            "  * NEVER translate the user's language choice - mirror it exactly" +
             "- Be conversational and friendly, NOT formal or textbook-like" +
             "- Use emojis frequently (🔥, 👉, ✅, 💡, 🚀, ⚡, 🧠, 🎯) to make responses engaging" +
             "- Keep responses concise - aim for 50% shorter than a formal explanation" +
@@ -2000,7 +2146,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "3. Use proper markdown: # for h1, ## for h2, ### for h3\n" +
             "4. Use - for bullet points\n" +
             "5. Use **text** for bold\n" +
-            "6. Use emojis as section headers (e.g., '🔥 Main Point', '✅ Winner', '💡 Advice')"
+            "6. Use emojis as section headers (e.g., '🔥 Main Point', '✅ Winner', '💡 Advice')\n" +
+            "\n\nTECHNICAL ANSWER REQUIREMENTS (PRODUCTION-LEVEL):\n" +
+            "For technical/programming questions, ALWAYS follow this structure:\n" +
+            "1. 🎯 Concept: Brief explanation of what it is\n" +
+            "2. 🔍 Detection/Identification: How to identify or detect the issue\n" +
+            "3. 💡 Examples: Practical code examples (MUST be syntactically correct)\n" +
+            "4. ⚠️ Root Causes: WHY this happens (e.g., global variables, unremoved listeners, timers not cleared, unbounded caching)\n" +
+            "5. ✅ Fix/Optimization: HOW to fix it (clearInterval, removeEventListener, cache limits, WeakMap/WeakSet)\n" +
+            "6. 🚀 Advanced Tools: Professional/senior-level tools (e.g., clinic.js, heapdump, node --inspect, v8.getHeapStatistics())\n" +
+            "\nCRITICAL CODE QUALITY RULES:\n" +
+            "- ALL code snippets MUST be syntactically correct and runnable\n" +
+            "- Use proper template literals: `text ${variable}` not 'text ${variable}'\n" +
+            "- Include proper imports/requires when needed\n" +
+            "- Test code logic mentally before providing\n" +
+            "- For every problem shown, provide the fix/solution"
         });
       }
 
@@ -2009,7 +2169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let aiResponseContent: string;
 
       try {
-        aiResponseContent = await geminiService.generateChatResponse(apiMessages, {}, userId);
+        aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
       } catch (error) {
         console.error("Error generating AI response:", error);
         aiResponseContent = "I'm sorry, I encountered an error processing your request. Please try again.";
@@ -2475,6 +2635,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `Successfully generated ${flashcardsData.length} flashcards`,
         flashcards: flashcardsData,
         documentId,
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Generate flashcards from text (without document ID)
+  app.post('/api/flashcards/generate-from-text', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const { text, count = 10, difficulty = 'medium' } = req.body;
+      
+      // Validate text
+      if (!text || typeof text !== 'string' || text.trim().length < 100) {
+        return res.status(400).json({ message: "Text content is required and must be at least 100 characters" });
+      }
+      
+      // Validate count
+      if (count < 5 || count > 20) {
+        return res.status(400).json({ message: "Count must be between 5 and 20" });
+      }
+      
+      // Validate difficulty
+      if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+        return res.status(400).json({ message: "Difficulty must be easy, medium, or hard" });
+      }
+      
+      // Import and use the Gemini service
+      const { geminiService } = await import('./services/gemini');
+      
+      Logger.debug(LogCategory.SECURITY, 'Flashcard generation from text started', {
+        userId,
+        count,
+        difficulty,
+        contentLength: text.length,
+      });
+      
+      let flashcardsData;
+      try {
+        flashcardsData = await geminiService.generateFlashcardsFromDocument(
+          text,
+          count,
+          difficulty,
+          userId
+        );
+      } catch (error) {
+        Logger.error(LogCategory.SECURITY, 'Flashcard generation from text failed', error, {
+          userId,
+          count,
+          difficulty,
+        });
+        return res.status(500).json({ 
+          message: "Failed to generate flashcards", 
+          error: (error as Error).message 
+        });
+      }
+      
+      Logger.debug(LogCategory.SECURITY, 'Flashcard generation from text completed', {
+        userId,
+        generatedCount: flashcardsData.length,
+      });
+      
+      return res.status(200).json({
+        message: `Successfully generated ${flashcardsData.length} flashcards`,
+        flashcards: flashcardsData,
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -3822,6 +4047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/decks', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
+      const flashcardId = req.query.flashcardId ? parseInt(req.query.flashcardId as string) : undefined;
       
       Logger.debug(LogCategory.SECURITY, 'Fetching user decks', {
         userId,
@@ -3829,13 +4055,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const decks = await storage.getDecksByUserId(userId);
       
-      // Get card count for each deck
+      // Get card count for each deck and check if flashcard is in deck
       const decksWithCardCount = await Promise.all(
         decks.map(async (deck) => {
           const cards = await storage.getFlashcardsByDeckId(deck.id);
+          const hasFlashcard = flashcardId ? cards.some(c => c.id === flashcardId) : false;
           return {
             ...deck,
             cardCount: cards.length,
+            hasFlashcard,
           };
         })
       );
@@ -4065,7 +4293,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Card added to deck successfully",
         deckFlashcard,
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Handle duplicate card error specifically
+      if (error.message === 'Card already exists in this deck') {
+        return res.status(409).json({ 
+          message: "This card is already in the deck" 
+        });
+      }
       return handleApiError(error, res);
     }
   });
@@ -4833,10 +5067,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.id!;
       const { fullName, preferredLanguage, profilePicture } = req.body;
       
+      // If profilePicture is being set to null, delete from Cloudinary
+      if (profilePicture === null) {
+        const currentUser = await storage.getUser(userId);
+        if (currentUser?.profilePicture) {
+          const { cloudinaryService } = await import('./services/cloudinary');
+          const publicId = cloudinaryService.extractPublicId(currentUser.profilePicture);
+          if (publicId) {
+            await cloudinaryService.deleteImage(publicId);
+            Logger.info(LogCategory.SYSTEM, 'Profile picture deleted from Cloudinary', { userId, publicId });
+          }
+        }
+      }
+      
       const updatedUser = await storage.updateUser(userId, {
         fullName,
         preferredLanguage,
-        profilePicture,
+        profilePicture: profilePicture === null ? '' : profilePicture,
       });
       
       if (!updatedUser) {
@@ -4850,6 +5097,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(200).json({
         message: "Profile updated successfully",
         profile: userProfile
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
+  // Upload profile picture
+  app.post('/api/profile/upload-picture', jwtAuth, imageUpload.single('profilePicture'), async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Validate file type
+      const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ message: "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed." });
+      }
+
+      let profilePictureUrl: string;
+
+      // Try to upload to Cloudinary first, fallback to base64
+      const { cloudinaryService } = await import('./services/cloudinary');
+      
+      if (cloudinaryService.isAvailable()) {
+        try {
+          // Get current user to delete old image if exists
+          const currentUser = await storage.getUser(userId);
+          if (currentUser?.profilePicture) {
+            const oldPublicId = cloudinaryService.extractPublicId(currentUser.profilePicture);
+            if (oldPublicId) {
+              await cloudinaryService.deleteImage(oldPublicId);
+            }
+          }
+
+          // Upload to Cloudinary
+          profilePictureUrl = await cloudinaryService.uploadProfilePicture(req.file.buffer, userId);
+          Logger.info(LogCategory.SYSTEM, 'Profile picture uploaded to Cloudinary', { userId, url: profilePictureUrl });
+        } catch (cloudinaryError) {
+          Logger.error(LogCategory.SYSTEM, 'Cloudinary upload failed, using base64 fallback', { error: cloudinaryError });
+          // Fallback to base64
+          profilePictureUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+      } else {
+        // Cloudinary not configured, use base64
+        profilePictureUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        Logger.info(LogCategory.SYSTEM, 'Using base64 storage for profile picture (Cloudinary not configured)', { userId });
+      }
+
+      // Update user profile with the image URL
+      const updatedUser = await storage.updateUser(userId, {
+        profilePicture: profilePictureUrl,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      return res.status(200).json({
+        message: "Profile picture uploaded successfully",
+        profilePictureUrl: profilePictureUrl,
+        storage: profilePictureUrl.startsWith('http') ? 'cloudinary' : 'base64'
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -5025,6 +5336,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register saved and favorite quiz routes
   registerSavedFavoriteQuizRoutes(app);
+  
+  // Register contact routes
+  app.use('/api/contact', contactRoutes);
   
   // Admin endpoint to clear quiz cache
   app.post('/api/admin/clear-cache', jwtAuth, async (req: Request, res: Response) => {

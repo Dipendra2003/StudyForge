@@ -1,10 +1,9 @@
-import { useState } from "react";
-import DashboardLayout from "@/components/layout/DashboardLayout";
+import { useState, useEffect } from "react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
@@ -21,11 +20,23 @@ import {
   Lightbulb,
   Video,
   FileQuestion,
+  LayoutDashboard,
+  User,
+  CreditCard,
 } from "lucide-react";
 
 export default function Help() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredFaqs, setFilteredFaqs] = useState<typeof faqs>(faqs);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const scrollToSection = () => {
+    // Placeholder function for Header
+  };
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -84,28 +95,68 @@ export default function Help() {
 
   const resources = [
     {
-      title: "Getting Started Guide",
-      description: "Learn the basics of using Jadoo",
-      icon: <Lightbulb className="h-5 w-5" />,
-      link: "#",
+      title: "Dashboard",
+      description: "Access your personalized dashboard",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+      link: "/dashboard",
     },
     {
-      title: "Video Tutorials",
-      description: "Watch step-by-step video guides",
-      icon: <Video className="h-5 w-5" />,
-      link: "#",
+      title: "AI Chat Assistant",
+      description: "Get instant help with your studies",
+      icon: <MessageSquare className="h-5 w-5" />,
+      link: "/chat",
     },
     {
-      title: "Documentation",
-      description: "Comprehensive feature documentation",
+      title: "Document Summarization",
+      description: "Upload and summarize documents",
+      icon: <FileText className="h-5 w-5" />,
+      link: "/document-summarization",
+    },
+    {
+      title: "Flashcards",
+      description: "Create and review flashcards",
       icon: <BookOpen className="h-5 w-5" />,
-      link: "#",
+      link: "/flashcards",
+    },
+    {
+      title: "Quiz Mode",
+      description: "Test your knowledge with quizzes",
+      icon: <FileQuestion className="h-5 w-5" />,
+      link: "/quiz-mode",
+    },
+    {
+      title: "Code Generator",
+      description: "Generate code snippets",
+      icon: <Code className="h-5 w-5" />,
+      link: "/code-generator",
+    },
+    {
+      title: "Study Planner",
+      description: "Organize your study schedule",
+      icon: <Calendar className="h-5 w-5" />,
+      link: "/study-planner",
+    },
+    {
+      title: "Profile Settings",
+      description: "Manage your account settings",
+      icon: <User className="h-5 w-5" />,
+      link: "/profile",
+    },
+    {
+      title: "Pricing Plans",
+      description: "View and upgrade your plan",
+      icon: <CreditCard className="h-5 w-5" />,
+      link: "/pricing",
     },
   ];
 
   return (
-    <DashboardLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      <Header onNavigate={scrollToSection} />
+      
+      <main className="flex-grow pt-24">
+        <div className="container mx-auto px-6 py-12">
+          <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -223,8 +274,8 @@ export default function Help() {
         >
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Learning Resources</CardTitle>
-              <CardDescription>Additional materials to help you get the most out of Jadoo</CardDescription>
+              <CardTitle>Quick Links</CardTitle>
+              <CardDescription>Access important features and pages</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -232,15 +283,15 @@ export default function Help() {
                   <a
                     key={index}
                     href={resource.link}
-                    className="p-4 rounded-lg border bg-card hover:shadow-md transition-all duration-300 group"
+                    className="p-4 rounded-lg border bg-card hover:shadow-md transition-all duration-300 group hover:border-primary/50"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                      <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                         {resource.icon}
                       </div>
                       <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
-                    <h3 className="font-semibold mb-1">{resource.title}</h3>
+                    <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">{resource.title}</h3>
                     <p className="text-sm text-muted-foreground">{resource.description}</p>
                   </a>
                 ))}
@@ -269,14 +320,18 @@ export default function Help() {
                   Can't find what you're looking for? Our support team is here to help you with any questions or issues.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button className="flex-1">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Email Support
-                  </Button>
-                  <Button variant="outline" className="flex-1">
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Live Chat
-                  </Button>
+                  <a href="/contact" className="flex-1">
+                    <Button className="w-full">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Contact Support
+                    </Button>
+                  </a>
+                  <a href="/chat" className="flex-1">
+                    <Button variant="outline" className="w-full">
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      AI Chat Assistant
+                    </Button>
+                  </a>
                 </div>
                 <div className="pt-4 border-t">
                   <p className="text-sm text-muted-foreground">
@@ -285,13 +340,25 @@ export default function Help() {
                   <p className="text-sm text-muted-foreground mt-1">
                     <strong>Response Time:</strong> Usually within 24 hours
                   </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    <strong>Quick Links:</strong>{" "}
+                    <a href="/about" className="text-primary hover:underline">About Us</a>
+                    {" • "}
+                    <a href="/privacy-policy" className="text-primary hover:underline">Privacy Policy</a>
+                    {" • "}
+                    <a href="/terms" className="text-primary hover:underline">Terms of Service</a>
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
-      </div>
-    </DashboardLayout>
+          </div>
+        </div>
+      </main>
+      
+      <Footer />
+    </div>
   );
 }
 
@@ -366,5 +433,40 @@ const faqs = [
     category: "Billing",
     question: "How do I upgrade to a premium plan?",
     answer: "Visit the Pricing page from the main menu to view available plans and upgrade your account. You can pay monthly or annually for additional savings.",
+  },
+  {
+    category: "Features",
+    question: "How do I share my quiz results?",
+    answer: "After completing a quiz, you'll see a 'Share' button on the results page. Click it to generate a shareable link that others can use to view your quiz and attempt it themselves.",
+  },
+  {
+    category: "Features",
+    question: "Can I export my flashcards?",
+    answer: "Yes! Go to the Flashcards page, select the deck you want to export, and click the export button. You can export in CSV or JSON format.",
+  },
+  {
+    category: "Study Tips",
+    question: "What is the Quiz of the Day?",
+    answer: "The Quiz of the Day is a daily challenge that helps you maintain your study streak. Complete it each day to earn bonus points and track your consistency.",
+  },
+  {
+    category: "Account",
+    question: "How do I update my profile information?",
+    answer: "Go to your Profile page from the user menu in the header. You can update your name, email, profile picture, and other personal information there.",
+  },
+  {
+    category: "Technical",
+    question: "What browsers are supported?",
+    answer: "Jadoo works best on modern browsers including Chrome, Firefox, Safari, and Edge. We recommend keeping your browser updated for the best experience.",
+  },
+  {
+    category: "Features",
+    question: "How does the AI generate study materials?",
+    answer: "Our AI uses advanced language models trained on vast amounts of educational content. It analyzes your input and generates relevant, accurate study materials tailored to your needs.",
+  },
+  {
+    category: "Billing",
+    question: "Can I cancel my subscription anytime?",
+    answer: "Yes, you can cancel your subscription at any time from the Settings page. You'll continue to have access to premium features until the end of your billing period.",
   },
 ];

@@ -43,10 +43,8 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
   const { data: savedQuizzes, isLoading: loadingSaved } = useQuery({
     queryKey: ["saved-quizzes"],
     queryFn: async () => {
-      const response = await apiRequest("/api/quiz/saved");
-      if (!response.ok) throw new Error("Failed to fetch saved quizzes");
-      const data = await response.json();
-      return data.quizzes as SavedQuiz[];
+      const data = await apiRequest<{ quizzes: SavedQuiz[] }>("/api/quiz/saved");
+      return data.quizzes || [];
     },
   });
 
@@ -54,21 +52,17 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
   const { data: favoriteQuizzes, isLoading: loadingFavorites } = useQuery({
     queryKey: ["favorite-quizzes"],
     queryFn: async () => {
-      const response = await apiRequest("/api/quiz/favorites");
-      if (!response.ok) throw new Error("Failed to fetch favorite quizzes");
-      const data = await response.json();
-      return data.quizzes as FavoriteQuiz[];
+      const data = await apiRequest<{ quizzes: FavoriteQuiz[] }>("/api/quiz/favorites");
+      return data.quizzes || [];
     },
   });
 
   // Remove saved quiz mutation
   const removeSavedMutation = useMutation({
     mutationFn: async (quizId: number) => {
-      const response = await apiRequest(`/api/quiz/saved/${quizId}`, {
+      return apiRequest(`/api/quiz/saved/${quizId}`, {
         method: "DELETE",
       });
-      if (!response.ok) throw new Error("Failed to remove saved quiz");
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-quizzes"] });
@@ -89,11 +83,9 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
   // Remove favorite quiz mutation
   const removeFavoriteMutation = useMutation({
     mutationFn: async (quizId: number) => {
-      const response = await apiRequest(`/api/quiz/favorites/${quizId}`, {
+      return apiRequest(`/api/quiz/favorites/${quizId}`, {
         method: "DELETE",
       });
-      if (!response.ok) throw new Error("Failed to remove favorite quiz");
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["favorite-quizzes"] });
@@ -118,6 +110,9 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
         difficulty: quiz.difficulty,
         questionTypes: quiz.questionTypes,
         questionCount: quiz.questionCount,
+        timedMode: false,
+        voiceMode: false,
+        aiMode: true, // Enable AI mode by default for saved quizzes
       });
     }
   };

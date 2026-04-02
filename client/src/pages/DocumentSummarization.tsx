@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Loader2, FileText, File, Trash2, Eye, Sparkles, Upload, CheckCircle2, Clock, TrendingUp, Download, Copy, BookOpen, Zap, AlertCircle, FileType, FileDown, Brain } from "lucide-react";
@@ -68,11 +69,11 @@ export default function DocumentSummarization() {
   const [summaryType, setSummaryType] = useState<string>("concise");
   const [isTextReady, setIsTextReady] = useState<boolean>(false);
   const [savedDocumentId, setSavedDocumentId] = useState<number | null>(null);
-  const [selectedSummary, setSelectedSummary] = useState<Summary | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [showBulkGenerateDialog, setShowBulkGenerateDialog] = useState<boolean>(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   // Save active tab to sessionStorage whenever it changes
   useEffect(() => {
@@ -120,11 +121,23 @@ export default function DocumentSummarization() {
       });
     },
     onSuccess: (data) => {
+      // Validate that we received a valid summary
+      if (!data.summary || !data.summary.summary || data.summary.summary.trim().length === 0) {
+        toast({
+          title: "⚠️ Empty Summary Generated",
+          description: "The AI returned an empty summary. Please try again with different text or summary type.",
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
       setCurrentSummary(data.summary);
       queryClient.invalidateQueries({ queryKey: ["/api/summaries"] });
       toast({
-        title: "Summary created",
-        description: "Your document has been summarized and saved successfully.",
+        title: "✅ Summary created successfully!",
+        description: `Generated ${data.summary.summary.length} characters with ${data.summary.keyPoints?.length || 0} key points.`,
+        duration: 5000,
       });
     },
     onError: (error: any) => {
@@ -154,6 +167,20 @@ export default function DocumentSummarization() {
           variant: "destructive",
           duration: 6000,
         });
+      } else if (errorMessage.includes('too short') || errorMessage.includes('at least')) {
+        toast({
+          title: "Text Too Short",
+          description: "Please provide at least 50 characters of text to generate a meaningful summary.",
+          variant: "destructive",
+          duration: 6000,
+        });
+      } else if (errorMessage.includes('empty') || errorMessage.includes('no response')) {
+        toast({
+          title: "Empty Response",
+          description: "The AI service returned an empty response. Please try again or use a different summary type.",
+          variant: "destructive",
+          duration: 6000,
+        });
       } else {
         toast({
           title: errorTitle,
@@ -174,9 +201,6 @@ export default function DocumentSummarization() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/summaries"] });
-      if (selectedSummary) {
-        setSelectedSummary(null);
-      }
       toast({
         title: "Summary deleted",
         description: "The summary has been deleted successfully.",
@@ -218,28 +242,25 @@ export default function DocumentSummarization() {
       return;
     }
 
-    // Truncate text if it's too long (max ~8000 characters to leave room for prompt)
-    let textToSummarize = documentText;
-    const maxChars = 8000;
-    
-    if (documentText.length > maxChars) {
-      textToSummarize = documentText.substring(0, maxChars);
+    // No need to truncate - backend handles chunking automatically
+    // Just warn if text is very long
+    if (documentText.length > 50000) {
       toast({
-        title: "Text truncated",
-        description: `Your document was ${documentText.length} characters. Only the first ${maxChars} characters will be summarized.`,
+        title: "Large document",
+        description: `Your document is ${documentText.length} characters. Processing may take longer.`,
         variant: "default",
       });
     }
 
     createSummaryMutation.mutate({
       documentId: savedDocumentId || undefined,
-      originalText: textToSummarize,
+      originalText: documentText,
       type: summaryType,
     });
   };
 
   const handleViewSummary = (summary: Summary) => {
-    setSelectedSummary(summary);
+    setLocation(`/summary/${summary.id}`);
   };
 
   const handleDeleteSummary = (id: number) => {
@@ -663,7 +684,7 @@ export default function DocumentSummarization() {
                   <Textarea
                     id="document-text"
                     placeholder="Paste your text here to summarize..."
-                    className="min-h-[250px] sm:min-h-[300px] border-2 focus:border-violet-500 transition-colors resize-none rounded-xl shadow-sm"
+                    className="min-h-[250px] sm:min-h-[300px] border-2 focus:border-violet-500 transition-colors resize-y rounded-xl shadow-sm font-mono text-sm whitespace-pre-wrap"
                     value={documentText}
                     onChange={(e) => {
                       setDocumentText(e.target.value);
@@ -673,27 +694,28 @@ export default function DocumentSummarization() {
                   {documentText.length > 0 && (
                     <div className="space-y-2">
                       <Progress 
-                        value={Math.min((documentText.length / 8000) * 100, 100)} 
+                        value={Math.min((documentText.length / 50000) * 100, 100)} 
                         className={cn(
                           "h-1.5",
-                          documentText.length > 8000 && "bg-red-200"
+                          documentText.length > 50000 && "bg-red-200"
                         )}
                       />
                       <p className={cn(
                         "text-xs text-right",
-                        documentText.length > 8000 ? "text-red-500 font-medium" : "text-muted-foreground"
+                        documentText.length > 50000 ? "text-red-500 font-medium" : "text-muted-foreground"
                       )}>
                         {documentText.length < 100 ? "Add more text for better results" :
                          documentText.length < 500 ? "Good length for summarization" :
-                         documentText.length <= 8000 ? "Excellent! Ready for detailed analysis" :
-                         `⚠️ Text will be truncated to 8,000 characters (currently ${documentText.length})`}
+                         documentText.length <= 10000 ? "Excellent! Ready for detailed analysis" :
+                         documentText.length <= 50000 ? "Large document - processing may take longer" :
+                         `⚠️ Very large document (${documentText.length.toLocaleString()} characters)`}
                       </p>
-                      {documentText.length > 8000 && (
+                      {documentText.length > 50000 && (
                         <Alert className="border-yellow-200 bg-yellow-50/50">
                           <AlertCircle className="h-4 w-4 text-yellow-600" />
-                          <AlertTitle className="text-sm font-medium text-yellow-900">Text Too Long</AlertTitle>
+                          <AlertTitle className="text-sm font-medium text-yellow-900">Very Large Document</AlertTitle>
                           <AlertDescription className="text-xs text-yellow-700">
-                            Your document has {documentText.length.toLocaleString()} characters. Only the first 8,000 will be summarized. Consider breaking it into smaller sections for better results.
+                            Your document has {documentText.length.toLocaleString()} characters. Processing will take longer. Consider breaking it into smaller sections if you encounter issues.
                           </AlertDescription>
                         </Alert>
                       )}
@@ -839,15 +861,33 @@ export default function DocumentSummarization() {
                 {createSummaryMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Generating Summary...
+                    Generating AI Summary...
                   </>
                 ) : (
                   <>
                     <Sparkles className="mr-2 h-5 w-5" />
-                    Create Summary
+                    🤖 Generate AI Summary
                   </>
                 )}
               </Button>
+
+              {/* Loading Progress Indicator */}
+              {createSummaryMutation.isPending && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 space-y-2"
+                >
+                  <Alert className="border-blue-200 bg-blue-50/50">
+                    <Brain className="h-4 w-4 text-blue-600 animate-pulse" />
+                    <AlertTitle className="text-sm font-medium text-blue-900">AI is analyzing your document...</AlertTitle>
+                    <AlertDescription className="text-xs text-blue-700">
+                      This may take 10-30 seconds depending on document length. Please wait.
+                    </AlertDescription>
+                  </Alert>
+                  <Progress value={undefined} className="h-2" />
+                </motion.div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -933,28 +973,23 @@ export default function DocumentSummarization() {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDownloadSummary(currentSummary)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Download summary</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
                       </div>
                     </div>
-                    <div className="p-4 sm:p-6 bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-xl border-2 border-violet-100 whitespace-pre-wrap text-sm sm:text-base leading-relaxed shadow-inner">
-                      {currentSummary.summary}
-                    </div>
+                    
+                    {/* Validation: Check if summary is empty or too short */}
+                    {(!currentSummary.summary || currentSummary.summary.trim().length < 20) ? (
+                      <Alert className="border-red-200 bg-red-50/50">
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        <AlertTitle className="text-sm font-medium text-red-900">Empty or Invalid Summary</AlertTitle>
+                        <AlertDescription className="text-xs text-red-700">
+                          The AI generated an empty or incomplete summary. Please try again with a different summary type or check your document text.
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <div className="p-4 sm:p-6 bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-xl border-2 border-violet-100 whitespace-pre-wrap text-sm sm:text-base leading-relaxed shadow-inner">
+                        {currentSummary.summary}
+                      </div>
+                    )}
                   </motion.div>
                   
                   {currentSummary.keyPoints && currentSummary.keyPoints.length > 0 && (
@@ -1447,220 +1482,18 @@ export default function DocumentSummarization() {
                 </CardContent>
               </Card>
             </motion.div>
-
-            <AnimatePresence>
-              {selectedSummary && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Card className="mt-6 sm:mt-8 border-2 border-primary/30 shadow-xl">
-                    <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline">#{selectedSummary.id}</Badge>
-                            <CardTitle className="text-xl sm:text-2xl">Summary Details</CardTitle>
-                          </div>
-                          <CardDescription className="flex items-center gap-1.5 text-xs sm:text-sm">
-                            <Clock className="h-3.5 w-3.5" />
-                            Created: {new Date(selectedSummary.createdAt).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-6 pt-6">
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1 }}
-                      >
-                        <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
-                          <FileText className="h-5 w-5 text-primary" />
-                          Summary
-                        </h3>
-                        <div className="p-4 sm:p-6 bg-gradient-to-br from-muted to-muted/50 rounded-lg border-2 border-border whitespace-pre-wrap text-sm sm:text-base leading-relaxed">
-                          {selectedSummary.summary}
-                        </div>
-                      </motion.div>
-                      
-                      {selectedSummary.keyPoints && selectedSummary.keyPoints.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.2 }}
-                        >
-                          <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
-                            <CheckCircle2 className="h-5 w-5 text-primary" />
-                            Key Points
-                          </h3>
-                          <ul className="space-y-2">
-                            {selectedSummary.keyPoints.map((point, index) => (
-                              <motion.li
-                                key={index}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.3 + index * 0.1 }}
-                                className="flex items-start gap-3 p-3 sm:p-4 bg-gradient-to-r from-primary/5 to-transparent rounded-lg border border-primary/10"
-                              >
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary mt-0.5">
-                                  {index + 1}
-                                </div>
-                                <span className="text-sm sm:text-base">{point}</span>
-                              </motion.li>
-                            ))}
-                          </ul>
-                        </motion.div>
-                      )}
-                      
-                      {selectedSummary.keywords && selectedSummary.keywords.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.4 }}
-                        >
-                          <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
-                            <Sparkles className="h-5 w-5 text-primary" />
-                            Keywords
-                          </h3>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedSummary.keywords.map((keyword, index) => (
-                              <motion.div
-                                key={index}
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.5 + index * 0.05 }}
-                              >
-                                <Badge 
-                                  variant="secondary" 
-                                  className="px-3 py-1.5 text-sm bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20"
-                                >
-                                  {keyword}
-                                </Badge>
-                              </motion.div>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                      
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 }}
-                      >
-                        <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
-                          <File className="h-5 w-5 text-primary" />
-                          Original Text
-                        </h3>
-                        <div className="p-4 sm:p-6 bg-gradient-to-br from-muted to-muted/50 rounded-lg border-2 border-border whitespace-pre-wrap max-h-60 sm:max-h-80 overflow-y-auto scrollbar-thin text-sm sm:text-base leading-relaxed">
-                          {selectedSummary.originalText}
-                        </div>
-                      </motion.div>
-                    </CardContent>
-                    <CardFooter className="flex-col gap-4 bg-muted/30">
-                      {/* Download Section */}
-                      <div className="w-full space-y-3">
-                        <div className="flex items-center gap-2">
-                          <FileDown className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-semibold">Download Summary</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadTXT(selectedSummary)}
-                            className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            📄 Download TXT
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadPDF(selectedSummary)}
-                            className="bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-                          >
-                            <File className="h-4 w-4 mr-2" />
-                            🧾 Download PDF
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadDOCX(selectedSummary)}
-                            className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-                          >
-                            <FileType className="h-4 w-4 mr-2" />
-                            📝 Download Word
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      {/* Generate Flashcards Section */}
-                      {selectedSummary.documentId && (
-                        <div className="w-full space-y-3 pt-2 border-t border-border">
-                          <div className="flex items-center gap-2">
-                            <Brain className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-semibold">Study Tools</span>
-                          </div>
-                          <Button
-                            onClick={() => {
-                              setSavedDocumentId(selectedSummary.documentId || null);
-                              setCurrentSummary(selectedSummary);
-                              setShowBulkGenerateDialog(true);
-                            }}
-                            className="w-full bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 hover:from-pink-600 hover:via-rose-600 hover:to-red-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-                            size="sm"
-                          >
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            🧠 Generate Flashcards
-                          </Button>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex justify-between w-full flex-wrap gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleCopySummary(selectedSummary.summary)}
-                          className="hover:bg-background"
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Summary
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => setSelectedSummary(null)}
-                          className="hover:bg-background"
-                        >
-                          Close
-                        </Button>
-                      </div>
-                    </CardFooter>
-                  </Card>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </TabsContent>
         </Tabs>
         </div>
       </div>
 
       {/* Bulk Generate Flashcards Dialog */}
-      {(currentSummary || selectedSummary) && (
+      {currentSummary && (
         <BulkGenerateDialog
           open={showBulkGenerateDialog}
           onOpenChange={setShowBulkGenerateDialog}
-          documentId={(currentSummary?.documentId || selectedSummary?.documentId || savedDocumentId)!}
-          documentText={(currentSummary || selectedSummary)?.originalText || ""}
+          documentId={currentSummary?.documentId || savedDocumentId || null}
+          documentText={currentSummary?.originalText || ""}
           onSuccess={() => {
             toast({
               title: "Success!",

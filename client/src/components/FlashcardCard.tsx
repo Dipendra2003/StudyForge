@@ -226,10 +226,6 @@ export const FlashcardCard = memo(({ card, onEdit, onAddToDeck, onDelete }: Flas
         onClose={() => setShowDetailModal(false)}
         onEdit={onEdit}
         onAddToDeck={onAddToDeck}
-        onDelete={() => {
-          setShowDetailModal(false);
-          setShowDeleteDialog(true);
-        }}
       />
     </>
   );

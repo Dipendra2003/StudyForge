@@ -25,9 +25,6 @@ import {
   type Summary,
   type InsertSummary,
   type ChatMessage,
-  feedback,
-  type Feedback,
-  type InsertFeedback,
   refreshTokens,
   type RefreshToken,
   type InsertRefreshToken,
@@ -158,6 +155,7 @@ export interface IStorage {
   updateDeck(id: number, deck: Partial<any>): Promise<any | undefined>;
   deleteDeck(id: number): Promise<boolean>;
   getFlashcardsByDeckId(deckId: number): Promise<Flashcard[]>;
+  getDeckIdsForFlashcard(flashcardId: number): Promise<number[]>;
   addCardToDeck(deckId: number, flashcardId: number, position?: number): Promise<any>;
   removeCardFromDeck(deckId: number, flashcardId: number): Promise<boolean>;
 
@@ -224,7 +222,7 @@ export class MemStorage implements IStorage {
   private codeSnippets: Map<number, CodeSnippet>;
   private chatHistories: Map<number, ChatHistory>;
   private studyPlans: Map<number, StudyPlan>;
-  private achievements: Map<number, any>;
+  // private achievements: Map<number, any>; // Unused - reserved for future use
   private userStatsMap: Map<number, any>;
   private decks: Map<number, any>;
   private deckFlashcards: Map<string, any>;
@@ -256,7 +254,7 @@ export class MemStorage implements IStorage {
     this.codeSnippets = new Map();
     this.chatHistories = new Map();
     this.studyPlans = new Map();
-    this.achievements = new Map();
+    // this.achievements = new Map(); // Unused - reserved for future use
     this.userStatsMap = new Map();
     this.decks = new Map();
     this.deckFlashcards = new Map();
@@ -750,14 +748,14 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const plan: StudyPlan = {
       id,
-      userId: insertPlan.userId,
+      userId: 0, // MemStorage doesn't track userId properly
       title: insertPlan.title,
       description: insertPlan.description || null,
       scheduleData: insertPlan.scheduleData,
       startDate: insertPlan.startDate || null,
       endDate: insertPlan.endDate || null,
       completedPercentage: 0,
-      status: insertPlan.status || "active",
+      status: "active", // Default status
       createdAt: now,
       updatedAt: now,
     };
@@ -981,6 +979,16 @@ export class MemStorage implements IStorage {
     };
     this.deckFlashcards.set(key, entry);
     return entry;
+  }
+
+  async getDeckIdsForFlashcard(flashcardId: number): Promise<number[]> {
+    const deckIds: number[] = [];
+    for (const [, entry] of this.deckFlashcards) {
+      if (entry.flashcardId === flashcardId) {
+        deckIds.push(entry.deckId);
+      }
+    }
+    return deckIds;
   }
 
   async removeCardFromDeck(deckId: number, flashcardId: number): Promise<boolean> {
@@ -2036,7 +2044,6 @@ export class MySQLStorage implements IStorage {
 
   async getQuizStatsByUserId(userId: number): Promise<any> {
     try {
-      const { quizAttempts } = await import('@shared/schema');
       const attempts = await this.getQuizAttemptsByUserId(userId, 100);
       
       if (attempts.length === 0) {
@@ -2287,7 +2294,22 @@ export class MySQLStorage implements IStorage {
   async addCardToDeck(deckId: number, flashcardId: number, position: number = 0): Promise<any> {
     try {
       const { deckFlashcards } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
       const now = new Date();
+      
+      // Check if card already exists in deck
+      const existing = await db
+        .select()
+        .from(deckFlashcards)
+        .where(and(
+          eq(deckFlashcards.deckId, deckId),
+          eq(deckFlashcards.flashcardId, flashcardId)
+        ))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        throw new Error('Card already exists in this deck');
+      }
       
       await db
         .insert(deckFlashcards)
@@ -2299,9 +2321,32 @@ export class MySQLStorage implements IStorage {
         });
       
       return { deckId, flashcardId, position, addedAt: now };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[DB Error] Operation: addCardToDeck, Table: deck_flashcards, DeckID:', deckId, 'FlashcardID:', flashcardId, 'Error:', error);
+      
+      // Return more specific error message
+      if (error.message === 'Card already exists in this deck') {
+        throw error;
+      }
+      
       throw new Error('Failed to add card to deck');
+    }
+  }
+
+  async getDeckIdsForFlashcard(flashcardId: number): Promise<number[]> {
+    try {
+      const { deckFlashcards } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const results = await db
+        .select({ deckId: deckFlashcards.deckId })
+        .from(deckFlashcards)
+        .where(eq(deckFlashcards.flashcardId, flashcardId));
+      
+      return results.map((r: { deckId: number }) => r.deckId);
+    } catch (error) {
+      console.error('[DB Error] Operation: getDeckIdsForFlashcard, Table: deck_flashcards, FlashcardID:', flashcardId, 'Error:', error);
+      throw new Error('Failed to get deck IDs for flashcard');
     }
   }
 

@@ -20,6 +20,7 @@ import Dashboard from "@/pages/Dashboard";
 import CodeGenerator from "@/pages/CodeGenerator";
 import Chat from "@/pages/Chat";
 import DocumentSummarization from "@/pages/DocumentSummarization";
+import SummaryDetails from "@/pages/SummaryDetails";
 import Flashcards from "@/pages/Flashcards";
 import StudyPlanner from "@/pages/StudyPlanner";
 import QuizMode from "@/pages/QuizMode";
@@ -45,16 +46,12 @@ function HomePage() {
 }
 
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
-
-  console.log('[PrivateRoute]', rest.path, '- isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user);
 
   // Use effect to handle redirect to avoid setState during render
   useEffect(() => {
-    console.log('[PrivateRoute] useEffect', rest.path, '- isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
     if (!isLoading && !isAuthenticated) {
-      console.log('[PrivateRoute] Redirecting to /login from', rest.path);
       // Store the current path to redirect back after login
       sessionStorage.setItem('redirectAfterLogin', location);
       setLocation("/login");
@@ -63,7 +60,6 @@ function PrivateRoute({ component: Component, ...rest }: { component: React.Comp
 
   // Show loading state while checking authentication
   if (isLoading) {
-    console.log('[PrivateRoute] Showing loading spinner for', rest.path);
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -73,11 +69,9 @@ function PrivateRoute({ component: Component, ...rest }: { component: React.Comp
 
   // If not authenticated, show nothing (redirect will happen in useEffect)
   if (!isAuthenticated) {
-    console.log('[PrivateRoute] Not authenticated, returning null for', rest.path);
     return null;
   }
 
-  console.log('[PrivateRoute] Rendering component for', rest.path);
   return <Component {...rest} />;
 }
 
@@ -89,10 +83,9 @@ function Router() {
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       // Only store private routes
-      const privateRoutes = ['/dashboard', '/chat', '/document-summarization', '/flashcards', '/quiz-mode', '/code-generator', '/study-planner', '/profile', '/settings', '/help'];
+      const privateRoutes = ['/dashboard', '/chat', '/document-summarization', '/summary', '/flashcards', '/quiz-mode', '/code-generator', '/study-planner', '/profile', '/settings'];
       if (privateRoutes.some(route => location.startsWith(route))) {
         sessionStorage.setItem('lastVisitedPage', location);
-        console.log('[Router] Stored last visited page:', location);
       }
     }
   }, [location, isAuthenticated, isLoading]);
@@ -108,13 +101,14 @@ function Router() {
       <PrivateRoute path="/code-generator" component={CodeGenerator} />
       <PrivateRoute path="/chat" component={Chat} />
       <PrivateRoute path="/document-summarization" component={DocumentSummarization} />
+      <PrivateRoute path="/summary/:id" component={SummaryDetails} />
       <PrivateRoute path="/flashcards" component={Flashcards} />
       <PrivateRoute path="/study-planner" component={StudyPlanner} />
       <PrivateRoute path="/quiz-mode" component={QuizMode} />
       <Route path="/quiz/shared/:linkId" component={SharedQuiz} />
       <PrivateRoute path="/profile" component={Profile} />
       <PrivateRoute path="/settings" component={Settings} />
-      <PrivateRoute path="/help" component={Help} />
+      <Route path="/help" component={Help} />
       <Route path="/about" component={About} />
       <Route path="/privacy-policy" component={Policy} />
       <Route path="/terms" component={Terms} />

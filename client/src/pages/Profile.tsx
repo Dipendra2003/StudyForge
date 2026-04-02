@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { User, Mail, Calendar, Award, TrendingUp, BookOpen, Code, FileText, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Calendar, Award, TrendingUp, BookOpen, Code, FileText, Eye, EyeOff, Upload, Image as ImageIcon } from "lucide-react";
 import BadgeCollection from "@/components/quiz/BadgeCollection";
 
 export default function Profile() {
@@ -22,7 +22,7 @@ export default function Profile() {
     return sessionStorage.getItem('profileActiveTab') || "overview";
   });
   
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { toast } = useToast();
   
   // Save active tab to sessionStorage whenever it changes
@@ -35,6 +35,8 @@ export default function Profile() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string>("");
   
   const [profile, setProfile] = useState({
     fullName: "",
@@ -60,6 +62,7 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     fullName: "",
     preferredLanguage: "en",
+    profilePicture: "",
   });
   
   const [passwordData, setPasswordData] = useState({
@@ -86,7 +89,9 @@ export default function Profile() {
       setFormData({
         fullName: data.profile.fullName || "",
         preferredLanguage: data.profile.preferredLanguage || "en",
+        profilePicture: data.profile.profilePicture || "",
       });
+      setPreviewImage(data.profile.profilePicture || "");
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast({
@@ -113,6 +118,11 @@ export default function Profile() {
       const data = await response.json();
       setProfile(data.profile);
       
+      // Update the auth context user if needed
+      if (user) {
+        updateUser({ ...user, fullName: data.profile.fullName });
+      }
+      
       toast({
         title: "Success",
         description: "Profile updated successfully",
@@ -126,6 +136,106 @@ export default function Profile() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a valid image file",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Image size must be less than 5MB",
+      });
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      // Create FormData for file upload
+      const formDataUpload = new FormData();
+      formDataUpload.append('profilePicture', file);
+
+      const response = await fetch('/api/profile/upload-picture', {
+        method: 'POST',
+        body: formDataUpload,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload image");
+      }
+
+      const data = await response.json();
+      
+      // Update profile with new image URL
+      setProfile({ ...profile, profilePicture: data.profilePictureUrl });
+      setFormData({ ...formData, profilePicture: data.profilePictureUrl });
+      setPreviewImage(data.profilePictureUrl);
+
+      toast({
+        title: "Success",
+        description: "Profile picture updated successfully",
+      });
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to upload image. Please try again.",
+      });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleDeleteProfilePicture = async () => {
+    setIsUploadingImage(true);
+
+    try {
+      const response = await apiPatch("/api/profile", {
+        ...formData,
+        profilePicture: null,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete profile picture");
+      }
+
+      const data = await response.json();
+      
+      // Update profile
+      setProfile({ ...profile, profilePicture: '' });
+      setFormData({ ...formData, profilePicture: '' });
+      setPreviewImage('');
+
+      toast({
+        title: "Success",
+        description: "Profile picture removed successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting profile picture:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to remove profile picture. Please try again.",
+      });
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -383,6 +493,64 @@ export default function Profile() {
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleUpdateProfile} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Profile Picture</Label>
+                      <div className="flex flex-col items-center gap-4">
+                        {/* Preview */}
+                        <Avatar className="h-32 w-32 border-4 border-primary/20">
+                          <AvatarImage src={previewImage || profile.profilePicture} alt="Profile preview" />
+                          <AvatarFallback className="text-3xl bg-gradient-to-br from-primary to-primary/70 text-white">
+                            {getInitials(profile.fullName || profile.username)}
+                          </AvatarFallback>
+                        </Avatar>
+                        
+                        {/* Upload and Delete Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-2 w-full">
+                          <label htmlFor="image-upload" className="flex-1">
+                            <div className="flex items-center justify-center gap-2 h-10 px-6 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:bg-primary/90 transition-colors">
+                              {isUploadingImage ? (
+                                <>
+                                  <Icons.spinner className="h-4 w-4 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="h-4 w-4" />
+                                  Upload
+                                </>
+                              )}
+                            </div>
+                            <input
+                              id="image-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              disabled={isUploadingImage}
+                              className="hidden"
+                            />
+                          </label>
+                          
+                          {profile.profilePicture && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              onClick={handleDeleteProfilePicture}
+                              disabled={isUploadingImage}
+                              className="flex-1 sm:flex-initial"
+                            >
+                              <Icons.trash className="h-4 w-4 mr-2" />
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground text-center">
+                          Upload an image (JPG, PNG, GIF, WebP) • Max 5MB
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
                     <div className="space-y-2">
                       <Label htmlFor="fullName">Full Name</Label>
                       <Input

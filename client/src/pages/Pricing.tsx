@@ -21,7 +21,7 @@ export default function Pricing() {
   };
   
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">
@@ -31,7 +31,7 @@ export default function Pricing() {
               <h1 className="text-4xl font-bold mb-4">
                 Simple, Transparent Pricing
               </h1>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                 Start with our free plan and upgrade when you need more features.
                 No hidden fees, no commitments.
               </p>
@@ -39,13 +39,13 @@ export default function Pricing() {
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Free Plan */}
-              <Card className="border-2 border-gray-200 shadow-sm">
+              <Card className="border-2 border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-800">
                 <CardHeader>
                   <CardTitle className="text-2xl">Free</CardTitle>
                   <CardDescription>Perfect for getting started</CardDescription>
                   <div className="mt-4">
                     <span className="text-4xl font-bold">₹0</span>
-                    <span className="text-gray-500 ml-2">/ month</span>
+                    <span className="text-gray-500 dark:text-gray-400 ml-2">/ month</span>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -83,7 +83,7 @@ export default function Pricing() {
               </Card>
               
               {/* Plus Plan */}
-              <Card className="border-2 border-primary relative shadow-md">
+              <Card className="border-2 border-primary relative shadow-md dark:bg-gray-800">
                 <Badge className="absolute -top-3 right-8 bg-primary hover:bg-primary/90">
                   Most Popular
                 </Badge>
@@ -92,7 +92,7 @@ export default function Pricing() {
                   <CardDescription>For serious students</CardDescription>
                   <div className="mt-4">
                     <span className="text-4xl font-bold">₹99</span>
-                    <span className="text-gray-500 ml-2">/ month</span>
+                    <span className="text-gray-500 dark:text-gray-400 ml-2">/ month</span>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -138,13 +138,13 @@ export default function Pricing() {
               </Card>
               
               {/* Pro Plan */}
-              <Card className="border-2 border-gray-200 shadow-sm">
+              <Card className="border-2 border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-800">
                 <CardHeader>
                   <CardTitle className="text-2xl">Pro</CardTitle>
                   <CardDescription>For educational institutions</CardDescription>
                   <div className="mt-4">
                     <span className="text-4xl font-bold">₹199</span>
-                    <span className="text-gray-500 ml-2">/ month</span>
+                    <span className="text-gray-500 dark:text-gray-400 ml-2">/ month</span>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -190,30 +190,30 @@ export default function Pricing() {
               </Card>
             </div>
             
-            <div className="mt-16 bg-white rounded-xl shadow-sm p-8">
+            <div className="mt-16 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8">
               <h2 className="text-2xl font-semibold mb-6 text-center">Frequently Asked Questions</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-lg font-medium mb-2">Can I switch between plans?</h3>
-                  <p className="text-gray-600">Yes, you can upgrade or downgrade your plan at any time. Changes will be applied to your next billing cycle.</p>
+                  <p className="text-gray-600 dark:text-gray-400">Yes, you can upgrade or downgrade your plan at any time. Changes will be applied to your next billing cycle.</p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Is there a student discount?</h3>
-                  <p className="text-gray-600">Yes! Students with a valid .edu email can get 20% off the Plus plan. Contact our support team to apply the discount.</p>
+                  <p className="text-gray-600 dark:text-gray-400">Yes! Students with a valid .edu email can get 20% off the Plus plan. Contact our support team to apply the discount.</p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">What happens after my free trial ends?</h3>
-                  <p className="text-gray-600">After your 7-day free trial of the Plus plan, you'll be automatically switched to the Free plan unless you choose to continue with a paid plan.</p>
+                  <p className="text-gray-600 dark:text-gray-400">After your 7-day free trial of the Plus plan, you'll be automatically switched to the Free plan unless you choose to continue with a paid plan.</p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Can I share my account with others?</h3>
-                  <p className="text-gray-600">Individual accounts are for personal use only. For team or classroom usage, please check our Pro plan with collaboration features.</p>
+                  <p className="text-gray-600 dark:text-gray-400">Individual accounts are for personal use only. For team or classroom usage, please check our Pro plan with collaboration features.</p>
                 </div>
               </div>
               
-              <div className="mt-8 text-center p-6 bg-gray-50 rounded-lg">
+              <div className="mt-8 text-center p-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <h3 className="text-xl font-semibold mb-2">Need a custom solution?</h3>
-                <p className="text-gray-600 mb-4">We offer custom plans for educational institutions and organizations with specific requirements.</p>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">We offer custom plans for educational institutions and organizations with specific requirements.</p>
                 <Button variant="outline" className="rounded-full">
                   Contact Our Education Team
                 </Button>

@@ -7,7 +7,6 @@ export default function AuthDebug() {
 
   const checkToken = () => {
     const token = localStorage.getItem('accessToken');
-    console.log('Token in localStorage:', token);
     alert(`Token exists: ${!!token}\nToken: ${token?.substring(0, 50)}...`);
   };
 

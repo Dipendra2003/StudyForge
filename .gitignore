@@ -15,5 +15,7 @@ vite.config.ts.*
 !.env.example
 
 # Test and utility files
-check-models.js
-test-date-fix.js
+test-models.js
+setup-database.js
+verify-database.js
+setup-database.bat

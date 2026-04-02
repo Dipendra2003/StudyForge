@@ -11,7 +11,7 @@ export const users = mysqlTable("users", {
   password: text("password").notNull(),
   email: varchar("email", { length: 100 }).notNull().unique(), // Using varchar with length for better indexing
   fullName: varchar("full_name", { length: 100 }),
-  profilePicture: text("profile_picture"),
+  profilePicture: text("profile_picture"), // Manually set to LONGTEXT in database for base64 images
   preferredLanguage: varchar("preferred_language", { length: 10 }).default("en"),
   role: varchar("role", { length: 20 }).default("user").notNull(), // For role-based access control
   lastLogin: timestamp("last_login", { mode: 'date' }), // Track login times for security
@@ -430,6 +430,7 @@ export const summaries = mysqlTable("summaries", {
   summary: text("summary").notNull(),
   keyPoints: json("key_points"), // Array of key points
   keywords: json("keywords"), // Array of keywords
+  metadata: json("metadata"), // Additional metadata (readingTime, difficultyLevel, compression, etc.)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => {
@@ -515,7 +516,7 @@ export const shareableQuizLinks = mysqlTable("shareable_quiz_links", {
 // Shared quiz attempts to track who took shared quizzes
 export const sharedQuizAttempts = mysqlTable("shared_quiz_attempts", {
   id: int().autoincrement().primaryKey(),
-  shareableLinkId: int("shareable_link_id").notNull().references(() => shareableQuizLinks.id, { onDelete: 'cascade' }),
+  shareableLinkId: int("shareable_link_id").notNull(),
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
   score: int("score").notNull(),
@@ -529,6 +530,11 @@ export const sharedQuizAttempts = mysqlTable("shared_quiz_attempts", {
     linkIdx: index("sqa_link_idx").on(table.shareableLinkId),
     userIdx: index("sqa_user_idx").on(table.userId),
     uniqueUserLink: unique("unique_user_link").on(table.shareableLinkId, table.userId),
+    shareableLinkFk: foreignKey({
+      columns: [table.shareableLinkId],
+      foreignColumns: [shareableQuizLinks.id],
+      name: "sqa_link_fk"
+    }).onDelete("cascade"),
   }
 });
 
@@ -610,6 +616,25 @@ export const quizOfTheDayCompletions = mysqlTable("quiz_of_the_day_completions",
     dateIdx: index("qotd_date_idx").on(table.date),
     quizIdIdx: index("qotd_quiz_id_idx").on(table.quizId),
     userDateIdx: unique("qotd_user_date_unique").on(table.userId, table.date),
+  }
+});
+
+// Contact messages for user inquiries
+export const contactMessages = mysqlTable("contact_messages", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").references(() => users.id, { onDelete: 'set null' }), // Optional - can be null for non-logged-in users
+  name: varchar("name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 100 }).notNull(),
+  subject: varchar("subject", { length: 200 }).notNull(),
+  message: text("message").notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(), // pending, read, responded, closed
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("contact_user_id_idx").on(table.userId),
+    statusIdx: index("contact_status_idx").on(table.status),
+    createdAtIdx: index("contact_created_at_idx").on(table.createdAt),
   }
 });
 
@@ -788,6 +813,15 @@ export const insertStudyPlanSchema = createInsertSchema(studyPlans, {
   }),
 }).omit({ userId: true, id: true, createdAt: true, updatedAt: true, completedPercentage: true, status: true });
 
+export const insertContactMessageSchema = createInsertSchema(contactMessages, {
+  userId: z.number().optional(),
+  name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().email("Invalid email address").max(100),
+  subject: z.string().min(5, "Subject must be at least 5 characters").max(200),
+  message: z.string().min(10, "Message must be at least 10 characters").max(2000),
+  status: z.enum(["pending", "read", "responded", "closed"]).optional(),
+});
+
 // User registration schema removed - authentication disabled
 
 export const chatMessageSchema = z.object({
@@ -914,6 +948,9 @@ export type EmailLog = typeof emailLogs.$inferSelect;
 
 export type InsertSecurityAuditLog = z.infer<typeof insertSecurityAuditLogSchema>;
 export type SecurityAuditLog = typeof securityAuditLogs.$inferSelect;
+
+export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
+export type ContactMessage = typeof contactMessages.$inferSelect;
 
 // Waitlist types removed
 

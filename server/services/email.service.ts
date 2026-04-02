@@ -6,6 +6,7 @@ import {
   getVerificationEmailTemplate,
   getPasswordResetEmailTemplate,
   getPasswordChangedEmailTemplate,
+  getContactNotificationTemplate,
 } from './email-templates';
 
 /**
@@ -434,6 +435,56 @@ export class EmailService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.recordEmailSent(userId, emailType, email, subject, 'failed', errorMessage);
       throw error;
+    }
+  }
+
+  /**
+   * Send contact form notification to admin
+   * 
+   * Sends an email notification to admin when someone submits the contact form.
+   * 
+   * @param name - Sender's name
+   * @param email - Sender's email
+   * @param subject - Message subject
+   * @param message - Message content
+   * @param userId - User ID if authenticated (optional)
+   * @returns Promise<void>
+   */
+  public async sendContactNotification(
+    name: string,
+    email: string,
+    subject: string,
+    message: string,
+    userId?: number
+  ): Promise<void> {
+    const emailType = 'contact_notification';
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL;
+
+    if (!adminEmail) {
+      console.warn('[EmailService] Admin email not configured, skipping contact notification');
+      return;
+    }
+
+    // Get email template
+    const template = getContactNotificationTemplate(name, email, subject, message, userId);
+
+    const emailSubject = `New Contact Form: ${subject}`;
+
+    try {
+      // Send the email to admin
+      await this.sendEmail(adminEmail, emailSubject, template.html, template.text);
+
+      // Record successful send
+      await this.recordEmailSent(userId || null, emailType, adminEmail, emailSubject, 'sent');
+      
+      console.log('[EmailService] Contact notification sent to admin successfully');
+    } catch (error) {
+      // Record failed send
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(userId || null, emailType, adminEmail, emailSubject, 'failed', errorMessage);
+      
+      console.error('[EmailService] Failed to send contact notification:', error);
+      // Don't throw error - contact form should still work even if email fails
     }
   }
 }

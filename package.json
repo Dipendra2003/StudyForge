@@ -12,6 +12,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "db:setup": "node scripts/setup-database.js",
+    "db:verify": "node scripts/verify-database.js",
+    "migrate": "tsx --env-file=.env server/migrations/run-migration.ts",
     "test:e2e": "tsx --env-file=.env tests/e2e/auth.e2e.test.ts",
     "postinstall": "npm run check"
   },
@@ -53,6 +56,7 @@
     "bcrypt": "^5.1.1",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.0",
+    "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "compression": "^1.8.1",

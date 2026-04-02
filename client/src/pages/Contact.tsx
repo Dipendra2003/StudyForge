@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Mail, MapPin, Phone, Send, Github, Linkedin, MessageSquare } from "lucide-react";
+import { FaXTwitter } from "react-icons/fa6";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -27,15 +28,37 @@ export default function Contact() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate form submission
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send message');
+      }
+
       toast({
         title: "Message Sent!",
         description: "Thank you for contacting us. We'll get back to you soon.",
       });
+      
       setFormData({ name: "", email: "", subject: "", message: "" });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -95,7 +118,7 @@ export default function Contact() {
                             name="name"
                             value={formData.name}
                             onChange={handleChange}
-                            placeholder="John Doe"
+                            placeholder="Dipendra Kumar"
                             required
                           />
                         </div>
@@ -109,7 +132,7 @@ export default function Contact() {
                             type="email"
                             value={formData.email}
                             onChange={handleChange}
-                            placeholder="john@example.com"
+                            placeholder="StudyForge@gmail.com"
                             required
                           />
                         </div>
@@ -235,7 +258,16 @@ export default function Contact() {
                   <CardContent>
                     <div className="flex gap-4">
                       <a
-                        href="https://github.com/Dipendra2003/StudyForge"
+                        href="https://x.com/Dipendrasah76"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 p-4 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <FaXTwitter className="h-5 w-5" />
+                        <span className="text-sm font-medium">Twitter</span>
+                      </a>
+                      <a
+                        href="https://github.com/Dipendra2003/"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-1 flex items-center justify-center gap-2 p-4 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"

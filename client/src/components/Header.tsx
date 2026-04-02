@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Settings, LayoutDashboard } from "lucide-react";
+import { User, LogOut, Settings, LayoutDashboard, HelpCircle } from "lucide-react";
 
 interface HeaderProps {
   onNavigate: (section: string) => void;
@@ -90,10 +90,15 @@ export default function Header({ onNavigate }: HeaderProps) {
             <Link href="/pricing" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
               Pricing
             </Link>
+            <Link href="/help" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium">
+              Help
+            </Link>
           </nav>
           
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            <div className="hidden md:block">
+              <ThemeToggle />
+            </div>
             {isAuthenticated ? (
               <>
                 <Link href="/dashboard">
@@ -154,9 +159,12 @@ export default function Header({ onNavigate }: HeaderProps) {
                 </Button>
               </Link>
             )}
+            <div className="md:hidden">
+              <ThemeToggle />
+            </div>
             <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden text-gray-500 hover:text-gray-700"
+              className="md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               aria-label="Toggle menu"
             >
               <i className={`fas ${mobileMenuOpen ? 'fa-times' : 'fa-bars'} text-xl`}></i>
@@ -173,10 +181,10 @@ export default function Header({ onNavigate }: HeaderProps) {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t"
+            className="md:hidden bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t max-h-[calc(100vh-80px)] overflow-y-auto"
           >
             <div className="container mx-auto px-6 py-4">
-              <nav className="flex flex-col space-y-4">
+              <nav className="flex flex-col space-y-4 pb-4">
                 <Link 
                   href="/" 
                   className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
@@ -191,7 +199,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                         onNavigate('features');
                         setMobileMenuOpen(false);
                       }} 
-                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
+                      className="text-left text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                     >
                       Features
                     </button>
@@ -200,7 +208,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                         onNavigate('benefits');
                         setMobileMenuOpen(false);
                       }} 
-                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
+                      className="text-left text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                     >
                       Benefits
                     </button>
@@ -209,7 +217,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                         onNavigate('faq');
                         setMobileMenuOpen(false);
                       }} 
-                      className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
+                      className="text-left text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                     >
                       FAQ
                     </button>
@@ -254,20 +262,13 @@ export default function Header({ onNavigate }: HeaderProps) {
                   Pricing
                 </Link>
                 <Link 
-                  href="/privacy-policy" 
+                  href="/help" 
                   className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Privacy Policy
+                  Help
                 </Link>
-                <Link 
-                  href="/terms" 
-                  className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors font-medium"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Terms
-                </Link>
-                <div className="flex items-center justify-between py-2">
+                <div className="flex items-center justify-between py-2 border-t pt-4">
                   <span className="text-sm text-gray-600 dark:text-gray-300">Theme</span>
                   <ThemeToggle />
                 </div>

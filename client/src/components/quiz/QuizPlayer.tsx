@@ -175,7 +175,6 @@ export default function QuizPlayer({
 
   // Reset answer state when question changes - ONLY when currentQuestionIndex changes
   useEffect(() => {
-    console.log('[QuizPlayer] Question changed to index:', currentQuestionIndex);
     setCurrentAnswer(null);
     currentAnswerRef.current = null;
     setHasSubmitted(false);
@@ -403,49 +402,34 @@ export default function QuizPlayer({
       answerToSubmit = currentAnswer;
     }
     
-    // Debug logging to help diagnose issues
-    console.log('[QuizPlayer] Submit attempt:', {
-      refValue: currentAnswerRef.current,
-      stateValue: currentAnswer,
-      finalAnswer: answerToSubmit,
-      hasSubmitted
-    });
-    
     // Prevent double submission
     if (hasSubmitted) {
-      console.log('[QuizPlayer] Already submitted, ignoring');
       return;
     }
     
     // Validate we have an answer
     if (answerToSubmit === null || answerToSubmit === undefined) {
-      console.log('[QuizPlayer] No answer selected');
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty arrays
     if (Array.isArray(answerToSubmit) && answerToSubmit.length === 0) {
-      console.log('[QuizPlayer] Empty array answer');
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty strings
     if (typeof answerToSubmit === 'string' && answerToSubmit.trim() === '') {
-      console.log('[QuizPlayer] Empty string answer');
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty objects (matching questions)
     if (typeof answerToSubmit === 'object' && !Array.isArray(answerToSubmit) && Object.keys(answerToSubmit).length === 0) {
-      console.log('[QuizPlayer] Empty object answer');
       alert('Please select an answer before submitting');
       return;
     }
-    
-    console.log('[QuizPlayer] Submitting answer:', answerToSubmit);
 
     const questionTime = Math.floor((Date.now() - questionStartTime) / 1000);
     
@@ -712,12 +696,10 @@ export default function QuizPlayer({
       <RadioGroup
         value={userAnswer || ""}
         onValueChange={(value) => {
-          console.log('[QuizPlayer] MCQ onValueChange called:', { value, hasSubmitted });
           if (!hasSubmitted && value) {
             // Update ref FIRST (synchronous) then state
             currentAnswerRef.current = value;
             setCurrentAnswer(value);
-            console.log('[QuizPlayer] MCQ answer set:', { refValue: currentAnswerRef.current, stateValue: value });
           }
         }}
         className="space-y-3"
@@ -754,7 +736,6 @@ export default function QuizPlayer({
               }}
               onClick={() => {
                 if (!hasSubmitted) {
-                  console.log('[QuizPlayer] Option container clicked:', option.id);
                   currentAnswerRef.current = option.id;
                   setCurrentAnswer(option.id);
                 }
@@ -829,12 +810,10 @@ export default function QuizPlayer({
         <RadioGroup
           value={userAnswer}
           onValueChange={(value) => {
-            console.log('[QuizPlayer] TrueFalse onValueChange called:', { value, hasSubmitted });
             if (!hasSubmitted) {
               // Update ref FIRST (synchronous) then state
               currentAnswerRef.current = value;
               setCurrentAnswer(value);
-              console.log('[QuizPlayer] TrueFalse answer set:', { refValue: currentAnswerRef.current, stateValue: value });
             }
           }}
           className="space-y-3"
@@ -871,7 +850,6 @@ export default function QuizPlayer({
                 }}
                 onClick={() => {
                   if (!hasSubmitted) {
-                    console.log('[QuizPlayer] TrueFalse option clicked:', option.id);
                     currentAnswerRef.current = option.id;
                     setCurrentAnswer(option.id);
                   }

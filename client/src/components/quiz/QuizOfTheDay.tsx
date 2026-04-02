@@ -67,7 +67,6 @@ export function QuizOfTheDay() {
       if (!response.ok) {
         // Silently handle authentication errors (user not logged in)
         if (response.status === 401) {
-          console.log("Quiz of the Day requires authentication");
           return;
         }
         throw new Error("Failed to fetch Quiz of the Day");

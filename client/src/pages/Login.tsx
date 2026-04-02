@@ -27,8 +27,6 @@ export default function Login() {
                           sessionStorage.getItem('lastVisitedPage') || 
                           '/dashboard';
       
-      console.log('[Login] User is authenticated, redirecting to:', redirectPath);
-      
       // Clear the redirect flag
       sessionStorage.removeItem('redirectAfterLogin');
       
@@ -42,10 +40,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      console.log('[Login] Attempting login...');
       await login(identifier, password);
-      
-      console.log('[Login] Login successful');
       
       // Show success toast
       toast({
@@ -55,7 +50,6 @@ export default function Login() {
       
       // Navigation will happen automatically via useEffect when isAuthenticated becomes true
     } catch (err: any) {
-      console.error('[Login] Login failed:', err);
       const errorMessage = err.message || 'Login failed. Please try again.';
       setError(errorMessage);
       

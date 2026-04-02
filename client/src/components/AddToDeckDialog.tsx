@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,13 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FolderPlus, Check } from "lucide-react";
+import { Loader2, FolderPlus, Check, CheckCircle2 } from "lucide-react";
 
 interface Deck {
   id: number;
   name: string;
   description?: string | null;
   cardCount: number;
+  hasFlashcard?: boolean;
 }
 
 interface AddToDeckDialogProps {
@@ -38,12 +39,13 @@ interface AddToDeckDialogProps {
 export function AddToDeckDialog({ open, onOpenChange, flashcardId, onSuccess }: AddToDeckDialogProps) {
   const [selectedDeckId, setSelectedDeckId] = useState<string>("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Fetch all decks
+  // Fetch all decks with flashcard membership info
   const { data: decks, isLoading: isLoadingDecks } = useQuery({
-    queryKey: ['/api/decks'],
+    queryKey: ['/api/decks', { flashcardId }],
     queryFn: async () => {
-      const response = await apiRequest<{ decks: Deck[] }>('/api/decks');
+      const response = await apiRequest<{ decks: Deck[] }>(`/api/decks?flashcardId=${flashcardId}`);
       return response.decks || [];
     },
     enabled: open, // Only fetch when dialog is open
@@ -61,6 +63,10 @@ export function AddToDeckDialog({ open, onOpenChange, flashcardId, onSuccess }: 
       });
     },
     onSuccess: () => {
+      // Invalidate and refetch decks to update UI
+      queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/flashcards'] });
+      
       toast({
         title: "Card added to deck",
         description: "Your flashcard has been added to the deck successfully.",
@@ -137,12 +143,23 @@ export function AddToDeckDialog({ open, onOpenChange, flashcardId, onSuccess }: 
                 </SelectTrigger>
                 <SelectContent>
                   {decks.map((deck) => (
-                    <SelectItem key={deck.id} value={deck.id.toString()}>
-                      <div className="flex items-center justify-between w-full">
-                        <span>{deck.name}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
-                          ({deck.cardCount} cards)
+                    <SelectItem 
+                      key={deck.id} 
+                      value={deck.id.toString()}
+                      disabled={deck.hasFlashcard}
+                    >
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <span className={deck.hasFlashcard ? "text-muted-foreground" : ""}>
+                          {deck.name}
                         </span>
+                        <div className="flex items-center gap-1">
+                          {deck.hasFlashcard && (
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            ({deck.cardCount} cards)
+                          </span>
+                        </div>
                       </div>
                     </SelectItem>
                   ))}

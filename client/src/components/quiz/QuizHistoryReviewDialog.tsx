@@ -56,7 +56,6 @@ export function QuizHistoryReviewDialog({
       const response = await apiRequest<{ data: AttemptDetails }>(
         `/api/quiz-attempts/${attemptId}`
       );
-      console.log('Quiz attempt data:', response.data);
       return response.data;
     },
     enabled: !!attemptId && open,
@@ -149,17 +148,6 @@ export function QuizHistoryReviewDialog({
                     }
                     
                     const isCorrect = attempt?.isCorrect ?? false;
-                    
-                    console.log(`Question ${index + 1}:`, {
-                      questionId: question.id,
-                      hasAttempt: !!attempt,
-                      userAnswer,
-                      isCorrect,
-                      correctAnswer: question.correctAnswer,
-                      questionType: question.type,
-                      questionData: question.questionData,
-                      attemptData: attempt
-                    });
 
                     return (
                       <Card key={`${question.id}-${index}`} className={`border-2 ${isCorrect ? 'border-green-300' : 'border-red-300'}`}>
@@ -190,21 +178,6 @@ export function QuizHistoryReviewDialog({
                                     
                                     const isUserAnswer = normalizedUserAnswer === normalizedOptionId;
                                     const isCorrectAnswer = normalizedCorrectAnswer === normalizedOptionId;
-                                    
-                                    // Debug logging
-                                    if (index === 0) {
-                                      console.log(`Question ${index + 1}, Option ${option.id}:`, {
-                                        userAnswer,
-                                        normalizedUserAnswer,
-                                        correctAnswer: question.correctAnswer,
-                                        normalizedCorrectAnswer,
-                                        optionId: option.id,
-                                        normalizedOptionId,
-                                        isUserAnswer,
-                                        isCorrectAnswer,
-                                        isCorrect
-                                      });
-                                    }
 
                                     // Determine styling based on correctness
                                     let bgClass = 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700';

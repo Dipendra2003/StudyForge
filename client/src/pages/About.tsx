@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import { FaDiscord, FaXTwitter } from "react-icons/fa6";
 
 export default function About() {
   const [, setLocation] = useLocation();
@@ -18,7 +19,7 @@ export default function About() {
   };
   
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">
@@ -28,9 +29,9 @@ export default function About() {
               About <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Jadoo 2.0</span>
             </h1>
             
-            <div className="bg-white rounded-xl shadow-md p-8 mb-12">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 mb-12">
               <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
-              <p className="text-gray-700 mb-6">
+              <p className="text-gray-700 dark:text-gray-300 mb-6">
                 StudyForge (Jadoo 2.0) is built with a simple yet powerful mission: to democratize access to personalized education through 
                 artificial intelligence. We believe that every student deserves an intelligent study companion that adapts to their 
                 unique learning style, making education more accessible, engaging, and effective. Our platform combines cutting-edge AI 
@@ -39,11 +40,11 @@ export default function About() {
               </p>
               
               <h2 className="text-2xl font-semibold mb-4">What is StudyForge?</h2>
-              <p className="text-gray-700 mb-4">
+              <p className="text-gray-700 dark:text-gray-300 mb-4">
                 StudyForge is an AI-powered study platform that revolutionizes the way students learn and retain information. Built with 
                 modern web technologies and powered by Google Gemini AI, our platform offers:
               </p>
-              <ul className="list-disc list-inside text-gray-700 mb-6 space-y-2">
+              <ul className="list-disc list-inside text-gray-700 dark:text-gray-300 mb-6 space-y-2">
                 <li><strong>Smart Flashcard Generation:</strong> Automatically create flashcards from your documents, notes, or any text content</li>
                 <li><strong>Adaptive Quiz System:</strong> Take quizzes that adjust difficulty based on your performance in real-time</li>
                 <li><strong>AI Chat Assistant:</strong> Get instant help with your study questions, explanations, and concept clarifications</li>
@@ -55,7 +56,7 @@ export default function About() {
               </ul>
               
               <h2 className="text-2xl font-semibold mb-4">The Story Behind Jadoo</h2>
-              <p className="text-gray-700 mb-6">
+              <p className="text-gray-700 dark:text-gray-300 mb-6">
                 The name "Jadoo" means "magic" in Hindi, and that's exactly what we aim to bring to the learning experience. 
                 This project was born from the firsthand experience of struggling with traditional study methods and wishing for a 
                 smarter, more personalized way to learn. StudyForge was created to be the magical study assistant that transforms 
@@ -63,7 +64,7 @@ export default function About() {
               </p>
               
               <h2 className="text-2xl font-semibold mb-4">Our Technology Stack</h2>
-              <p className="text-gray-700 mb-4">
+              <p className="text-gray-700 dark:text-gray-300 mb-4">
                 StudyForge is built with cutting-edge technologies to ensure a fast, reliable, and scalable learning experience:
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -175,7 +176,7 @@ export default function About() {
                   </div>
                   <div className="flex-grow">
                     <h3 className="text-2xl font-bold mb-2">Dipendra Kumar</h3>
-                    <p className="text-gray-700 mb-3">
+                    <p className="text-gray-700 dark:text-gray-300 mb-3">
                       Full-Stack Developer & Creator of StudyForge
                     </p>
                     <p className="text-gray-600 mb-4">
@@ -186,6 +187,14 @@ export default function About() {
                       to students worldwide by leveraging the power of AI and innovative learning methodologies.
                     </p>
                     <div className="flex flex-wrap gap-3">
+                      <a 
+                        href="https://x.com/Dipendrasah76" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-4 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors"
+                      >
+                        <i className="fab fa-x-twitter mr-2"></i> Twitter
+                      </a>
                       <a 
                         href="https://github.com/Dipendra2003" 
                         target="_blank" 
@@ -221,30 +230,6 @@ export default function About() {
                 </div>
               </div>
               
-              <h2 className="text-2xl font-semibold mb-4">Open Source & Community</h2>
-              <p className="text-gray-700 mb-4">
-                StudyForge is committed to transparency and community collaboration. The project is open source and available on GitHub, 
-                welcoming contributions from developers worldwide. We believe in building in public and sharing knowledge with the community.
-              </p>
-              <div className="flex flex-wrap gap-3 mb-8">
-                <a 
-                  href="https://github.com/Dipendra2003/StudyForge" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-full hover:bg-gray-800 transition-colors"
-                >
-                  <i className="fab fa-github mr-2"></i> View on GitHub
-                </a>
-                <a 
-                  href="https://github.com/Dipendra2003/StudyForge/issues" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-4 py-2 border-2 border-gray-900 text-gray-900 rounded-full hover:bg-gray-900 hover:text-white transition-colors"
-                >
-                  <i className="fas fa-bug mr-2"></i> Report Issues
-                </a>
-              </div>
-              
               <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
                 <Button onClick={() => setLocation("/")} variant="outline" className="rounded-full">
                   Back to Home
@@ -261,11 +246,15 @@ export default function About() {
                 Connect with other students and educators using Jadoo 2.0 to share study tips, resources, and success stories.
               </p>
               <div className="flex justify-center space-x-4">
-                <Button variant="outline" className="rounded-full">
-                  <i className="fab fa-discord mr-2"></i> Join Discord
+                <Button variant="outline" className="rounded-full" asChild>
+                  <a href="https://discord.gg/your-discord-invite" target="_blank" rel="noopener noreferrer">
+                    <FaDiscord className="mr-2 h-4 w-4" /> Join Discord
+                  </a>
                 </Button>
-                <Button variant="outline" className="rounded-full">
-                  <i className="fab fa-twitter mr-2"></i> Follow Us
+                <Button variant="outline" className="rounded-full" asChild>
+                  <a href="https://x.com/Dipendrasah76" target="_blank" rel="noopener noreferrer">
+                    <FaXTwitter className="mr-2 h-4 w-4" /> Follow Us
+                  </a>
                 </Button>
               </div>
             </div>

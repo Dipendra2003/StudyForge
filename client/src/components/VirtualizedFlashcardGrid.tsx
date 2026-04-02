@@ -57,7 +57,7 @@ export function VirtualizedFlashcardGrid({
 
   const columnCount = getColumnCount();
   const columnWidth = Math.floor(dimensions.width / columnCount);
-  const rowHeight = 400; // Approximate height of a flashcard
+  const rowHeight = 320; // Reduced height for better spacing
   const rowCount = Math.ceil(flashcards.length / columnCount);
 
   // Only use virtualization if there are many cards
@@ -66,7 +66,7 @@ export function VirtualizedFlashcardGrid({
   if (!shouldVirtualize) {
     // For small lists, render normally without virtualization
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
         {flashcards.map((card) => (
           <FlashcardCard
             key={card.id}
@@ -87,7 +87,7 @@ export function VirtualizedFlashcardGrid({
 
     const card = flashcards[index];
     return (
-      <div style={{ ...style, padding: "8px" }}>
+      <div style={{ ...style, padding: "10px" }}>
         <FlashcardCard
           card={card}
           onEdit={onEdit}

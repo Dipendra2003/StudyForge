@@ -1,7 +1,13 @@
-import { useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { X, Download, Share2, BookOpen, Pencil, Trash2, Sparkles, Target, Calendar } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Download, Share2, BookOpen, Pencil, Sparkles, Target, Calendar, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatFlashcardText } from "@/lib/formatText";
 
@@ -26,7 +32,6 @@ interface FlashcardDetailModalProps {
   onClose: () => void;
   onEdit: (card: Flashcard) => void;
   onAddToDeck: (cardId: number) => void;
-  onDelete: (cardId: number) => void;
 }
 
 export function FlashcardDetailModal({
@@ -35,31 +40,20 @@ export function FlashcardDetailModal({
   onClose,
   onEdit,
   onAddToDeck,
-  onDelete,
 }: FlashcardDetailModalProps) {
-  // Handle ESC key press
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
+  // Fetch decks to check if card is already in any deck
+  const { data: decksData, isLoading: isLoadingDecks } = useQuery({
+    queryKey: ['/api/decks', { flashcardId: card.id }],
+    queryFn: async () => {
+      const response = await apiRequest<{ decks: Array<{ id: number; name: string; hasFlashcard?: boolean }> }>(`/api/decks?flashcardId=${card.id}`);
+      return response.decks || [];
+    },
+    enabled: isOpen, // Only fetch when modal is open
+  });
 
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isOpen]);
+  // Count how many decks contain this card
+  const decksWithCard = decksData?.filter(d => d.hasFlashcard) || [];
+  const isInAnyDeck = decksWithCard.length > 0;
 
   // Get category emoji and color
   const getCategoryStyle = (category: string) => {
@@ -112,7 +106,7 @@ export function FlashcardDetailModal({
       try {
         await navigator.share(shareData);
       } catch (err) {
-        console.log("Share cancelled or failed");
+        // Share cancelled or failed silently
       }
     } else {
       // Fallback: copy to clipboard
@@ -122,190 +116,186 @@ export function FlashcardDetailModal({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-            onClick={onClose}
-          />
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden">
+        {/* Header with gradient */}
+        <div className={cn("h-2 bg-gradient-to-r", categoryStyle.color)} />
+        
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-0">
+          <DialogTitle className="sr-only">Flashcard Details</DialogTitle>
+        </DialogHeader>
 
-          {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="w-full max-w-3xl max-h-[90vh] overflow-hidden pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden backdrop-blur-xl bg-opacity-95 dark:bg-opacity-95">
-                {/* Header with gradient */}
-                <div className={cn("h-2 bg-gradient-to-r", categoryStyle.color)} />
-                
-                <div className="relative">
-                  {/* Close button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-4 right-4 h-8 w-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 z-10"
-                    onClick={onClose}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-
-                  {/* Content */}
-                  <div className="p-6 sm:p-8 overflow-y-auto max-h-[calc(90vh-8rem)]">
-                    {/* Tags Section */}
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      <span className={cn(
-                        "inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full",
-                        categoryStyle.bg,
-                        "border",
-                        categoryStyle.border
-                      )}>
-                        <span className="text-base">{categoryStyle.emoji}</span>
-                        <span className="capitalize">{card.category}</span>
-                      </span>
-                      <span className={cn(
-                        "inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full",
-                        difficultyStyle.color
-                      )}>
-                        <Target className="h-4 w-4" />
-                        {difficultyStyle.label}
-                      </span>
-                      {card.nextReviewDate && (
-                        <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full bg-primary/10 text-primary border border-primary/20">
-                          <Calendar className="h-4 w-4" />
-                          Review: {new Date(card.nextReviewDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Question Section */}
-                    <div className="mb-8">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/20">
-                          <Sparkles className="h-5 w-5 text-white" />
-                        </div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                          Question
-                        </h2>
-                      </div>
-                      
-                      {card.questionImage && (
-                        <div className="mb-4 flex justify-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                          <img
-                            src={card.questionImage}
-                            alt="Question visual"
-                            className="max-w-full max-h-64 rounded-lg object-contain shadow-md"
-                          />
-                        </div>
-                      )}
-                      
-                      <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
-                        <p className="text-base sm:text-lg leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {formatFlashcardText(card.question)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="relative my-8">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
-                      </div>
-                      <div className="relative flex justify-center">
-                        <span className="bg-white dark:bg-gray-900 px-4 text-sm font-medium text-gray-500">
-                          Answer
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Answer Section */}
-                    <div className="mb-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/20">
-                          <BookOpen className="h-5 w-5 text-white" />
-                        </div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                          Answer
-                        </h2>
-                      </div>
-                      
-                      {card.answerImage && (
-                        <div className="mb-4 flex justify-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                          <img
-                            src={card.answerImage}
-                            alt="Answer visual"
-                            className="max-w-full max-h-64 rounded-lg object-contain shadow-md"
-                          />
-                        </div>
-                      )}
-                      
-                      <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
-                        <p className="text-base sm:text-lg leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {formatFlashcardText(card.answer)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer Actions */}
-                  <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 p-4 sm:p-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <Button
-                        variant="outline"
-                        className="w-full border-2 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950/20 dark:hover:border-blue-700 transition-all"
-                        onClick={handleDownload}
-                      >
-                        <Download className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Download</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full border-2 hover:bg-purple-50 hover:border-purple-300 dark:hover:bg-purple-950/20 dark:hover:border-purple-700 transition-all"
-                        onClick={handleShare}
-                      >
-                        <Share2 className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Share</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full border-2 hover:bg-green-50 hover:border-green-300 dark:hover:bg-green-950/20 dark:hover:border-green-700 transition-all"
-                        onClick={() => {
-                          onAddToDeck(card.id);
-                          onClose();
-                        }}
-                      >
-                        <BookOpen className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Add to Deck</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full border-2 hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-950/20 dark:hover:border-amber-700 transition-all"
-                        onClick={() => {
-                          onEdit(card);
-                          onClose();
-                        }}
-                      >
-                        <Pencil className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Edit</span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto px-4 sm:px-6 md:px-8 py-4">
+          {/* Tags Section */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            <span className={cn(
+              "inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full",
+              categoryStyle.bg,
+              "border",
+              categoryStyle.border
+            )}>
+              <span className="text-base">{categoryStyle.emoji}</span>
+              <span className="capitalize">{card.category}</span>
+            </span>
+            <span className={cn(
+              "inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full",
+              difficultyStyle.color
+            )}>
+              <Target className="h-4 w-4" />
+              {difficultyStyle.label}
+            </span>
+            {card.nextReviewDate && (
+              <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full bg-primary/10 text-primary border border-primary/20">
+                <Calendar className="h-4 w-4" />
+                Review: {new Date(card.nextReviewDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
           </div>
-        </>
-      )}
-    </AnimatePresence>
+
+          {/* Question Section */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/20">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Question
+              </h2>
+            </div>
+            
+            {card.questionImage && (
+              <div className="mb-4 flex justify-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                <img
+                  src={card.questionImage}
+                  alt="Question visual"
+                  className="max-w-full max-h-64 rounded-lg object-contain shadow-md"
+                />
+              </div>
+            )}
+            
+            <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
+              <p className="text-base sm:text-lg leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                {formatFlashcardText(card.question)}
+              </p>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-white dark:bg-gray-900 px-4 text-sm font-medium text-gray-500">
+                Answer
+              </span>
+            </div>
+          </div>
+
+          {/* Answer Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg shadow-green-500/20">
+                <BookOpen className="h-5 w-5 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Answer
+              </h2>
+            </div>
+            
+            {card.answerImage && (
+              <div className="mb-4 flex justify-center p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                <img
+                  src={card.answerImage}
+                  alt="Answer visual"
+                  className="max-w-full max-h-64 rounded-lg object-contain shadow-md"
+                />
+              </div>
+            )}
+            
+            <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
+              <p className="text-base sm:text-lg leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                {formatFlashcardText(card.answer)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 p-3 sm:p-4 md:p-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-2 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950/20 dark:hover:border-blue-700 transition-all text-xs sm:text-sm"
+              onClick={handleDownload}
+            >
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Download</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-2 hover:bg-purple-50 hover:border-purple-300 dark:hover:bg-purple-950/20 dark:hover:border-purple-700 transition-all text-xs sm:text-sm"
+              onClick={handleShare}
+            >
+              <Share2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "w-full border-2 transition-all text-xs sm:text-sm",
+                isInAnyDeck 
+                  ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-950/20 dark:border-green-700 dark:text-green-400 cursor-default"
+                  : "hover:bg-green-50 hover:border-green-300 dark:hover:bg-green-950/20 dark:hover:border-green-700"
+              )}
+              onClick={() => {
+                if (!isInAnyDeck) {
+                  onAddToDeck(card.id);
+                  onClose();
+                }
+              }}
+              disabled={isLoadingDecks}
+            >
+              {isLoadingDecks ? (
+                <>
+                  <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                  <span className="hidden sm:inline">Checking...</span>
+                </>
+              ) : isInAnyDeck ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">
+                    In {decksWithCard.length} Deck{decksWithCard.length > 1 ? 's' : ''}
+                  </span>
+                  <span className="sm:hidden">✓ Added</span>
+                </>
+              ) : (
+                <>
+                  <BookOpen className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Add to Deck</span>
+                  <span className="sm:hidden">Add</span>
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-2 hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-950/20 dark:hover:border-amber-700 transition-all text-xs sm:text-sm"
+              onClick={() => {
+                onEdit(card);
+                onClose();
+              }}
+            >
+              <Pencil className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
