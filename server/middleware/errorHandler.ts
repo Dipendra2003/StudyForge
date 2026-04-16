@@ -56,6 +56,45 @@ export class AuthorizationError extends AppError {
 }
 
 /**
+ * NotFoundError for resource not found
+ * Requirements: 19.4
+ */
+export class NotFoundError extends AppError {
+  constructor(message: string = 'Resource not found') {
+    super(404, message, true);
+    this.name = 'NotFoundError';
+    Object.setPrototypeOf(this, NotFoundError.prototype);
+  }
+}
+
+/**
+ * ConflictError for resource conflicts (e.g., duplicate entries)
+ * Requirements: 19.4
+ */
+export class ConflictError extends AppError {
+  constructor(message: string = 'Resource conflict') {
+    super(409, message, true);
+    this.name = 'ConflictError';
+    Object.setPrototypeOf(this, ConflictError.prototype);
+  }
+}
+
+/**
+ * ForeignKeyError for foreign key constraint violations
+ * Requirements: 19.6
+ */
+export class ForeignKeyError extends AppError {
+  public relatedResource?: string;
+
+  constructor(message: string = 'Cannot delete resource with related data', relatedResource?: string) {
+    super(409, message, true);
+    this.name = 'ForeignKeyError';
+    this.relatedResource = relatedResource;
+    Object.setPrototypeOf(this, ForeignKeyError.prototype);
+  }
+}
+
+/**
  * RateLimitError for rate limit violations
  * Requirements: 10.11
  */
@@ -79,6 +118,7 @@ interface ErrorResponse {
   stack?: string;
   code?: string;
   retryable?: boolean;
+  relatedResource?: string;
 }
 
 /**
@@ -207,7 +247,47 @@ export function errorHandler(
     const errorResponse: ErrorResponse = {
       success: false,
       message: err.message,
+      code: 'INSUFFICIENT_PERMISSIONS',
     };
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle NotFoundError
+  if (err instanceof NotFoundError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+      code: 'NOT_FOUND',
+    };
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle ConflictError
+  if (err instanceof ConflictError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+      code: 'CONFLICT',
+    };
+
+    return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle ForeignKeyError with explanatory message
+  if (err instanceof ForeignKeyError) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: err.message,
+      code: 'FOREIGN_KEY_CONSTRAINT',
+      relatedResource: err.relatedResource,
+    };
+
+    // Include stack trace only in development
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = err.stack;
+    }
 
     return res.status(err.statusCode).json(errorResponse);
   }
@@ -225,6 +305,25 @@ export function errorHandler(
     }
     
     return res.status(err.statusCode).json(errorResponse);
+  }
+
+  // Handle database foreign key constraint errors
+  if (err.message && (
+    err.message.includes('foreign key constraint') ||
+    err.message.includes('FOREIGN KEY') ||
+    err.message.includes('Cannot delete or update a parent row')
+  )) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      message: 'Cannot delete this resource because it has related data. Please remove related items first.',
+      code: 'FOREIGN_KEY_CONSTRAINT',
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = err.stack;
+    }
+
+    return res.status(409).json(errorResponse);
   }
 
   // Handle database errors (sanitize message to avoid exposing internal details)

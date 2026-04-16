@@ -8,7 +8,6 @@ import { eq, and, desc, sql } from 'drizzle-orm';
  * This service provides achievement and badge functionality including
  * badge awards based on performance, milestone tracking, and achievement retrieval.
  * 
- * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 26.4
  */
 
 export interface Achievement {

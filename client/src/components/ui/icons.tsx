@@ -35,6 +35,13 @@ import {
   Award,
   Clock,
   FileIcon,
+  Play,
+  FileCode,
+  Terminal,
+  Lightbulb,
+  Info,
+  Archive,
+  History,
 } from "lucide-react";
 import React from "react";
 
@@ -75,6 +82,13 @@ export const Icons = {
   award: Award,
   clock: Clock,
   page: FileIcon,
+  play: Play,
+  fileCode: FileCode,
+  terminal: Terminal,
+  lightbulb: Lightbulb,
+  info: Info,
+  archive: Archive,
+  history: History,
   gitHub: (props: React.SVGProps<SVGSVGElement>) => (
     <svg
       aria-hidden="true"

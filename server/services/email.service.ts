@@ -487,4 +487,371 @@ export class EmailService {
       // Don't throw error - contact form should still work even if email fails
     }
   }
+
+  /**
+   * Send study plan reminder email
+   * 
+   * Generic method for sending study plan related emails (reminders, alerts, summaries)
+   * 
+   * @param userId - The user's ID
+   * @param email - The user's email address
+   * @param subject - Email subject
+   * @param htmlContent - HTML content of the email
+   * @param textContent - Plain text content of the email
+   * @returns Promise<void>
+   */
+  public async sendStudyPlanEmail(
+    userId: number,
+    email: string,
+    subject: string,
+    htmlContent: string,
+    textContent: string
+  ): Promise<void> {
+    const emailType = 'study_plan_reminder';
+
+    try {
+      await this.sendEmail(email, subject, htmlContent, textContent);
+      await this.recordEmailSent(userId, emailType, email, subject, 'sent');
+      
+      console.log(`[EmailService] Study plan email sent successfully to ${email}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(userId, emailType, email, subject, 'failed', errorMessage);
+      
+      console.error('[EmailService] Failed to send study plan email:', error);
+      // Don't throw - reminders should not break the system
+    }
+  }
+
+  /**
+   * Send password reset by admin email
+   * Sends temporary password to user when admin resets their password
+   */
+  public async sendPasswordResetByAdmin(
+    email: string,
+    username: string,
+    tempPassword: string
+  ): Promise<void> {
+    const emailType = 'admin_password_reset';
+    const subject = 'Your Password Has Been Reset - StudyForge';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; }
+          .password-box { background: #fff; border: 2px solid #4F46E5; padding: 15px; margin: 20px 0; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 2px; }
+          .warning { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Password Reset by Administrator</h1>
+          </div>
+          <div class="content">
+            <p>Hello ${username},</p>
+            <p>An administrator has reset your password. Your temporary password is:</p>
+            <div class="password-box">${tempPassword}</div>
+            <div class="warning">
+              <strong>⚠️ Important Security Notice:</strong>
+              <ul>
+                <li>This is a temporary password</li>
+                <li>Please change it immediately after logging in</li>
+                <li>Do not share this password with anyone</li>
+                <li>If you did not request this reset, contact support immediately</li>
+              </ul>
+            </div>
+            <p>To change your password:</p>
+            <ol>
+              <li>Log in with the temporary password above</li>
+              <li>Go to your account settings</li>
+              <li>Select "Change Password"</li>
+              <li>Enter a new secure password</li>
+            </ol>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from StudyForge. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Password Reset by Administrator
+
+Hello ${username},
+
+An administrator has reset your password. Your temporary password is:
+
+${tempPassword}
+
+⚠️ Important Security Notice:
+- This is a temporary password
+- Please change it immediately after logging in
+- Do not share this password with anyone
+- If you did not request this reset, contact support immediately
+
+To change your password:
+1. Log in with the temporary password above
+2. Go to your account settings
+3. Select "Change Password"
+4. Enter a new secure password
+
+This is an automated message from StudyForge.
+    `;
+
+    try {
+      await this.sendEmail(email, subject, html, text);
+      await this.recordEmailSent(null, emailType, email, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(null, emailType, email, subject, 'failed', errorMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * Send email change verification
+   */
+  public async sendEmailChangeVerification(
+    newEmail: string,
+    token: string,
+    otp: string
+  ): Promise<void> {
+    const emailType = 'email_change_verification';
+    const subject = 'Verify Your New Email Address - StudyForge';
+    const appUrl = process.env.APP_URL || 'http://localhost:5000';
+    const verificationLink = `${appUrl}/verify-email-change?token=${token}`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; }
+          .otp-box { background: #fff; border: 2px solid #4F46E5; padding: 15px; margin: 20px 0; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; }
+          .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Verify Your New Email</h1>
+          </div>
+          <div class="content">
+            <p>You requested to change your email address. Please verify this new email address to complete the change.</p>
+            <p>Your verification code is:</p>
+            <div class="otp-box">${otp}</div>
+            <p style="text-align: center;">Or click the button below:</p>
+            <p style="text-align: center;">
+              <a href="${verificationLink}" class="button">Verify Email Address</a>
+            </p>
+            <p><strong>This code will expire in 24 hours.</strong></p>
+            <p>If you did not request this change, please ignore this email or contact support if you're concerned about your account security.</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from StudyForge. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Verify Your New Email Address
+
+You requested to change your email address. Please verify this new email address to complete the change.
+
+Your verification code is: ${otp}
+
+Or visit: ${verificationLink}
+
+This code will expire in 24 hours.
+
+If you did not request this change, please ignore this email or contact support if you're concerned about your account security.
+    `;
+
+    try {
+      await this.sendEmail(newEmail, subject, html, text);
+      await this.recordEmailSent(null, emailType, newEmail, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(null, emailType, newEmail, subject, 'failed', errorMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * Send email changed notification to old email
+   */
+  public async sendEmailChangedNotification(
+    oldEmail: string,
+    username: string
+  ): Promise<void> {
+    const emailType = 'email_changed_notification';
+    const subject = 'Your Email Address Has Been Changed - StudyForge';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; }
+          .warning { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Email Address Changed</h1>
+          </div>
+          <div class="content">
+            <p>Hello ${username},</p>
+            <p>This is to confirm that your email address has been successfully changed.</p>
+            <div class="warning">
+              <strong>⚠️ Security Notice:</strong>
+              <p>If you did not make this change, your account may have been compromised. Please contact support immediately.</p>
+            </div>
+            <p>Your account is now associated with a new email address. All future communications will be sent to your new email.</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from StudyForge. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Email Address Changed
+
+Hello ${username},
+
+This is to confirm that your email address has been successfully changed.
+
+⚠️ Security Notice:
+If you did not make this change, your account may have been compromised. Please contact support immediately.
+
+Your account is now associated with a new email address. All future communications will be sent to your new email.
+
+This is an automated message from StudyForge.
+    `;
+
+    try {
+      await this.sendEmail(oldEmail, subject, html, text);
+      await this.recordEmailSent(null, emailType, oldEmail, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(null, emailType, oldEmail, subject, 'failed', errorMessage);
+      // Don't throw - this is a notification email
+    }
+  }
+
+  /**
+   * Send suspicious activity alert
+   */
+  public async sendSuspiciousActivityAlert(
+    email: string,
+    username: string,
+    alerts: Array<{ alertType: string; description: string; severity: string }>
+  ): Promise<void> {
+    const emailType = 'security_alert';
+    const subject = '🔒 Security Alert - Unusual Activity Detected - StudyForge';
+
+    const alertsHtml = alerts.map(alert => `
+      <div style="background: ${alert.severity === 'high' ? '#FEE2E2' : alert.severity === 'medium' ? '#FEF3C7' : '#E0E7FF'}; 
+                  border-left: 4px solid ${alert.severity === 'high' ? '#DC2626' : alert.severity === 'medium' ? '#F59E0B' : '#6366F1'}; 
+                  padding: 15px; margin: 10px 0;">
+        <strong>${alert.severity.toUpperCase()} Priority:</strong> ${alert.description}
+      </div>
+    `).join('');
+
+    const alertsText = alerts.map(alert => 
+      `${alert.severity.toUpperCase()} Priority: ${alert.description}`
+    ).join('\n');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #DC2626; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🔒 Security Alert</h1>
+          </div>
+          <div class="content">
+            <p>Hello ${username},</p>
+            <p>We've detected unusual activity on your account:</p>
+            ${alertsHtml}
+            <p><strong>What should you do?</strong></p>
+            <ul>
+              <li>Review your recent account activity</li>
+              <li>Change your password if you suspect unauthorized access</li>
+              <li>Enable two-factor authentication for added security</li>
+              <li>Contact support if you need assistance</li>
+            </ul>
+            <p>If this activity was you, you can safely ignore this message.</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated security alert from StudyForge. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+🔒 Security Alert - Unusual Activity Detected
+
+Hello ${username},
+
+We've detected unusual activity on your account:
+
+${alertsText}
+
+What should you do?
+- Review your recent account activity
+- Change your password if you suspect unauthorized access
+- Enable two-factor authentication for added security
+- Contact support if you need assistance
+
+If this activity was you, you can safely ignore this message.
+
+This is an automated security alert from StudyForge.
+    `;
+
+    try {
+      await this.sendEmail(email, subject, html, text);
+      await this.recordEmailSent(null, emailType, email, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(null, emailType, email, subject, 'failed', errorMessage);
+      // Don't throw - this is a notification email
+    }
+  }
 }
+
+export const emailService = new EmailService();

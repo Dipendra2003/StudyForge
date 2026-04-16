@@ -26,6 +26,10 @@ export enum LogCategory {
   BUSINESS = 'BUSINESS', // Business logic operations
   AI = 'AI', // AI service operations (Gemini, question generation)
   CACHE = 'CACHE', // Cache operations (hits, misses, evictions)
+  ADMIN = 'ADMIN', // Admin operations
+  DATABASE = 'DATABASE', // Database operations
+  ANALYTICS = 'ANALYTICS', // Analytics operations
+  PERFORMANCE = 'PERFORMANCE', // Performance monitoring
 }
 
 interface LogContext {

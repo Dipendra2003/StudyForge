@@ -36,6 +36,10 @@ import bcrypt from "bcrypt";
 import { EmailService } from "./services/email.service";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
+import { uploadRateLimiter, profilePictureRateLimiter } from "./middleware/upload-rate-limiter";
+import { validateImageUpload, validateDocumentUpload, validateWithVirusScan } from "./middleware/file-validation.middleware";
+import { virusScanService } from "./services/virus-scan.service";
+import { cloudinaryService } from "./services/cloudinary";
 
 // Initialize email service
 const emailService = new EmailService();
@@ -127,6 +131,42 @@ const imageUpload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ===== Health Check Endpoints =====
+  
+  // System health check
+  app.get('/api/health', async (_req: Request, res: Response) => {
+    try {
+      const virusScanAvailable = await virusScanService.isAvailable();
+      const cloudinaryAvailable = cloudinaryService.isAvailable();
+      
+      const health = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        services: {
+          virusScan: {
+            enabled: process.env.ENABLE_VIRUS_SCAN === 'true',
+            available: virusScanAvailable,
+            status: virusScanAvailable ? 'operational' : 'unavailable',
+          },
+          cloudinary: {
+            configured: cloudinaryAvailable,
+            status: cloudinaryAvailable ? 'operational' : 'not_configured',
+          },
+          database: {
+            status: 'operational', // Assume operational if we can respond
+          },
+        },
+      };
+      
+      res.status(200).json(health);
+    } catch (error) {
+      res.status(503).json({
+        status: 'unhealthy',
+        error: 'Health check failed',
+      });
+    }
+  });
+  
   // ===== Authentication Endpoints =====
   
   // Test endpoint to reset rate limiter (development only)
@@ -247,14 +287,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User login
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      const { username, password } = req.body;
+      const { identifier, password } = req.body;
       
       Logger.auth('Login attempt started', {
         action: 'login',
-        username,
+        identifier,
       });
       
-      if (!username || !password) {
+      if (!identifier || !password) {
         Logger.security('Login failed - missing credentials', {
           action: 'login',
           reason: 'missing_credentials',
@@ -263,16 +303,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Try to find user by username first, then by email
-      let user = await storage.getUserByUsername(username);
+      let user = await storage.getUserByUsername(identifier);
       if (!user) {
-        user = await storage.getUserByEmail(username);
+        user = await storage.getUserByEmail(identifier);
       }
       
       // Return 401 for invalid credentials (user not found or password mismatch)
       if (!user) {
         Logger.security('Login failed - user not found', {
           action: 'login',
-          username,
+          identifier,
           reason: 'user_not_found',
         });
         return res.status(401).json({ message: "Invalid credentials" });
@@ -1039,7 +1079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Document Management Endpoints =====
   
   // Extract text from uploaded file (PDF, Word, etc.)
-  app.post('/api/extract-text', jwtAuth, upload.single('file'), async (req: Request, res: Response) => {
+  app.post('/api/extract-text', jwtAuth, uploadRateLimiter, upload.single('file'), validateDocumentUpload, validateWithVirusScan, async (req: Request, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -4490,6 +4530,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
+
+  // Update code snippet
+  app.put('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const snippetId = parseInt(req.params.id);
+      const updates = req.body;
+
+      if (!snippetId) {
+        return res.status(400).json({ message: "Snippet ID is required" });
+      }
+
+      // Verify ownership
+      const snippet = await storage.getCodeSnippetById(snippetId);
+      if (!snippet) {
+        return res.status(404).json({ message: "Code snippet not found" });
+      }
+      if (snippet.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized to update this snippet" });
+      }
+
+      // Update the snippet
+      const updatedSnippet = await storage.updateCodeSnippet(snippetId, updates);
+
+      return res.status(200).json({
+        message: "Code snippet updated successfully",
+        snippet: updatedSnippet
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
+  // Delete code snippet
+  app.delete('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const snippetId = parseInt(req.params.id);
+
+      if (!snippetId) {
+        return res.status(400).json({ message: "Snippet ID is required" });
+      }
+
+      // Verify ownership
+      const snippet = await storage.getCodeSnippetById(snippetId);
+      if (!snippet) {
+        return res.status(404).json({ message: "Code snippet not found" });
+      }
+      if (snippet.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized to delete this snippet" });
+      }
+
+      // Delete the snippet
+      await storage.deleteCodeSnippet(snippetId);
+
+      return res.status(200).json({
+        message: "Code snippet deleted successfully"
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
+  // Execute code
+  app.post('/api/code-executor', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { code, language } = req.body;
+      
+      if (!code || !language) {
+        return res.status(400).json({ message: "Code and language are required" });
+      }
+
+      // Map language names to JDoodle language IDs
+      const languageMap: Record<string, string> = {
+        'javascript': 'nodejs',
+        'python': 'python3',
+        'java': 'java',
+        'c++': 'cpp17',
+        'typescript': 'nodejs',
+        'go': 'go',
+        'rust': 'rust',
+        'ruby': 'ruby',
+        'php': 'php',
+        'swift': 'swift',
+        'kotlin': 'kotlin',
+        'c#': 'csharp',
+        'r': 'r',
+        'sql': 'sql',
+      };
+
+      const jdoodleLanguage = languageMap[language.toLowerCase()] || 'nodejs';
+
+      // Use JDoodle API for code execution
+      const jdoodleClientId = process.env.JDOODLE_CLIENT_ID;
+      const jdoodleClientSecret = process.env.JDOODLE_CLIENT_SECRET;
+
+      if (!jdoodleClientId || !jdoodleClientSecret) {
+        return res.status(500).json({ 
+          message: "Code execution service not configured. Please add JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET to your .env file",
+          output: "Error: Code execution service not available"
+        });
+      }
+
+      const response = await fetch('https://api.jdoodle.com/v1/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientId: jdoodleClientId,
+          clientSecret: jdoodleClientSecret,
+          script: code,
+          language: jdoodleLanguage,
+          versionIndex: '0',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        return res.status(400).json({
+          message: "Code execution failed",
+          output: result.error,
+        });
+      }
+
+      return res.status(200).json({
+        output: result.output || result.stdout || "Code executed successfully with no output",
+        memory: result.memory,
+        cpuTime: result.cpuTime,
+      });
+    } catch (error) {
+      console.error("Code execution error:", error);
+      return handleApiError(error, res);
+    }
+  });
   
   // Update code snippet (for adding/editing tags and categories)
   app.patch('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
@@ -4630,7 +4806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate study plan with AI
   app.post('/api/study-plans/generate', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const { topic, durationDays, goal } = req.body;
+      const { topic, durationDays, goal, preferences } = req.body;
       
       if (!topic) {
         return res.status(400).json({ message: "Topic is required" });
@@ -4639,24 +4815,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const duration = durationDays || 7;
       const studyGoal = goal || `Learn ${topic}`;
       
-      // Import and use the Gemini service
+      // Import and use the Gemini service with enhanced preferences
       const { geminiService } = await import('./services/gemini');
       
       let planData;
       try {
-        planData = await geminiService.generateStudyPlan(topic, duration, studyGoal, req.user?.id);
+        planData = await geminiService.generateStudyPlan(
+          topic, 
+          duration, 
+          studyGoal, 
+          req.user?.id,
+          preferences // Pass user preferences for intelligent scheduling
+        );
       } catch (error) {
         console.error("Error generating study plan:", error);
         return res.status(500).json({ message: "Failed to generate study plan" });
       }
       
+      // Calculate scheduled dates for each item
+      const startDate = new Date();
+      const scheduleDataWithDates = planData.scheduleData.map((item: any, index: number) => {
+        const scheduledDate = new Date(startDate);
+        scheduledDate.setDate(startDate.getDate() + index);
+        
+        // Set time based on preferences or default to 9:00 AM
+        const preferredTime = preferences?.preferredTimeOfDay || 'morning';
+        const hour = preferredTime === 'morning' ? 9 : preferredTime === 'afternoon' ? 14 : 18;
+        scheduledDate.setHours(hour, 0, 0, 0);
+        
+        return {
+          ...item,
+          scheduledDate: scheduledDate.toISOString(),
+          reminderSent: false,
+        };
+      });
+      
       return res.status(200).json({
         message: "Study plan generated successfully",
         title: planData.title,
         description: planData.description,
-        scheduleData: planData.scheduleData,
+        scheduleData: scheduleDataWithDates,
         subject: topic,
-        difficulty: "medium",
+        difficulty: preferences?.currentLevel || "medium",
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString()
       });
@@ -4719,7 +4919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/study-plans/:id/items', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
-      const { title, description, duration } = req.body;
+      const { title, description, duration, recurring, recurrencePattern, prerequisites, scheduledDate } = req.body;
       
       if (!title) {
         return res.status(400).json({ message: "Title is required" });
@@ -4741,27 +4941,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
       
-      // Create new item with unique ID
+      // Validate prerequisites exist
+      if (prerequisites && Array.isArray(prerequisites) && prerequisites.length > 0) {
+        const existingIds = scheduleData.map((item: any) => item.id);
+        const invalidPrereqs = prerequisites.filter((id: string) => !existingIds.includes(id));
+        
+        if (invalidPrereqs.length > 0) {
+          return res.status(400).json({ 
+            message: "Invalid prerequisite IDs", 
+            invalidIds: invalidPrereqs 
+          });
+        }
+      }
+      
+      // Create new item with unique ID and enhanced metadata
       const newItem = {
         id: String(Date.now()),
         title: title.trim(),
         description: description?.trim() || '',
         duration: typeof duration === 'number' ? duration : 60,
         completed: false,
+        dayNumber: scheduleData.length + 1,
+        difficulty: 'medium',
+        type: 'learning',
+        prerequisites: prerequisites || [],
+        resources: [],
+        reviewDay: false,
+        scheduledDate: scheduledDate || null,
+        reminderSent: false,
+        recurring: recurring || false,
+        recurrencePattern: recurrencePattern || null, // 'daily', 'weekly', 'biweekly'
+        createdAt: new Date().toISOString(),
       };
       
-      // Add the new item
       scheduleData.push(newItem);
       
       // Update the plan
       const updatedPlan = await storage.updateStudyPlan(planId, { 
-        scheduleData 
+        scheduleData: scheduleData 
       });
       
       return res.status(201).json({
         message: "Study item added successfully",
         plan: updatedPlan,
-        item: newItem
+        newItem
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -4928,6 +5151,293 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(200).json({
         message: "Study item completed successfully",
         plan: updatedPlan
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Reschedule overdue tasks automatically
+  app.post('/api/study-plans/:id/reschedule', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const { strategy } = req.body; // 'next-available', 'spread-evenly', 'compress'
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      let scheduleData = typeof plan.scheduleData === 'string' 
+        ? JSON.parse(plan.scheduleData || '[]') 
+        : plan.scheduleData || [];
+      
+      const now = new Date();
+      const incompleteTasks = scheduleData.filter((item: any) => !item.completed);
+      
+      // Apply rescheduling strategy
+      let rescheduledTasks = [];
+      
+      if (strategy === 'next-available') {
+        // Schedule all incomplete tasks starting tomorrow
+        rescheduledTasks = incompleteTasks.map((task: any, index: number) => {
+          const scheduledDate = new Date(now);
+          scheduledDate.setDate(now.getDate() + index + 1);
+          scheduledDate.setHours(9, 0, 0, 0);
+          
+          return {
+            ...task,
+            scheduledDate: scheduledDate.toISOString(),
+            reminderSent: false,
+          };
+        });
+      } else if (strategy === 'spread-evenly') {
+        // Spread tasks evenly until end date
+        const endDate = plan.endDate ? new Date(plan.endDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const daysAvailable = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const interval = Math.max(1, Math.floor(daysAvailable / incompleteTasks.length));
+        
+        rescheduledTasks = incompleteTasks.map((task: any, index: number) => {
+          const scheduledDate = new Date(now);
+          scheduledDate.setDate(now.getDate() + (index * interval) + 1);
+          scheduledDate.setHours(9, 0, 0, 0);
+          
+          return {
+            ...task,
+            scheduledDate: scheduledDate.toISOString(),
+            reminderSent: false,
+          };
+        });
+      } else if (strategy === 'compress') {
+        // Schedule 2-3 tasks per day to catch up quickly
+        const tasksPerDay = 2;
+        rescheduledTasks = incompleteTasks.map((task: any, index: number) => {
+          const dayOffset = Math.floor(index / tasksPerDay) + 1;
+          const scheduledDate = new Date(now);
+          scheduledDate.setDate(now.getDate() + dayOffset);
+          
+          // Stagger times throughout the day
+          const hour = 9 + (index % tasksPerDay) * 4; // 9 AM, 1 PM, etc.
+          scheduledDate.setHours(hour, 0, 0, 0);
+          
+          return {
+            ...task,
+            scheduledDate: scheduledDate.toISOString(),
+            reminderSent: false,
+          };
+        });
+      }
+      
+      // Merge rescheduled tasks back into schedule
+      const completedTasks = scheduleData.filter((item: any) => item.completed);
+      const updatedScheduleData = [...completedTasks, ...rescheduledTasks];
+      
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        scheduleData: updatedScheduleData 
+      });
+      
+      return res.status(200).json({
+        message: "Study plan rescheduled successfully",
+        plan: updatedPlan,
+        rescheduledCount: rescheduledTasks.length,
+        strategy
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Toggle reminder settings for a study plan
+  app.patch('/api/study-plans/:id/reminders', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const { enabled, reminderTime, reminderDays } = req.body;
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Update reminder settings (stored in scheduleData metadata or separate fields)
+      // Add reminder metadata to the plan
+      const reminderSettings = {
+        enabled: enabled !== undefined ? enabled : true,
+        reminderTime: reminderTime || '09:00', // HH:MM format
+        reminderDays: reminderDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      };
+      
+      // Store in description as metadata (or extend schema to add reminder fields)
+      const updatedDescription = plan.description 
+        ? `${plan.description}\n\n[REMINDER_SETTINGS:${JSON.stringify(reminderSettings)}]`
+        : `[REMINDER_SETTINGS:${JSON.stringify(reminderSettings)}]`;
+      
+      const updatedPlan = await storage.updateStudyPlan(planId, { 
+        description: updatedDescription 
+      });
+      
+      return res.status(200).json({
+        message: "Reminder settings updated successfully",
+        plan: updatedPlan,
+        reminderSettings
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Check prerequisites before starting a task
+  app.get('/api/study-plans/:id/items/:itemId/can-start', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      const itemId = req.params.itemId;
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      let scheduleData = typeof plan.scheduleData === 'string' 
+        ? JSON.parse(plan.scheduleData || '[]') 
+        : plan.scheduleData || [];
+      
+      const item = scheduleData.find((task: any) => task.id === itemId);
+      
+      if (!item) {
+        return res.status(404).json({ message: "Study item not found" });
+      }
+      
+      // Check if all prerequisites are completed
+      const prerequisites = item.prerequisites || [];
+      const unmetPrerequisites = [];
+      
+      for (const prereqId of prerequisites) {
+        const prereqTask = scheduleData.find((task: any) => task.id === prereqId);
+        if (prereqTask && !prereqTask.completed) {
+          unmetPrerequisites.push({
+            id: prereqTask.id,
+            title: prereqTask.title,
+          });
+        }
+      }
+      
+      const canStart = unmetPrerequisites.length === 0;
+      
+      return res.status(200).json({
+        canStart,
+        unmetPrerequisites,
+        message: canStart 
+          ? "You can start this task" 
+          : `Complete ${unmetPrerequisites.length} prerequisite task(s) first`
+      });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+  
+  // Get study plan analytics
+  app.get('/api/study-plans/:id/analytics', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      
+      const plan = await storage.getStudyPlanById(planId);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Study plan not found" });
+      }
+      
+      if (plan.userId !== req.user?.id!) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      let scheduleData = typeof plan.scheduleData === 'string' 
+        ? JSON.parse(plan.scheduleData || '[]') 
+        : plan.scheduleData || [];
+      
+      const now = new Date();
+      const totalTasks = scheduleData.length;
+      const completedTasks = scheduleData.filter((item: any) => item.completed).length;
+      const incompleteTasks = totalTasks - completedTasks;
+      
+      // Calculate overdue tasks
+      const overdueTasks = scheduleData.filter((item: any) => {
+        if (item.completed) return false;
+        if (!item.scheduledDate) return false;
+        return new Date(item.scheduledDate) < now;
+      }).length;
+      
+      // Calculate upcoming tasks (next 7 days)
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const upcomingTasks = scheduleData.filter((item: any) => {
+        if (item.completed) return false;
+        if (!item.scheduledDate) return false;
+        const scheduledDate = new Date(item.scheduledDate);
+        return scheduledDate >= now && scheduledDate <= sevenDaysFromNow;
+      }).length;
+      
+      // Calculate total study time
+      const totalStudyTime = scheduleData.reduce((sum: number, item: any) => sum + (item.duration || 0), 0);
+      const completedStudyTime = scheduleData
+        .filter((item: any) => item.completed)
+        .reduce((sum: number, item: any) => sum + (item.duration || 0), 0);
+      
+      // Calculate average completion rate per day
+      const startDate = plan.startDate ? new Date(plan.startDate) : new Date();
+      const daysSinceStart = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const tasksPerDay = completedTasks / daysSinceStart;
+      
+      // Estimate completion date
+      let estimatedCompletionDate = null;
+      if (tasksPerDay > 0 && incompleteTasks > 0) {
+        const daysRemaining = Math.ceil(incompleteTasks / tasksPerDay);
+        estimatedCompletionDate = new Date(now.getTime() + daysRemaining * 24 * 60 * 60 * 1000);
+      }
+      
+      // Task breakdown by type
+      const tasksByType = scheduleData.reduce((acc: any, item: any) => {
+        const type = item.type || 'learning';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
+      
+      // Task breakdown by difficulty
+      const tasksByDifficulty = scheduleData.reduce((acc: any, item: any) => {
+        const difficulty = item.difficulty || 'medium';
+        acc[difficulty] = (acc[difficulty] || 0) + 1;
+        return acc;
+      }, {});
+      
+      return res.status(200).json({
+        analytics: {
+          totalTasks,
+          completedTasks,
+          incompleteTasks,
+          overdueTasks,
+          upcomingTasks,
+          completionPercentage: Math.round((completedTasks / totalTasks) * 100),
+          totalStudyTime,
+          completedStudyTime,
+          remainingStudyTime: totalStudyTime - completedStudyTime,
+          averageTasksPerDay: Math.round(tasksPerDay * 10) / 10,
+          daysSinceStart,
+          estimatedCompletionDate: estimatedCompletionDate?.toISOString() || null,
+          tasksByType,
+          tasksByDifficulty,
+        }
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -5104,7 +5614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload profile picture
-  app.post('/api/profile/upload-picture', jwtAuth, imageUpload.single('profilePicture'), async (req: Request, res: Response) => {
+  app.post('/api/profile/upload-picture', jwtAuth, profilePictureRateLimiter, imageUpload.single('profilePicture'), validateImageUpload, validateWithVirusScan, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       
@@ -5119,33 +5629,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       let profilePictureUrl: string;
+      let storageType: 'cloudinary' | 'base64' = 'base64';
 
-      // Try to upload to Cloudinary first, fallback to base64
+      // Import Cloudinary service
       const { cloudinaryService } = await import('./services/cloudinary');
       
+      // PRIORITY: Try Cloudinary FIRST (not as fallback)
       if (cloudinaryService.isAvailable()) {
         try {
           // Get current user to delete old image if exists
           const currentUser = await storage.getUser(userId);
-          if (currentUser?.profilePicture) {
+          if (currentUser?.profilePicture && currentUser.profilePicture.startsWith('http')) {
             const oldPublicId = cloudinaryService.extractPublicId(currentUser.profilePicture);
             if (oldPublicId) {
-              await cloudinaryService.deleteImage(oldPublicId);
+              // Delete old image asynchronously (don't wait)
+              cloudinaryService.deleteImage(oldPublicId).catch(err => {
+                Logger.warn(LogCategory.SYSTEM, 'Failed to delete old profile picture', { error: err });
+              });
             }
           }
 
-          // Upload to Cloudinary
+          // Upload to Cloudinary with retry logic
           profilePictureUrl = await cloudinaryService.uploadProfilePicture(req.file.buffer, userId);
-          Logger.info(LogCategory.SYSTEM, 'Profile picture uploaded to Cloudinary', { userId, url: profilePictureUrl });
+          storageType = 'cloudinary';
+          
+          Logger.info(LogCategory.SYSTEM, 'Profile picture uploaded to Cloudinary', { 
+            userId, 
+            url: profilePictureUrl,
+            fileSize: req.file.size,
+          });
         } catch (cloudinaryError) {
-          Logger.error(LogCategory.SYSTEM, 'Cloudinary upload failed, using base64 fallback', { error: cloudinaryError });
-          // Fallback to base64
+          Logger.error(LogCategory.SYSTEM, 'Cloudinary upload failed, using base64 fallback', { 
+            error: cloudinaryError,
+            userId,
+          });
+          
+          // Fallback to base64 only if Cloudinary fails
           profilePictureUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+          storageType = 'base64';
+          
+          Logger.warn(LogCategory.SYSTEM, 'Using base64 storage for profile picture (Cloudinary failed)', { 
+            userId,
+            fileSize: req.file.size,
+          });
         }
       } else {
         // Cloudinary not configured, use base64
         profilePictureUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-        Logger.info(LogCategory.SYSTEM, 'Using base64 storage for profile picture (Cloudinary not configured)', { userId });
+        storageType = 'base64';
+        
+        Logger.info(LogCategory.SYSTEM, 'Using base64 storage for profile picture (Cloudinary not configured)', { 
+          userId,
+          fileSize: req.file.size,
+        });
       }
 
       // Update user profile with the image URL
@@ -5160,7 +5696,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(200).json({
         message: "Profile picture uploaded successfully",
         profilePictureUrl: profilePictureUrl,
-        storage: profilePictureUrl.startsWith('http') ? 'cloudinary' : 'base64'
+        storage: storageType,
+        fileSize: req.file.size,
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -5339,6 +5876,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register contact routes
   app.use('/api/contact', contactRoutes);
+  
+  // Register admin user management routes
+  const adminUserRoutes = (await import('./routes/admin/user.routes')).default;
+  app.use('/api/admin/users', adminUserRoutes);
+  
+  // Register admin content management routes
+  const adminContentRoutes = (await import('./routes/admin/content.routes')).default;
+  app.use('/api/admin/content', adminContentRoutes);
+  
+  // Register admin analytics routes
+  const adminAnalyticsRoutes = (await import('./routes/admin/analytics.routes')).default;
+  app.use('/api/admin/analytics', adminAnalyticsRoutes);
+  
+  // Register admin email management routes
+  const adminEmailRoutes = (await import('./routes/admin/email.routes')).default;
+  app.use('/api/admin/messages', adminEmailRoutes);
+  
+  // Register admin monitoring routes (logs and system endpoints)
+  const adminMonitoringRoutes = (await import('./routes/admin/monitoring.routes')).default;
+  app.use('/api/admin', adminMonitoringRoutes);
+  
+  // Register admin error logging routes
+  const adminErrorLogRoutes = (await import('./routes/admin/error-log.routes')).default;
+  app.use('/api/admin/logs', adminErrorLogRoutes);
+  
+  // Register admin security routes (password reset, login history, bulk operations)
+  const adminSecurityRoutes = (await import('./routes/admin/security.routes')).default;
+  app.use('/api/admin/security', adminSecurityRoutes);
+  
+  // Register user security routes (email change, login history, account recovery)
+  const userSecurityRoutes = (await import('./routes/user/security.routes')).default;
+  app.use('/api/user/security', userSecurityRoutes);
   
   // Admin endpoint to clear quiz cache
   app.post('/api/admin/clear-cache', jwtAuth, async (req: Request, res: Response) => {

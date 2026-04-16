@@ -60,7 +60,7 @@
 
 ### 🤖 AI-Powered Tools
 - **AI Chat Assistant** - Interactive learning companion for instant help
-- **Code Generator** - Generate code snippets and explanations
+- **Code Generator** - Generate code snippets with explanations and run them instantly
 - **Bulk Quiz Generation** - Create multiple quizzes simultaneously
 - **Smart Hints** - Context-aware hints during quizzes
 
@@ -173,6 +173,10 @@ JWT_SECRET=your-super-secret-jwt-key-min-32-chars-long
 # Google Gemini AI
 GEMINI_API_KEY=your-gemini-api-key-here
 
+# JDoodle API for Code Execution (Optional)
+JDOODLE_CLIENT_ID=your-jdoodle-client-id
+JDOODLE_CLIENT_SECRET=your-jdoodle-client-secret
+
 # Email (Optional but recommended)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -180,7 +184,9 @@ SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 ```
 
-> 💡 **Tip:** Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+> 💡 **Tips:** 
+> - Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+> - Get JDoodle credentials from [JDoodle Compiler API](https://www.jdoodle.com/compiler-api) (Free tier: 200 requests/day)
 
 ### Step 4: Database Setup
 
@@ -307,6 +313,8 @@ studyforge/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `JDOODLE_CLIENT_ID` | JDoodle API client ID for code execution | - |
+| `JDOODLE_CLIENT_SECRET` | JDoodle API client secret | - |
 | `SMTP_HOST` | Email SMTP server | `smtp.gmail.com` |
 | `SMTP_PORT` | SMTP port | `587` |
 | `SMTP_USER` | SMTP username | - |

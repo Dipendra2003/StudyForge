@@ -77,7 +77,7 @@ export function SaveQuizButton({ category, difficulty, questionCount, disabled }
       variant={isSaved ? "default" : "outline"}
       className="flex-1"
       onClick={() => saveQuizMutation.mutate()}
-      disabled={disabled || saveQuizMutation.isPending}
+      disabled={disabled || saveQuizMutation.isPending || !category || !difficulty}
     >
       {saveQuizMutation.isPending ? (
         <Loader2 className="h-4 w-4 animate-spin" />

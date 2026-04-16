@@ -235,14 +235,21 @@ If any position has more than 40% of answers, REBALANCE IMMEDIATELY!`;
     return `REARRANGE Schema:
 {
   "type": "rearrange",
-  "question": "Arrange these items in the correct order",
+  "question": "Arrange these historical events in chronological order from earliest to latest",
   "questionData": {
-    "items": ["Item 1", "Item 2", "Item 3", "Item 4"],
-    "correctOrder": [2, 0, 3, 1]
+    "items": ["French Revolution", "Fall of Western Roman Empire", "Discovery of Americas", "Black Death pandemic"],
+    "correctOrder": [1, 3, 0, 2]
   },
-  "correctAnswer": [2, 0, 3, 1],
-  "explanation": "Brief explanation of the correct order"
-}`;
+  "correctAnswer": [1, 3, 0, 2],
+  "explanation": "The correct chronological order is: Fall of Western Roman Empire (476 AD), Black Death pandemic (1347-1353), Discovery of Americas (1492), French Revolution (1789-1799)"
+}
+
+REARRANGE RULES:
+- The "items" array contains the items to be arranged (shown in random order to the user)
+- The "correctOrder" array contains indices (0-based) representing the correct sequence
+- Example: [1, 3, 0, 2] means: items[1] is first, items[3] is second, items[0] is third, items[2] is fourth
+- The correctAnswer field must match the correctOrder in questionData
+- Provide clear explanation of the correct sequence`;
   }
 }
 

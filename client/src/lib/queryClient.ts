@@ -138,12 +138,15 @@ export const apiDelete = <T>(endpoint: string, options?: Omit<ApiRequestOptions,
   apiRequest<T>(endpoint, { ...options, method: "DELETE" });
 
 // Export a pre-configured QueryClient instance
+// Optimized for admin panel performance (Requirements 18.3, 18.4, 18.5)
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5, // 5 minutes default
+      gcTime: 1000 * 60 * 10, // 10 minutes cache time (renamed from cacheTime in v5)
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: false, // Disabled for admin panel (Requirement 18.5)
+      refetchOnReconnect: true,
     },
   },
 });

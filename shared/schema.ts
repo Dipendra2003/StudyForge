@@ -33,6 +33,19 @@ export const users = mysqlTable("users", {
   lastFailedLogin: timestamp("last_failed_login", { mode: 'date' }),
   accountLockedUntil: timestamp("account_locked_until", { mode: 'date' }),
   
+  // Email change verification fields
+  pendingEmail: varchar("pending_email", { length: 100 }),
+  emailChangeToken: text("email_change_token"),
+  emailChangeOtp: varchar("email_change_otp", { length: 6 }),
+  emailChangeTokenExpiry: timestamp("email_change_token_expiry", { mode: 'date' }),
+  
+  // Account recovery fields
+  backupEmail: varchar("backup_email", { length: 100 }),
+  securityQuestion1: varchar("security_question_1", { length: 255 }),
+  securityAnswer1: text("security_answer_1"),
+  securityQuestion2: varchar("security_question_2", { length: 255 }),
+  securityAnswer2: text("security_answer_2"),
+  
   // Gamification fields
   totalPoints: int("total_points").default(0).notNull(),
   

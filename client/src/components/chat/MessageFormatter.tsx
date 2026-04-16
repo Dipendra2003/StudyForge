@@ -90,13 +90,18 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
         continue;
       }
 
+      // Detect markdown table first (higher priority)
+      const trimmedLine = line.trim();
+      const isTableLine = trimmedLine.includes('|') && 
+                         (trimmedLine.startsWith('|') || /^\|.*\|$/.test(trimmedLine));
+      
       // Detect ASCII diagram (lines with box drawing characters or arrows)
-      const isDiagramLine = /[─│┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬═║+\-\|]/.test(line) && 
-                           (line.includes('─') || line.includes('|') || line.includes('+') || 
-                            line.includes('-->') || line.includes('<--') || line.includes('|---'));
-
-      // Detect markdown table
-      const isTableLine = line.includes('|') && line.trim().startsWith('|') && !isDiagramLine;
+      // Exclude markdown tables from diagram detection
+      const isDiagramLine = !isTableLine && 
+                           /[─│┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬═║+\-\|]/.test(line) && 
+                           (line.includes('─') || line.includes('+') || 
+                            line.includes('-->') || line.includes('<--') || 
+                            (line.includes('|') && !trimmedLine.startsWith('|')));
       
       // Handle diagram detection
       if (isDiagramLine && !inDiagram) {
@@ -335,7 +340,7 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
 
     // Parse table rows
     const rows = tableLines.map(line => 
-      line.split('|')
+      line.trim().split('|')
         .map(cell => cell.trim())
         .filter(cell => cell !== '')
     );
@@ -343,9 +348,12 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
     // First row is header
     const headers = rows[0];
     
-    // Second row is separator (ignore it)
+    // Second row is separator (ignore it) - it contains :--- or similar
     // Remaining rows are data
-    const dataRows = rows.slice(2);
+    const dataRows = rows.slice(2).filter(row => 
+      // Filter out any remaining separator-like rows
+      row.length > 0 && !row.every(cell => /^:?-+:?$/.test(cell))
+    );
 
     const handleCopyTable = async () => {
       try {

@@ -96,7 +96,7 @@ interface QuizPlayerProps {
 
 interface QuestionAttempt {
   questionId: number;
-  userAnswer: string | string[] | Record<string, string>;
+  userAnswer: string | string[] | Record<string, string> | number[];
   isCorrect: boolean;
   timeSpent: number;
   hintsUsed: number;
@@ -110,7 +110,7 @@ export default function QuizPlayer({
 }: QuizPlayerProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, QuestionAttempt>>({});
-  const [currentAnswer, setCurrentAnswer] = useState<string | string[] | Record<string, string> | null>(null);
+  const [currentAnswer, setCurrentAnswer] = useState<string | string[] | Record<string, string> | number[] | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [timeSpent, setTimeSpent] = useState(0);
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
@@ -129,10 +129,10 @@ export default function QuizPlayer({
   const [isReviewingSkipped, setIsReviewingSkipped] = useState(false);
   
   // Store correct answers after submission (received from backend)
-  const [revealedCorrectAnswers, setRevealedCorrectAnswers] = useState<Record<number, string | string[] | Record<string, string>>>({});
+  const [revealedCorrectAnswers, setRevealedCorrectAnswers] = useState<Record<number, string | string[] | Record<string, string> | number[]>>({});
   
   // Use ref to track the latest answer value synchronously (fixes race condition)
-  const currentAnswerRef = useRef<string | string[] | Record<string, string> | null>(null);
+  const currentAnswerRef = useRef<string | string[] | Record<string, string> | number[] | null>(null);
   
   // Hint tracking
   const { 
@@ -316,6 +316,33 @@ export default function QuizPlayer({
         setCurrentAnswer(answers);
         currentAnswerRef.current = answers;
       }
+    } else if (currentQuestion.type === 'rearrange' && isRearrangeData(currentQuestion.questionData)) {
+      const data = currentQuestion.questionData as RearrangeData;
+      
+      // For rearrange, expect numbers like "1, 2, 3, 4" or "first second third fourth"
+      // Try to parse numbers from transcript
+      const numberWords: Record<string, number> = {
+        'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5
+      };
+      
+      const words = cleanTranscript.split(/[\s,]+/);
+      const order: number[] = [];
+      
+      for (const word of words) {
+        // Try to parse as number
+        const num = parseInt(word);
+        if (!isNaN(num) && num >= 1 && num <= data.items.length) {
+          order.push(num - 1); // Convert to 0-indexed
+        } else if (numberWords[word] && numberWords[word] <= data.items.length) {
+          order.push(numberWords[word] - 1); // Convert to 0-indexed
+        }
+      }
+      
+      if (order.length === data.items.length) {
+        setCurrentAnswer(order);
+        currentAnswerRef.current = order;
+      }
     }
 
     // Hide confirmation after 3 seconds
@@ -333,7 +360,7 @@ export default function QuizPlayer({
   // Check if answer is correct
   const checkAnswer = useCallback((
     question: Question,
-    userAnswer: string | string[] | Record<string, string>
+    userAnswer: string | string[] | Record<string, string> | number[]
   ): boolean => {
     const correctAnswer = question.correctAnswer;
 
@@ -373,7 +400,7 @@ export default function QuizPlayer({
   }, []);
 
   // Submit answer to backend for validation
-  const submitAnswerToBackend = async (questionId: number, userAnswer: string | string[] | Record<string, string>): Promise<{ isCorrect: boolean; correctAnswer: any }> => {
+  const submitAnswerToBackend = async (questionId: number, userAnswer: string | string[] | Record<string, string> | number[]): Promise<{ isCorrect: boolean; correctAnswer: any }> => {
     try {
       const response = await apiPost('/api/quiz/validate-answer', {
         questionId,
@@ -875,7 +902,6 @@ export default function QuizPlayer({
 
     return (
       <div className="space-y-4">
-        <p className="text-base md:text-lg">{data.statement}</p>
         <RadioGroup
           value={userAnswer}
           onValueChange={(value) => {
@@ -985,7 +1011,6 @@ export default function QuizPlayer({
 
     return (
       <div className="space-y-4">
-        <p className="text-lg whitespace-pre-wrap">{data.template}</p>
         <div className="space-y-3">
           {data.blanks.map((blank, index) => {
             const userAns = userAnswers[index] || "";
@@ -1077,61 +1102,295 @@ export default function QuizPlayer({
     );
   };
 
-  // Render Matching (simplified version)
+  // Render Matching with dropdown selection
   const renderMatching = (question: Question) => {
     if (!isMatchingData(question.questionData)) return null;
     const data = question.questionData as MatchingData;
+    
+    // Initialize user matches if not set
+    const userMatches = (currentAnswer as Record<string, string>) || {};
+    
+    if (currentAnswer === null) {
+      const initialMatches: Record<string, string> = {};
+      setCurrentAnswer(initialMatches);
+      currentAnswerRef.current = initialMatches;
+    }
+    
+    // Get correct answer from revealed answers (only available after submission)
+    const correctMatches = revealedCorrectAnswers[question.id] as Record<string, string> | undefined;
+    
+    // Handle match selection
+    const handleMatchSelect = (leftId: string, rightId: string) => {
+      if (hasSubmitted) return;
+      
+      const newMatches = { ...userMatches, [leftId]: rightId };
+      setCurrentAnswer(newMatches);
+      currentAnswerRef.current = newMatches;
+    };
 
     return (
       <div className="space-y-4">
-        <Alert>
-          <Lightbulb className="h-4 w-4" />
-          <AlertDescription>
-            Matching questions are not yet fully implemented in this version.
-          </AlertDescription>
-        </Alert>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">Left Column</h4>
-            {data.leftColumn.map(item => (
-              <div key={item.id} className="p-3 border rounded-md">
-                {item.text}
-              </div>
-            ))}
-          </div>
-          <div className="space-y-2">
-            <h4 className="font-medium">Right Column</h4>
-            {data.rightColumn.map(item => (
-              <div key={item.id} className="p-3 border rounded-md">
-                {item.text}
-              </div>
-            ))}
-          </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Match each item from the left column with the correct item from the right column.
+        </p>
+        <div className="space-y-3">
+          {data.leftColumn.map((leftItem, index) => {
+            const selectedRightId = userMatches[leftItem.id];
+            const correctRightId = correctMatches ? correctMatches[leftItem.id] : undefined;
+            const isCorrect = hasSubmitted && correctRightId && selectedRightId === correctRightId;
+            const isIncorrect = hasSubmitted && correctRightId && selectedRightId !== correctRightId;
+            
+            let containerClassName = "p-4 border-2 rounded-lg transition-all duration-300 ";
+            if (hasSubmitted) {
+              if (isCorrect) {
+                containerClassName += "bg-green-50 border-green-500 dark:bg-green-950 dark:border-green-700 shadow-lg shadow-green-200 dark:shadow-green-900";
+              } else if (isIncorrect) {
+                containerClassName += "bg-red-50 border-red-500 dark:bg-red-950 dark:border-red-700 shadow-lg shadow-red-200 dark:shadow-red-900";
+              }
+            } else {
+              containerClassName += "border-gray-300 dark:border-gray-700 bg-card";
+            }
+
+            return (
+              <motion.div
+                key={leftItem.id}
+                className={containerClassName}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ 
+                  opacity: 1, 
+                  x: 0,
+                  scale: hasSubmitted && isCorrect ? [1, 1.02, 1] : 1,
+                }}
+                transition={{ 
+                  delay: index * 0.05,
+                  scale: { duration: 0.3 }
+                }}
+              >
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="flex-1">
+                    <Label className="text-sm md:text-base font-medium">
+                      {leftItem.text}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-muted-foreground hidden md:inline">→</span>
+                    <select
+                      value={selectedRightId || ""}
+                      onChange={(e) => handleMatchSelect(leftItem.id, e.target.value)}
+                      disabled={hasSubmitted}
+                      className={`flex-1 h-10 rounded-md border px-3 py-2 text-sm ${
+                        hasSubmitted
+                          ? isCorrect
+                            ? "border-green-500 bg-green-50 dark:bg-green-950"
+                            : "border-red-500 bg-red-50 dark:bg-red-950"
+                          : "border-input bg-background"
+                      } ${!hasSubmitted ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <option value="">Select match...</option>
+                      {data.rightColumn.map(rightItem => (
+                        <option key={rightItem.id} value={rightItem.id}>
+                          {rightItem.text}
+                        </option>
+                      ))}
+                    </select>
+                    <AnimatePresence>
+                      {hasSubmitted && (
+                        <motion.div
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          exit={{ scale: 0 }}
+                          transition={{ type: "spring", duration: 0.5 }}
+                        >
+                          {isCorrect ? (
+                            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+                <AnimatePresence>
+                  {hasSubmitted && isIncorrect && correctRightId && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="mt-3 pt-3 border-t border-green-200 dark:border-green-800"
+                    >
+                      <p className="text-sm text-green-700 dark:text-green-300 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Correct match: <span className="font-bold">
+                          {data.rightColumn.find(r => r.id === correctRightId)?.text}
+                        </span>
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     );
   };
 
-  // Render Rearrange (simplified version)
+  // Render Rearrange with drag-and-drop functionality
   const renderRearrange = (question: Question) => {
     if (!isRearrangeData(question.questionData)) return null;
     const data = question.questionData as RearrangeData;
+    
+    // Initialize user order if not set (indices 0, 1, 2, ...)
+    const userOrder = (currentAnswer as number[]) || data.items.map((_, idx) => idx);
+    
+    if (currentAnswer === null) {
+      const initialOrder = data.items.map((_, idx) => idx);
+      setCurrentAnswer(initialOrder);
+      currentAnswerRef.current = initialOrder;
+    }
+    
+    // Get correct answer from revealed answers (only available after submission)
+    const correctOrder = revealedCorrectAnswers[question.id] as number[] | undefined;
+    
+    // Handle drag start
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+      if (hasSubmitted) return;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', index.toString());
+    };
+    
+    // Handle drag over
+    const handleDragOver = (e: React.DragEvent) => {
+      if (hasSubmitted) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    };
+    
+    // Handle drop
+    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+      if (hasSubmitted) return;
+      e.preventDefault();
+      
+      const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      if (dragIndex === dropIndex) return;
+      
+      const newOrder = [...userOrder];
+      const [draggedItem] = newOrder.splice(dragIndex, 1);
+      newOrder.splice(dropIndex, 0, draggedItem);
+      
+      setCurrentAnswer(newOrder);
+      currentAnswerRef.current = newOrder;
+    };
+    
+    // Move item up
+    const moveUp = (index: number) => {
+      if (hasSubmitted || index === 0) return;
+      const newOrder = [...userOrder];
+      [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+      setCurrentAnswer(newOrder);
+      currentAnswerRef.current = newOrder;
+    };
+    
+    // Move item down
+    const moveDown = (index: number) => {
+      if (hasSubmitted || index === userOrder.length - 1) return;
+      const newOrder = [...userOrder];
+      [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+      setCurrentAnswer(newOrder);
+      currentAnswerRef.current = newOrder;
+    };
 
     return (
-      <div className="space-y-4">
-        <Alert>
-          <Lightbulb className="h-4 w-4" />
-          <AlertDescription>
-            Rearrange questions are not yet fully implemented in this version.
-          </AlertDescription>
-        </Alert>
-        <div className="space-y-2">
-          {data.items.map((item, index) => (
-            <div key={index} className="p-3 border rounded-md">
-              {item}
-            </div>
-          ))}
-        </div>
+      <div className="space-y-3">
+        {userOrder.map((itemIndex, position) => {
+          const item = data.items[itemIndex];
+          const isCorrectPosition = hasSubmitted && correctOrder 
+            ? correctOrder[position] === itemIndex 
+            : false;
+          const isIncorrectPosition = hasSubmitted && correctOrder 
+            ? correctOrder[position] !== itemIndex 
+            : false;
+          
+          let itemClassName = "p-4 border-2 rounded-lg transition-all duration-300 ";
+          if (hasSubmitted) {
+            if (isCorrectPosition) {
+              itemClassName += "bg-green-50 border-green-500 dark:bg-green-950 dark:border-green-700 shadow-lg shadow-green-200 dark:shadow-green-900";
+            } else if (isIncorrectPosition) {
+              itemClassName += "bg-red-50 border-red-500 dark:bg-red-950 dark:border-red-700 shadow-lg shadow-red-200 dark:shadow-red-900";
+            }
+          } else {
+            itemClassName += "border-gray-300 dark:border-gray-700 hover:border-primary hover:shadow-md cursor-move bg-card";
+          }
+
+          return (
+            <motion.div
+              key={`${itemIndex}-${position}`}
+              draggable={!hasSubmitted}
+              onDragStart={(e) => handleDragStart(e as any, position)}
+              onDragOver={handleDragOver as any}
+              onDrop={(e) => handleDrop(e as any, position)}
+              className={itemClassName}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ 
+                opacity: 1, 
+                x: 0,
+                scale: hasSubmitted && isCorrectPosition ? [1, 1.02, 1] : 1,
+              }}
+              transition={{ 
+                delay: position * 0.05,
+                scale: { duration: 0.3 }
+              }}
+              whileHover={!hasSubmitted ? { scale: 1.02 } : {}}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => moveUp(position)}
+                    disabled={hasSubmitted || position === 0}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4 rotate-90" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => moveDown(position)}
+                    disabled={hasSubmitted || position === userOrder.length - 1}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4 -rotate-90" />
+                  </Button>
+                </div>
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary">
+                  {position + 1}
+                </div>
+                <div className="flex-1 text-sm md:text-base">
+                  {item}
+                </div>
+                <AnimatePresence>
+                  {hasSubmitted && (
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: "spring", duration: 0.5 }}
+                    >
+                      {isCorrectPosition ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     );
   };

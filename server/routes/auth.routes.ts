@@ -888,15 +888,18 @@ export async function loginHandler(req: Request, res: Response): Promise<void> {
     });
 
     // Log successful login to security audit log
+    // Use admin_login action for admin users (Requirement 15.1)
+    const loginAction = user.role === 'admin' ? 'admin_login' : 'login';
     await storage.createSecurityAuditLog({
       userId: user.id,
-      action: 'login',
+      action: loginAction,
       status: 'success',
       ipAddress: ipAddress || undefined,
       userAgent: userAgent || undefined,
       details: {
         username: user.username,
         email: user.email,
+        role: user.role,
       },
     });
 
@@ -992,15 +995,18 @@ export async function logoutHandler(req: Request, res: Response): Promise<void> 
     });
 
     // Log logout event to security audit log
+    // Use admin_logout action for admin users (Requirement 15.1)
     if (req.user) {
+      const logoutAction = req.user.role === 'admin' ? 'admin_logout' : 'logout';
       await storage.createSecurityAuditLog({
         userId: req.user.id,
-        action: 'logout',
+        action: logoutAction,
         status: 'success',
         ipAddress: ipAddress || undefined,
         userAgent: userAgent || undefined,
         details: {
           username: req.user.username,
+          role: req.user.role,
         },
       });
     }

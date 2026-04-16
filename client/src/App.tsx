@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,7 @@ import DynamicBackground from "@/components/DynamicBackground";
 import WelcomeModal from "@/components/WelcomeModal";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AdminProvider } from "@/contexts/AdminContext";
 
 // Pages
 import Login from "@/pages/Login";
@@ -34,6 +35,26 @@ import Settings from "@/pages/Settings";
 import Help from "@/pages/Help";
 import Contact from "@/pages/Contact";
 import AuthDebug from "@/pages/AuthDebug";
+
+// Admin Pages - Lazy loaded for performance optimization (Requirement 18.3)
+const AdminRoute = lazy(() => import("@/components/admin/AdminRoute"));
+const AdminLayout = lazy(() => import("@/components/admin/AdminLayout"));
+const AdminErrorBoundary = lazy(() => import("@/components/admin/AdminErrorBoundary").then(module => ({ default: module.AdminErrorBoundary })));
+const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const UserManagement = lazy(() => import("@/pages/admin/UserManagement"));
+const ContentManagement = lazy(() => import("@/pages/admin/ContentManagement"));
+const AnalyticsDashboard = lazy(() => import("@/pages/admin/AnalyticsDashboard"));
+const SystemMonitoring = lazy(() => import("@/pages/admin/SystemMonitoring"));
+const EmailManagement = lazy(() => import("@/pages/admin/EmailManagement"));
+
+// Loading component for lazy-loaded admin components
+function AdminLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>
+  );
+}
 
 // Auth context is now imported from @/contexts/AuthContext
 
@@ -108,6 +129,99 @@ function Router() {
       <Route path="/quiz/shared/:linkId" component={SharedQuiz} />
       <PrivateRoute path="/profile" component={Profile} />
       <PrivateRoute path="/settings" component={Settings} />
+      
+      {/* Admin Routes - Wrapped in Suspense for lazy loading (Requirement 18.3) */}
+      <Route path="/admin">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <AdminDashboard />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      <Route path="/admin/users">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <UserManagement />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      <Route path="/admin/content">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <ContentManagement />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      <Route path="/admin/analytics">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <AnalyticsDashboard />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      <Route path="/admin/monitoring">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <SystemMonitoring />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      <Route path="/admin/email">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <EmailManagement />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      
       <Route path="/help" component={Help} />
       <Route path="/about" component={About} />
       <Route path="/privacy-policy" component={Policy} />

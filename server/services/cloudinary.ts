@@ -40,7 +40,7 @@ export class CloudinaryService {
   }
 
   /**
-   * Upload image to Cloudinary
+   * Upload image to Cloudinary with retry logic
    * @param buffer - Image buffer from multer
    * @param options - Upload options
    * @returns Cloudinary URL
@@ -51,43 +51,66 @@ export class CloudinaryService {
       folder?: string;
       publicId?: string;
       transformation?: any;
+      retries?: number;
     } = {}
   ): Promise<string> {
     if (!this.isConfigured) {
       throw new Error('Cloudinary is not configured');
     }
 
-    try {
-      const folder = options.folder || process.env.CLOUDINARY_FOLDER || 'studyforge';
-      
-      // Convert buffer to base64 for upload
-      const base64Image = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    const maxRetries = options.retries || 3;
+    let lastError: Error | null = null;
 
-      const result = await cloudinary.uploader.upload(base64Image, {
-        folder,
-        public_id: options.publicId,
-        transformation: options.transformation || [
-          { width: 500, height: 500, crop: 'limit' }, // Limit max size
-          { quality: 'auto' }, // Auto quality optimization
-          { fetch_format: 'auto' }, // Auto format (WebP when supported)
-        ],
-        resource_type: 'image',
-      });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const folder = options.folder || process.env.CLOUDINARY_FOLDER || 'studyforge';
+        
+        // Convert buffer to base64 for upload
+        const base64Image = `data:image/jpeg;base64,${buffer.toString('base64')}`;
 
-      Logger.info(LogCategory.SYSTEM, 'Image uploaded to Cloudinary', {
-        publicId: result.public_id,
-        url: result.secure_url,
-      });
+        const result = await cloudinary.uploader.upload(base64Image, {
+          folder,
+          public_id: options.publicId,
+          transformation: options.transformation || [
+            { width: 500, height: 500, crop: 'limit' }, // Limit max size
+            { quality: 'auto' }, // Auto quality optimization
+            { fetch_format: 'auto' }, // Auto format (WebP when supported)
+          ],
+          resource_type: 'image',
+          timeout: 60000, // 60 second timeout
+        });
 
-      return result.secure_url;
-    } catch (error) {
-      Logger.error(LogCategory.SYSTEM, 'Failed to upload image to Cloudinary', { error });
-      throw new Error('Failed to upload image to Cloudinary');
+        Logger.info(LogCategory.SYSTEM, 'Image uploaded to Cloudinary', {
+          publicId: result.public_id,
+          url: result.secure_url,
+          attempt,
+          bytes: result.bytes,
+          format: result.format,
+        });
+
+        return result.secure_url;
+      } catch (error) {
+        lastError = error as Error;
+        Logger.warn(LogCategory.SYSTEM, `Cloudinary upload attempt ${attempt} failed`, {
+          error,
+          attempt,
+          maxRetries,
+        });
+
+        // Wait before retrying (exponential backoff)
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5 seconds
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
+
+    Logger.error(LogCategory.SYSTEM, 'Failed to upload image to Cloudinary after retries', lastError!);
+    throw new Error(`Failed to upload image to Cloudinary after ${maxRetries} attempts`);
   }
 
   /**
-   * Delete image from Cloudinary
+   * Delete image from Cloudinary with retry logic
    * @param publicId - Public ID of the image
    */
   public async deleteImage(publicId: string): Promise<void> {
@@ -95,13 +118,31 @@ export class CloudinaryService {
       return; // Silently skip if not configured
     }
 
-    try {
-      await cloudinary.uploader.destroy(publicId);
-      Logger.info(LogCategory.SYSTEM, 'Image deleted from Cloudinary', { publicId });
-    } catch (error) {
-      Logger.error(LogCategory.SYSTEM, 'Failed to delete image from Cloudinary', { error });
-      // Don't throw error - deletion failure shouldn't break the flow
+    const maxRetries = 2;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await cloudinary.uploader.destroy(publicId);
+        Logger.info(LogCategory.SYSTEM, 'Image deleted from Cloudinary', { 
+          publicId,
+          result: result.result,
+        });
+        return;
+      } catch (error) {
+        Logger.warn(LogCategory.SYSTEM, `Cloudinary delete attempt ${attempt} failed`, {
+          error,
+          publicId,
+          attempt,
+        });
+        
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     }
+    
+    Logger.error(LogCategory.SYSTEM, 'Failed to delete image from Cloudinary after retries', { publicId });
+    // Don't throw error - deletion failure shouldn't break the flow
   }
 
   /**

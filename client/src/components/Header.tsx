@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Settings, LayoutDashboard, HelpCircle } from "lucide-react";
+import { User, LogOut, Settings, LayoutDashboard } from "lucide-react";
 
 interface HeaderProps {
   onNavigate: (section: string) => void;
@@ -24,6 +24,11 @@ export default function Header({ onNavigate }: HeaderProps) {
   const [location] = useLocation();
   const isHomePage = location === "/";
   const { user, isAuthenticated, logout } = useAuth();
+  
+  // Check if user is admin and currently in admin area
+  const isAdminArea = location.startsWith('/admin');
+  const isAdmin = user?.role === 'admin';
+  const dashboardPath = (isAdmin && isAdminArea) ? '/admin' : '/dashboard';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -101,12 +106,12 @@ export default function Header({ onNavigate }: HeaderProps) {
             </div>
             {isAuthenticated ? (
               <>
-                <Link href="/dashboard">
+                <Link href={dashboardPath}>
                   <Button 
                     className="hidden md:inline-flex bg-primary hover:bg-primary/90 text-white font-medium rounded-full shadow-md hover:shadow-lg transition-all transform hover:-translate-y-1"
                   >
                     <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
+                    {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
                   </Button>
                 </Link>
                 <DropdownMenu>
@@ -124,10 +129,10 @@ export default function Header({ onNavigate }: HeaderProps) {
                       {user?.fullName || user?.username || "My Account"}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <Link href="/dashboard">
+                    <Link href={dashboardPath}>
                       <DropdownMenuItem>
                         <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Dashboard
+                        {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
                       </DropdownMenuItem>
                     </Link>
                     <Link href="/profile">
@@ -279,12 +284,12 @@ export default function Header({ onNavigate }: HeaderProps) {
                       <User className="mr-2 h-4 w-4" />
                       <span className="font-medium">{user?.fullName || user?.username || "User"}</span>
                     </div>
-                    <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                    <Link href={dashboardPath} onClick={() => setMobileMenuOpen(false)}>
                       <Button 
                         className="bg-primary hover:bg-primary/90 text-white font-medium w-full rounded-full shadow-md hover:shadow-lg transition-all"
                       >
                         <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Dashboard
+                        {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
                       </Button>
                     </Link>
                     <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>

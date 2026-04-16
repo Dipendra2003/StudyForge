@@ -15,32 +15,52 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   // Redirect to intended page or dashboard if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      // Priority order: redirectAfterLogin > lastVisitedPage > dashboard
-      const redirectPath = sessionStorage.getItem('redirectAfterLogin') || 
-                          sessionStorage.getItem('lastVisitedPage') || 
-                          '/dashboard';
+    if (isAuthenticated && user) {
+      // Role-based redirect: Admin users go to admin panel, regular users go to dashboard
+      let redirectPath;
+      
+      if (user.role === 'admin') {
+        // Admin users should go to admin panel
+        redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/admin';
+      } else {
+        // Regular users go to dashboard
+        redirectPath = sessionStorage.getItem('redirectAfterLogin') || 
+                      sessionStorage.getItem('lastVisitedPage') || 
+                      '/dashboard';
+      }
       
       // Clear the redirect flag
       sessionStorage.removeItem('redirectAfterLogin');
       
       setLocation(redirectPath);
     }
-  }, [isAuthenticated, setLocation]);
+  }, [isAuthenticated, user, setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // Validate inputs before submitting
+    if (!identifier || !identifier.trim()) {
+      setError('Username/Email and password are required');
+      return;
+    }
+    
+    if (!password || !password.trim()) {
+      setError('Username/Email and password are required');
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
-      await login(identifier, password);
+      await login(identifier.trim(), password);
       
       // Show success toast
       toast({
@@ -64,6 +84,12 @@ export default function Login() {
         toast({
           title: 'Account locked',
           description: 'Your account has been temporarily locked due to too many failed login attempts.',
+          variant: 'destructive',
+        });
+      } else if (errorMessage.includes('Invalid credentials')) {
+        toast({
+          title: 'Login failed',
+          description: 'Invalid username/email or password.',
           variant: 'destructive',
         });
       }

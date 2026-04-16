@@ -1430,45 +1430,84 @@ Provide only the JSON object without any additional text or markdown formatting.
   }
 
   /**
-   * Generate a study plan with schedule
+   * Generate a study plan with intelligent scheduling
+   * Enhanced with spaced repetition, difficulty progression, and realistic time estimates
    */
   async generateStudyPlan(
     subject: string,
     durationDays: number,
     goal: string,
-    userId?: number
+    userId?: number,
+    preferences?: {
+      dailyTimeAvailable?: number; // minutes per day
+      preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'flexible';
+      currentLevel?: 'beginner' | 'intermediate' | 'advanced';
+      learningStyle?: 'visual' | 'auditory' | 'kinesthetic' | 'reading';
+    }
   ): Promise<StudyPlanData> {
-    const prompt = `Create a ${durationDays}-day study plan for: "${subject}"
+    const dailyTime = preferences?.dailyTimeAvailable || 60;
+    const level = preferences?.currentLevel || 'beginner';
+    const timeOfDay = preferences?.preferredTimeOfDay || 'flexible';
+    const learningStyle = preferences?.learningStyle || 'reading';
+
+    const prompt = `Create an intelligent ${durationDays}-day study plan for: "${subject}"
 
 Goal: ${goal}
+Current Level: ${level}
+Daily Time Available: ${dailyTime} minutes
+Preferred Study Time: ${timeOfDay}
+Learning Style: ${learningStyle}
 
-Generate a structured study plan with daily tasks and resources.
+LEARNING SCIENCE PRINCIPLES TO APPLY:
+1. Spaced Repetition: Review previous concepts at increasing intervals (Day 1, Day 3, Day 7, etc.)
+2. Difficulty Progression: Start with fundamentals, gradually increase complexity
+3. Active Recall: Include practice exercises and self-testing
+4. Interleaving: Mix different topics to improve retention
+5. Realistic Time Estimates: Account for breaks and cognitive load
+
+SCHEDULE STRUCTURE:
+- Days 1-3: Foundation building (easier, shorter sessions)
+- Days 4-7: Core concepts (moderate difficulty)
+- Days 8+: Advanced topics + review sessions
+- Include review days every 3-4 days
+- Final day: Comprehensive review and assessment
 
 Return the response in the following JSON format:
 {
   "title": "Study plan title",
-  "description": "Brief description of the study plan",
+  "description": "Brief description with learning objectives",
   "scheduleData": [
     {
       "id": "1",
-      "title": "Day 1 title",
-      "description": "Brief description",
+      "title": "Day 1: Foundation - [Topic]",
+      "description": "Specific learning objectives and activities",
       "duration": 60,
-      "completed": false
+      "completed": false,
+      "dayNumber": 1,
+      "difficulty": "easy",
+      "type": "learning",
+      "prerequisites": [],
+      "resources": ["resource1", "resource2"],
+      "reviewDay": false
     }
   ]
 }
 
 IMPORTANT:
 - Generate exactly ${durationDays} items in the scheduleData array
-- Each item must have: id (string), title (string), description (string), duration (number in minutes), completed (boolean false)
-- Keep descriptions concise (under 100 characters)
-- Duration should be realistic study time in minutes (30-120 minutes)
+- Each item must have: id, title, description, duration, completed, dayNumber, difficulty, type, prerequisites, resources, reviewDay
+- Duration should respect the ${dailyTime} minute daily limit (can be 30-${dailyTime} minutes)
+- Include at least ${Math.floor(durationDays / 4)} review days (reviewDay: true)
+- Difficulty progression: easy → medium → hard
+- Types: "learning", "practice", "review", "assessment"
+- Prerequisites: array of item IDs that should be completed first
+- Resources: array of recommended resource types (videos, articles, exercises, etc.)
+- Keep descriptions actionable and specific (what to learn, what to practice)
 - Provide ONLY valid JSON without any markdown formatting, code blocks, or additional text`;
 
     const response = await this.generateContent(
       prompt,
-      { temperature: 0.7, maxOutputTokens: 2048 },
+      { temperature: 0.7, maxOutputTokens: 4096 },
       userId
     );
 
@@ -1503,13 +1542,21 @@ IMPORTANT:
         throw new Error('Invalid study plan data: missing title or scheduleData');
       }
 
-      // Ensure each item has required fields
+      // Ensure each item has required fields with enhanced metadata
       const scheduleData = data.scheduleData.map((item: any, index: number) => ({
         id: item.id || String(index + 1),
         title: item.title || `Day ${index + 1}`,
         description: item.description || '',
         duration: typeof item.duration === 'number' ? item.duration : 60,
         completed: false,
+        dayNumber: item.dayNumber || index + 1,
+        difficulty: item.difficulty || 'medium',
+        type: item.type || 'learning',
+        prerequisites: Array.isArray(item.prerequisites) ? item.prerequisites : [],
+        resources: Array.isArray(item.resources) ? item.resources : [],
+        reviewDay: item.reviewDay || false,
+        scheduledDate: null, // Will be set when plan is created
+        reminderSent: false,
       }));
 
       return {

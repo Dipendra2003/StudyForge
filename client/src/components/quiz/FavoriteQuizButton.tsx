@@ -79,7 +79,7 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, disabl
       variant={isFavorite ? "default" : "outline"}
       className="flex-1"
       onClick={() => favoriteQuizMutation.mutate()}
-      disabled={disabled || favoriteQuizMutation.isPending}
+      disabled={disabled || favoriteQuizMutation.isPending || !category || !difficulty}
     >
       {favoriteQuizMutation.isPending ? (
         <Loader2 className="h-4 w-4 animate-spin" />

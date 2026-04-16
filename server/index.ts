@@ -124,6 +124,11 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
     // Store email service in app locals for access in routes
     app.locals.emailService = emailService;
     
+    // Initialize study plan scheduler for reminders
+    const { studyPlanScheduler } = await import('./jobs/study-plan-scheduler');
+    studyPlanScheduler.start();
+    log('Study plan scheduler initialized', 'scheduler');
+    
   } catch (error) {
     console.error('Failed to initialize database connections:', error);
     console.error('Server cannot start without database connection');

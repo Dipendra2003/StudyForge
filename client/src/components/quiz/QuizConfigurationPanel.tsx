@@ -77,7 +77,7 @@ export default function QuizConfigurationPanel({
 }: QuizConfigurationPanelProps) {
   const [config, setConfig] = useState<QuizConfig>({
     category: '', // Empty by default - user must select
-    difficulty: '' as any, // Empty by default - user must select
+    difficulty: 'medium', // Default to medium
     questionCount: 10,
     timedMode: false,
     timeLimit: 300, // 5 minutes default
@@ -109,8 +109,8 @@ export default function QuizConfigurationPanel({
   useEffect(() => {
     const newErrors: string[] = [];
 
-    // Only validate if user has started configuring (category or difficulty selected)
-    const hasStartedConfig = config.category !== '' || config.difficulty !== '';
+    // Only validate if user has started configuring (category selected)
+    const hasStartedConfig = config.category !== '';
 
     // Validate question count is between 1 and 50 (Req 28.2)
     if (config.questionCount < 1) {

@@ -102,6 +102,12 @@ export default function StudyPlanner() {
     difficulty: string;
     topic: string; // For AI generation
     scheduleData?: any[];
+    preferences?: {
+      dailyTimeAvailable?: number;
+      preferredTimeOfDay?: 'morning' | 'afternoon' | 'evening' | 'flexible';
+      currentLevel?: 'beginner' | 'intermediate' | 'advanced';
+      learningStyle?: 'visual' | 'auditory' | 'kinesthetic' | 'reading';
+    };
   }>({
     title: "",
     description: "",
@@ -109,6 +115,12 @@ export default function StudyPlanner() {
     difficulty: "medium",
     topic: "",
     scheduleData: undefined,
+    preferences: {
+      dailyTimeAvailable: 60,
+      preferredTimeOfDay: 'flexible',
+      currentLevel: 'beginner',
+      learningStyle: 'reading',
+    },
   });
 
   const { toast } = useToast();
@@ -167,13 +179,16 @@ export default function StudyPlanner() {
 
   // Generate a study plan with AI
   const generateStudyPlanMutation = useMutation({
-    mutationFn: async (topic: string) => {
+    mutationFn: async (data: { topic: string; preferences?: any }) => {
       return apiRequest<Partial<StudyPlan>>('/api/study-plans/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ 
+          topic: data.topic,
+          preferences: data.preferences,
+        }),
       });
     },
     onSuccess: (data) => {
@@ -184,6 +199,7 @@ export default function StudyPlanner() {
           subject: data.subject || "general",
           difficulty: data.difficulty || "medium",
           topic: newPlan.topic,
+          preferences: newPlan.preferences,
         });
         
         if (data.startDate && data.endDate) {
@@ -200,7 +216,7 @@ export default function StudyPlanner() {
         
         toast({
           title: "Study plan generated",
-          description: "AI has generated a study plan for you. Edit if needed before saving.",
+          description: "AI has generated a personalized study plan for you. Edit if needed before saving.",
         });
       }
     },
@@ -372,6 +388,60 @@ export default function StudyPlanner() {
       });
     },
   });
+  
+  // Reschedule study plan
+  const reschedulePlanMutation = useMutation({
+    mutationFn: async ({ planId, strategy }: { planId: number; strategy: 'next-available' | 'spread-evenly' | 'compress' }) => {
+      return apiRequest<StudyPlan>(`/api/study-plans/${planId}/reschedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ strategy }),
+      });
+    },
+    onSuccess: () => {
+      refetch();
+      toast({
+        title: "Plan rescheduled",
+        description: "Your study plan has been rescheduled successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error rescheduling",
+        description: "There was an error rescheduling your study plan.",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Toggle reminders
+  const toggleRemindersMutation = useMutation({
+    mutationFn: async ({ planId, enabled, reminderTime }: { planId: number; enabled: boolean; reminderTime?: string }) => {
+      return apiRequest<StudyPlan>(`/api/study-plans/${planId}/reminders`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ enabled, reminderTime }),
+      });
+    },
+    onSuccess: () => {
+      refetch();
+      toast({
+        title: "Reminders updated",
+        description: "Your reminder settings have been updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error updating reminders",
+        description: "There was an error updating your reminder settings.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Handle form submission
   const handleCreateStudyPlan = () => {
@@ -491,7 +561,10 @@ export default function StudyPlanner() {
                           variant="outline" 
                           onClick={() => {
                             if (newPlan.topic) {
-                              generateStudyPlanMutation.mutate(newPlan.topic);
+                              generateStudyPlanMutation.mutate({
+                                topic: newPlan.topic,
+                                preferences: newPlan.preferences,
+                              });
                             } else {
                               toast({
                                 title: "Missing topic",
