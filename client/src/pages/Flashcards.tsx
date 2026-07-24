@@ -107,6 +107,16 @@ export default function Flashcards() {
   
   const { toast } = useToast();
   
+  // Parse URL parameters on mount to check for search query
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryTopic = params.get('q');
+    if (queryTopic) {
+      setSearchQuery(queryTopic);
+      setActiveTab('browse');
+    }
+  }, []);
+
   // Save active tab to sessionStorage whenever it changes
   useEffect(() => {
     sessionStorage.setItem('flashcardsActiveTab', activeTab);

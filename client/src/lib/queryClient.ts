@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { refreshAuthToken } from "./auth-refresh";
 
 interface ApiRequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -78,7 +79,20 @@ export async function apiRequest<T = any>(
   }
 
   // Make the request
-  const response = await fetch(url, requestOptions);
+  let response = await fetch(url, requestOptions);
+
+  // Handle 401 by attempting to refresh the token and retrying
+  if (response.status === 401 && !url.includes('/api/auth/')) {
+    const refreshSuccess = await refreshAuthToken();
+
+    if (refreshSuccess) {
+      // Retry the original request (new cookie will be included automatically)
+      response = await fetch(url, requestOptions);
+    } else {
+      // If refresh fails, we could potentially redirect to login or trigger an event
+      console.error('Authentication expired, please log in again.');
+    }
+  }
 
   // Handle errors
   if (!response.ok) {

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, File, Trash2, Eye, Sparkles, Upload, CheckCircle2, Clock, TrendingUp, Download, Copy, BookOpen, Zap, AlertCircle, FileType, FileDown, Brain } from "lucide-react";
+import { Loader2, FileText, File, Trash2, Eye, Sparkles, Upload, CheckCircle2, Clock, TrendingUp, Download, Copy, BookOpen, Zap, AlertCircle, FileType, FileDown, Brain, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { downloadAsTXT, downloadAsPDF, downloadAsDOCX } from "@/utils/downloadUtils";
@@ -1202,14 +1202,27 @@ export default function DocumentSummarization() {
                       <Brain className="h-4 w-4 text-violet-600" />
                       <span className="text-sm font-semibold text-violet-900">Study Tools</span>
                     </div>
-                    <Button
-                      onClick={() => setShowBulkGenerateDialog(true)}
-                      className="w-full bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 hover:from-pink-600 hover:via-rose-600 hover:to-red-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-                      size="sm"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      🧠 Generate Flashcards
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        onClick={() => setShowBulkGenerateDialog(true)}
+                        className="flex-1 bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 hover:from-pink-600 hover:via-rose-600 hover:to-red-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+                        size="sm"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        🧠 Generate Flashcards
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          sessionStorage.setItem('documentChatContext', currentSummary.originalText || currentSummary.summary);
+                          setLocation('/chat');
+                        }}
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+                        size="sm"
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        💬 Chat about Document
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Action Buttons */}

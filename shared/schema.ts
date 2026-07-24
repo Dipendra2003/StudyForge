@@ -146,7 +146,7 @@ export const flashcards = mysqlTable("flashcards", {
   questionImage: text("question_image"), // Image for question side
   answerImage: text("answer_image"), // Image for answer side
   tags: json("tags"), // Stored as JSON array in MySQL
-  category: varchar("category", { length: 50 }), // Category for organization
+  category: varchar("category", { length: 255 }), // Category for organization
   difficulty: varchar("difficulty", { length: 10 }).default("medium"),
   repetitionInterval: int("repetition_interval").default(1), // For spaced repetition
   easeFactor: int("ease_factor").default(250), // For SM-2 algorithm (times 100)
@@ -201,7 +201,7 @@ export const mcqs = mysqlTable("mcqs", {
   correctOption: int("correct_option").notNull(),
   explanation: text("explanation"),
   difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
-  category: varchar("category", { length: 50 }),
+  category: varchar("category", { length: 255 }),
   isPublic: boolean("is_public").default(false), // For sharing questions in a question bank
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {
@@ -222,7 +222,7 @@ export const questions = mysqlTable("questions", {
   questionData: json("question_data").notNull(), // Type-specific data (options, pairs, items, etc.)
   correctAnswer: json("correct_answer").notNull(), // Can be string, array, or object depending on type
   explanation: text("explanation"),
-  category: varchar("category", { length: 50 }).notNull(),
+  category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
   tags: json("tags"), // Array of tags
   hints: json("hints"), // Array of hints
@@ -246,7 +246,7 @@ export const quizSessions = mysqlTable("quiz_sessions", {
   id: int().autoincrement().primaryKey(),
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   sessionId: varchar("session_id", { length: 100 }).notNull().unique(),
-  category: varchar("category", { length: 50 }).notNull(),
+  category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
   totalQuestions: int("total_questions").notNull(),
@@ -305,7 +305,7 @@ export const quizAttempts = mysqlTable("quiz_attempts", {
   correctAnswers: int("correct_answers").notNull(),
   timeSpent: int("time_spent"), // In seconds
   questionsData: json("questions_data"), // Contains question IDs and user answers
-  category: varchar("category", { length: 50 }),
+  category: varchar("category", { length: 255 }),
   difficulty: varchar("difficulty", { length: 10 }),
   completed: boolean("completed").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -510,7 +510,7 @@ export const shareableQuizLinks = mysqlTable("shareable_quiz_links", {
   linkId: varchar("link_id", { length: 100 }).notNull().unique(),
   creatorUserId: int("creator_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
-  category: varchar("category", { length: 50 }).notNull(),
+  category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionsData: json("questions_data").notNull(), // Array of question IDs
   totalQuestions: int("total_questions").notNull(),
@@ -555,7 +555,7 @@ export const sharedQuizAttempts = mysqlTable("shared_quiz_attempts", {
 export const savedQuizzes = mysqlTable("saved_quizzes", {
   id: int().autoincrement().primaryKey(),
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  category: varchar("category", { length: 50 }).notNull(),
+  category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
   questionCount: int("question_count").notNull(),
@@ -574,7 +574,7 @@ export const savedQuizzes = mysqlTable("saved_quizzes", {
 export const favoriteQuizzes = mysqlTable("favorite_quizzes", {
   id: int().autoincrement().primaryKey(),
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  category: varchar("category", { length: 50 }).notNull(),
+  category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
   questionCount: int("question_count").notNull(),
@@ -614,7 +614,7 @@ export const quizOfTheDayCompletions = mysqlTable("quiz_of_the_day_completions",
   userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   quizId: varchar("quiz_id", { length: 50 }).notNull(), // 'qotd-2026-03-14'
   date: timestamp("date").notNull(), // Date of the quiz
-  category: varchar("category", { length: 50 }).notNull(),
+  category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   score: int("score").notNull(),
   totalQuestions: int("total_questions").notNull(),

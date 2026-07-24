@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import MessageFormatter from "@/components/chat/MessageFormatter";
 import MessageActionBar from "@/components/chat/MessageActionBar";
+import { useLocation } from "wouter";
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -48,8 +49,24 @@ const getPersonalizedGreeting = (user?: { username?: string; email?: string; ful
   return greetings[Math.floor(Math.random() * greetings.length)];
 };
 
+// Helper function to extract and parse <ACTION> tags
+const extractAction = (content: string) => {
+  const match = content.match(/<ACTION>([\s\S]*?)<\/ACTION>/);
+  if (match) {
+    try {
+      const action = JSON.parse(match[1]);
+      const cleanContent = content.replace(/<ACTION>[\s\S]*?<\/ACTION>/g, '').trim();
+      return { cleanContent, action };
+    } catch (e) {
+      console.error("Failed to parse action JSON", e);
+    }
+  }
+  return { cleanContent: content, action: null };
+};
+
 export default function Chat() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
   
   // Persist active session ID across page refreshes
@@ -63,8 +80,19 @@ export default function Chat() {
     content: getPersonalizedGreeting(user),
     timestamp: new Date()
   });
-  
-  const [messages, setMessages] = useState<Message[]>([getInitialMessage()]);
+
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const initialMessages: Message[] = [getInitialMessage()];
+    const documentContext = sessionStorage.getItem('documentChatContext');
+    if (documentContext) {
+      initialMessages.push({
+        role: 'system',
+        content: "📄 **Document Context Loaded**\nI've loaded the document you selected. You can now ask me any questions about it, request specific summaries, or have me test your knowledge on its contents!",
+        timestamp: new Date()
+      });
+    }
+    return initialMessages;
+  });
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -153,6 +181,7 @@ export default function Chat() {
 
   // Start a new chat
   const startNewChat = () => {
+    sessionStorage.removeItem('documentChatContext');
     setMessages([getInitialMessage()]);
     setSessionId(null);
     sessionStorage.removeItem('activeChatSessionId');
@@ -274,10 +303,12 @@ export default function Chat() {
   // Set up chat mutation
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
+      const documentContext = sessionStorage.getItem('documentChatContext');
       const response = await apiPost('/api/chat', { 
         message,
         sessionId: sessionId,
-        subject: 'General Study Help'
+        subject: documentContext ? 'Document Analysis' : 'General Study Help',
+        documentContext: documentContext || undefined
       });
       
       if (!response.ok) {
@@ -318,7 +349,7 @@ export default function Chat() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!input.trim()) return;
+    if (!input.trim() || chatMutation.isPending) return;
 
     // Add user message to the chat
     const userMessage: Message = {
@@ -735,11 +766,33 @@ export default function Chat() {
                         : "bg-gradient-to-br from-card to-card/80 border-border"
                     )}>
                       <div className="text-sm sm:text-base leading-relaxed max-w-full overflow-x-hidden">
-                        {message.role === 'assistant' ? (
-                          <MessageFormatter content={message.content} />
-                        ) : (
-                          <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                        )}
+                        {(() => {
+                          const { cleanContent, action } = extractAction(message.content);
+                          return (
+                            <>
+                              {message.role === 'assistant' ? (
+                                <MessageFormatter content={cleanContent} />
+                              ) : (
+                                <div className="whitespace-pre-wrap break-words">{cleanContent}</div>
+                              )}
+                              
+                              {action && (
+                                <div className="mt-4 pt-4 border-t border-border/50">
+                                  <Button 
+                                    onClick={() => {
+                                      const path = action.type === 'quiz' ? '/quiz-mode' : '/flashcards';
+                                      setLocation(`${path}?q=${encodeURIComponent(action.query || action.topic)}`);
+                                    }}
+                                    className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center justify-center gap-2"
+                                  >
+                                    <Sparkles className="h-4 w-4" />
+                                    Launch {action.type === 'quiz' ? 'Quiz' : 'Flashcards'} on {action.topic}
+                                  </Button>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       
                       {/* Copy Button (kept for backward compatibility) */}
@@ -933,7 +986,6 @@ export default function Chat() {
                   className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[40px] max-h-[200px] text-sm"
                   rows={1}
                   maxLength={10000}
-                  disabled={chatMutation.isPending}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
                     target.style.height = 'auto';

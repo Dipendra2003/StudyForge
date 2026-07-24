@@ -104,6 +104,9 @@ export default function QuizMode() {
   const [qotdId, setQotdId] = useState<string | null>(null);
   const [qotdAutoStarted, setQotdAutoStarted] = useState(false);
   
+  // Custom query tracking
+  const [queryAutoStarted, setQueryAutoStarted] = useState(false);
+  
   // Hooks
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -314,6 +317,36 @@ export default function QuizMode() {
       handleStartQuiz(qotdConfig);
     }
   }, [isQOTD, isQuizStarted, qotdAutoStarted, showResults, sessionId, handleStartQuiz]);
+
+  // Auto-start custom topic quiz when 'q' parameter is present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryTopic = params.get('q');
+    
+    if (queryTopic && !isQuizStarted && !queryAutoStarted && !showResults) {
+      // Switch to take-quiz tab
+      setActiveTab('take-quiz');
+      
+      // Create config and auto-start
+      const aiConfig: QuizConfig = {
+        category: 'Custom',
+        difficulty: 'medium',
+        questionCount: 10,
+        questionTypes: ['mcq'], // Default to MCQ for AI generated
+        timedMode: false,
+        voiceMode: false,
+        aiMode: true,
+        topic: queryTopic,
+        sessionId,
+      };
+      
+      // Mark as auto-started to prevent re-triggering
+      setQueryAutoStarted(true);
+      
+      // Auto-start the quiz
+      handleStartQuiz(aiConfig);
+    }
+  }, [isQuizStarted, queryAutoStarted, showResults, sessionId, handleStartQuiz]);
 
   // ============================================================================
   // DATA PERSISTENCE

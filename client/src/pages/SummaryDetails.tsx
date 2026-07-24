@@ -4,7 +4,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Loader2, FileText, Clock, CheckCircle2, Sparkles, TrendingUp, Copy, ArrowLeft, Brain, FileDown, FileType, File, AlertCircle } from "lucide-react";
+import { Loader2, FileText, Clock, CheckCircle2, Sparkles, TrendingUp, Copy, ArrowLeft, Brain, FileDown, FileType, File, AlertCircle, MessageSquare, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { downloadAsTXT, downloadAsPDF, downloadAsDOCX } from "@/utils/downloadUtils";
@@ -394,10 +394,50 @@ export default function SummaryDetails() {
                   </motion.div>
                 )}
 
+                {summary.metadata?.relatedLinks && summary.metadata.relatedLinks.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.7 }}
+                  >
+                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
+                      <BookOpen className="h-5 w-5 text-primary" />
+                      🔗 Related Topics / Useful Links
+                    </h3>
+                    <div className="space-y-2">
+                      {summary.metadata.relatedLinks.map((link, index) => (
+                        <motion.a
+                          key={index}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.8 + index * 0.05 }}
+                          className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-transparent rounded-xl border border-purple-200 hover:border-purple-400 hover:shadow-lg transition-all group"
+                        >
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                            <BookOpen className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-purple-900 group-hover:text-purple-700 truncate">
+                              {link.title}
+                            </p>
+                            <p className="text-xs text-purple-600 truncate">{link.url}</p>
+                          </div>
+                          <svg className="w-4 h-4 text-purple-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </motion.a>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.7 }}
+                  transition={{ delay: 0.8 }}
                 >
                   <h3 className="font-semibold mb-3 flex items-center gap-2 text-lg">
                     <FileText className="h-5 w-5 text-primary" />
@@ -406,6 +446,21 @@ export default function SummaryDetails() {
                   <div className="p-4 sm:p-6 bg-gradient-to-br from-muted to-muted/50 rounded-lg border-2 border-border whitespace-pre-wrap max-h-60 sm:max-h-80 overflow-y-auto scrollbar-thin text-sm sm:text-base leading-relaxed">
                     {summary.originalText}
                   </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.9 }}
+                  className="pt-4 border-t"
+                >
+                  <Alert className="border-primary/20 bg-primary/5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <AlertTitle className="text-sm font-medium">🧾 AI Transparency Note</AlertTitle>
+                    <AlertDescription className="text-xs text-muted-foreground">
+                      ⚙️ Generated using AI summarization logic. Output style adapts dynamically to the selected Summary Type. All external links provided are for <strong>learning and reference purposes only</strong>.
+                    </AlertDescription>
+                  </Alert>
                 </motion.div>
               </CardContent>
               <CardFooter className="flex-col gap-4 bg-muted/30">
@@ -446,23 +501,36 @@ export default function SummaryDetails() {
                   </div>
                 </div>
                 
-                {/* Generate Flashcards Section */}
-                {summary.documentId && (
-                  <div className="w-full space-y-3 pt-2 border-t border-border">
-                    <div className="flex items-center gap-2">
-                      <Brain className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-semibold">Study Tools</span>
-                    </div>
+                {/* Generate Flashcards & Chat Section */}
+                <div className="w-full space-y-3 pt-2 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">Study Tools</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {summary.documentId && (
+                      <Button
+                        onClick={() => setShowBulkGenerateDialog(true)}
+                        className="flex-1 bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 hover:from-pink-600 hover:via-rose-600 hover:to-red-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+                        size="sm"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        🧠 Generate Flashcards
+                      </Button>
+                    )}
                     <Button
-                      onClick={() => setShowBulkGenerateDialog(true)}
-                      className="w-full bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 hover:from-pink-600 hover:via-rose-600 hover:to-red-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+                      onClick={() => {
+                        sessionStorage.setItem('documentChatContext', summary.originalText || summary.summary);
+                        setLocation('/chat');
+                      }}
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white border-0 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
                       size="sm"
                     >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      🧠 Generate Flashcards
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      💬 Chat about Document
                     </Button>
                   </div>
-                )}
+                </div>
 
                 {/* Action Buttons */}
                 <div className="flex justify-between w-full flex-wrap gap-2">

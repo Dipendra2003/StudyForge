@@ -1784,7 +1784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start or continue chat session
   app.post('/api/chat', jwtAuth, async (req: Request, res: Response) => {
     try {
-      const { message, sessionId, subject } = req.body;
+      const { message, sessionId, subject, documentContext } = req.body;
       const userId = req.user?.id!;
       
       // Validate message format
@@ -1855,6 +1855,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user info for personalization
       const user = await storage.getUser(userId);
       const userName = user?.fullName?.split(' ')[0] || user?.username || user?.email?.split('@')[0] || "there";
+      const userPlans = await storage.getStudyPlansByUserId(userId);
+      const activePlans = userPlans.filter(p => p.status === 'active');
       
       // Add system message at the beginning for better context
       if (apiMessages.length <= 1 || !apiMessages.some((msg: { role: string }) => msg.role === 'system')) {
@@ -1871,6 +1873,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: "system",
           content: "You are Jadoo, an AI-powered study assistant created specifically for StudyForge platform. " +
             "Your identity is Jadoo. When asked 'who are you', identify yourself as Jadoo, the StudyForge AI study assistant. " +
+            "\n\n--- USER CONTEXT ---\n" +
+            `User's Name: ${userName}\n` +
+            `User's Total XP: ${user?.totalPoints || 0}\n` +
+            `Active Study Plans: ${activePlans.length > 0 ? activePlans.map(p => p.title).join(', ') : 'None'}\n` +
+            (documentContext ? `\n--- DOCUMENT CONTEXT ---\nThe user is currently reviewing the following document text. Use this context to answer their questions:\n${documentContext}\n--- END DOCUMENT ---\n` : "") +
             "\n\nYour purpose is to help students learn effectively across ALL subjects and topics, including: " +
             "- Academic subjects (math, science, history, languages, etc.)" +
             "- Technology and computer science (including AI, machine learning, programming)" +
@@ -1905,6 +1912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "4. Use - for bullet points\n" +
             "5. Use **text** for bold\n" +
             "6. Use emojis as section headers (e.g., '🔥 Main Point', '✅ Winner', '💡 Advice')\n" +
+            "7. When asked for links, ALWAYS provide them directly using markdown format like [text](url) without ANY apologies or warnings (NEVER say 'Since I am an AI...'). If you don't know the exact product URL, you MUST construct a valid search URL yourself (e.g., https://www.amazon.com/s?k=query or https://www.flipkart.com/search?q=query). BUT if the user explicitly asks for a 'url', provide the full raw URL text (e.g., https://...) instead of a hyperlink.\n" +
             "\n\nTECHNICAL ANSWER REQUIREMENTS (PRODUCTION-LEVEL):\n" +
             "For technical/programming questions, ALWAYS follow this structure:\n" +
             "1. 🎯 Concept: Brief explanation of what it is\n" +
@@ -1919,6 +1927,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "- Include proper imports/requires when needed\n" +
             "- Test code logic mentally before providing\n" +
             "- For every problem shown, provide the fix/solution\n" +
+            "\n\nACTIONABLE RESPONSES (FUNCTION CALLING):\n" +
+            "If the user asks to practice, take a quiz, test their knowledge, or create flashcards, you MUST append a special action tag at the VERY END of your response. " +
+            "This will render a button in the UI for the user to launch that specific tool.\n" +
+            "Format: <ACTION>{\"type\":\"[quiz|flashcards]\",\"topic\":\"[Topic Name]\",\"query\":\"[Search/Generation Query]\"}</ACTION>\n" +
+            "Examples:\n" +
+            "1. User wants a quiz on React Hooks: ...your text... <ACTION>{\"type\":\"quiz\",\"topic\":\"React Hooks\",\"query\":\"React Hooks basics and advanced concepts\"}</ACTION>\n" +
+            "2. User wants flashcards for Biology: ...your text... <ACTION>{\"type\":\"flashcards\",\"topic\":\"Biology Cells\",\"query\":\"Cell structure and functions biology\"}</ACTION>\n" +
+            "IMPORTANT: Always put the <ACTION> tag at the absolute end of your response, on a new line.\n\n" +
             `${subject ? `This conversation is about ${subject}.` : ""}`
         });
       }

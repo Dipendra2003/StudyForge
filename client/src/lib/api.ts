@@ -1,6 +1,7 @@
 /**
  * API utility functions for making authenticated requests
  */
+import { refreshAuthToken } from "./auth-refresh";
 
 interface FetchOptions extends RequestInit {
   headers?: Record<string, string>;
@@ -22,11 +23,29 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  return fetch(url, {
+  let response = await fetch(url, {
     ...options,
     headers,
     credentials: 'include', // Always include cookies for refresh token
   });
+
+  // Handle 401 by attempting to refresh the token and retrying
+  if (response.status === 401 && !url.includes('/api/auth/')) {
+    const refreshSuccess = await refreshAuthToken();
+
+    if (refreshSuccess) {
+      // Retry the original request (new cookie will be included automatically)
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
+    } else {
+      console.error('Authentication expired, please log in again.');
+    }
+  }
+
+  return response;
 }
 
 /**

@@ -95,13 +95,15 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
       const isTableLine = trimmedLine.includes('|') && 
                          (trimmedLine.startsWith('|') || /^\|.*\|$/.test(trimmedLine));
       
+      // Detect markdown list item to prevent false positive diagrams
+      const isListItem = /^\s*([\*\-]\s|\d+\.\s)/.test(line);
+      
       // Detect ASCII diagram (lines with box drawing characters or arrows)
-      // Exclude markdown tables from diagram detection
-      const isDiagramLine = !isTableLine && 
-                           /[─│┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬═║+\-\|]/.test(line) && 
-                           (line.includes('─') || line.includes('+') || 
-                            line.includes('-->') || line.includes('<--') || 
-                            (line.includes('|') && !trimmedLine.startsWith('|')));
+      // Exclude markdown tables and regular list items from diagram detection
+      const isDiagramLine = !isTableLine && !isListItem && 
+                           (/[─│┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬═║]/.test(line) || 
+                            /\+--|--\+|-->|<--|<==|==>/.test(line) || 
+                            (line.includes('|') && !trimmedLine.startsWith('|') && line.split('|').length > 2));
       
       // Handle diagram detection
       if (isDiagramLine && !inDiagram) {
@@ -210,9 +212,10 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
       }
 
       // Bullet points with proper indentation
-      if (line.trim().startsWith('-')) {
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || line.trim() === '-' || line.trim() === '*') {
         const indent = line.search(/\S/);
-        const content = line.trim().substring(1).trim();
+        const isAsterisk = line.trim().startsWith('*');
+        const content = line.trim().substring(isAsterisk ? (line.trim() === '*' ? 1 : 2) : (line.trim() === '-' ? 1 : 2)).trim();
         const marginLeft = indent > 0 ? `${indent * 8}px` : '0px';
         
         elements.push(
@@ -424,12 +427,29 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
     );
   };
 
-  // Format inline text (bold, emojis, etc.)
+  // Format inline text (bold, italics, code, math, links, emojis, etc.)
   const formatInlineText = (text: string) => {
-    // Handle both <bold>text</bold> and **text** patterns
-    const parts = text.split(/(<bold>.*?<\/bold>|\*\*.*?\*\*)/g);
+    // Handle <bold>, **, *, `code`, $math$, and [text](url)
+    const parts = text.split(/(<bold>.*?<\/bold>|\*\*.*?\*\*|\*[^*]+\*|`[^`]+`|\$[^$]+\$|\[.*?\]\(.*?\))/g);
     
     return parts.map((part, index) => {
+      if (!part) return null;
+      if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
+        const match = part.match(/\[(.*?)\]\((.*?)\)/);
+        if (match) {
+          return (
+            <a 
+              key={index} 
+              href={match[2]} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-primary hover:underline font-medium"
+            >
+              {match[1]}
+            </a>
+          );
+        }
+      }
       if (part.startsWith('<bold>') && part.endsWith('</bold>')) {
         const content = part.slice(6, -7);
         return <strong key={index} className="font-semibold">{content}</strong>;
@@ -437,6 +457,18 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         const content = part.slice(2, -2);
         return <strong key={index} className="font-semibold">{content}</strong>;
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+        const content = part.slice(1, -1);
+        return <em key={index} className="italic">{content}</em>;
+      }
+      if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+        const content = part.slice(1, -1);
+        return <code key={index} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-primary">{content}</code>;
+      }
+      if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
+        const content = part.slice(1, -1);
+        return <span key={index} className="font-serif italic text-primary font-medium">{content}</span>;
       }
       return <span key={index}>{part}</span>;
     });
