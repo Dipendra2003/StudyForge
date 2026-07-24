@@ -12,6 +12,7 @@ import { initializeStorage } from "./storage";
 import { errorHandler } from "./middleware/errorHandler";
 import { validateEnvOrExit, logEnvironmentConfig } from "./config/validateEnv";
 import { securityHeaders, additionalSecurityHeaders, securityLogging } from "./middleware/security.middleware";
+import { setupCronJobs } from "./cron";
 
 const app = express();
 
@@ -108,6 +109,9 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
     
     // Initialize storage layer with MySQL
     initializeStorage();
+    
+    // Setup cron jobs
+    setupCronJobs();
     log('Storage layer initialized with MySQL', 'database');
     
     // Initialize email service

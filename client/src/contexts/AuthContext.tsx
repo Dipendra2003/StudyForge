@@ -161,6 +161,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      // Clear all session storage items related to navigation
+      sessionStorage.removeItem('lastVisitedPage');
+      sessionStorage.removeItem('redirectAfterLogin');
+      sessionStorage.removeItem('codeGenActiveTab');
       setLocation('/');
     }
   };

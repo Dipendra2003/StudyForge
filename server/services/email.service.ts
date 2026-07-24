@@ -258,6 +258,85 @@ export class EmailService {
   }
 
   /**
+   * Send a study reminder email to user
+   * 
+   * @param userId - The user's ID
+   * @param email - The user's email address
+   * @param username - The user's username
+   * @param planTitle - The title of the study plan
+   * @param taskCount - Number of tasks due today
+   * @returns Promise<void>
+   */
+  public async sendStudyReminderEmail(
+    userId: number,
+    email: string,
+    username: string,
+    planTitle: string,
+    taskCount: number
+  ): Promise<void> {
+    const emailType = 'study_reminder';
+
+    if (!this.isReady()) {
+      const errorMessage = this.getConfigurationErrorMessage();
+      await this.recordEmailSent(userId, emailType, email, 'Study Reminder', 'failed', errorMessage);
+      return; // Return silently for cron jobs
+    }
+
+    const subject = `Study Reminder: ${taskCount} tasks due today in ${planTitle}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; }
+          .btn { display: inline-block; background: #4F46E5; color: white; text-decoration: none; padding: 10px 20px; border-radius: 5px; margin-top: 20px; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Study Reminder</h1>
+          </div>
+          <div class="content">
+            <p>Hello ${username},</p>
+            <p>You have <strong>${taskCount}</strong> study tasks due today for your study plan <strong>${planTitle}</strong>.</p>
+            <p>Stay on track and complete your tasks to earn more XP!</p>
+            <div style="text-align: center;">
+              <a href="${process.env.APP_URL || 'http://localhost:5000'}/study-planner" class="btn">View Study Planner</a>
+            </div>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from StudyForge.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Hello ${username},
+
+You have ${taskCount} study tasks due today for your study plan ${planTitle}.
+Stay on track and complete your tasks to earn more XP!
+
+View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study-planner
+    `;
+
+    try {
+      await this.sendEmail(email, subject, html, text);
+      await this.recordEmailSent(userId, emailType, email, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(userId, emailType, email, subject, 'failed', errorMessage);
+    }
+  }
+
+  /**
    * Send verification email to user
    * 
    * Requirements: 1.7, 7.5, 7.8

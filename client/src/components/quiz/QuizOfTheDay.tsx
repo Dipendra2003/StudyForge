@@ -17,8 +17,10 @@ import {
   CheckCircle2,
   Clock,
   Target,
-  Award
+  Award,
+  Share2
 } from "lucide-react";
+import confetti from "canvas-confetti";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface QuizOfTheDay {
@@ -49,6 +51,8 @@ export function QuizOfTheDay() {
   const [stats, setStats] = useState<QOTDStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [timeLeft, setTimeLeft] = useState<string>("");
+
   useEffect(() => {
     // Only fetch if user is authenticated
     if (!isAuthenticated || !user) {
@@ -58,6 +62,63 @@ export function QuizOfTheDay() {
     
     fetchQuizOfTheDay();
   }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    if (!quizOfTheDay?.completed) return;
+
+    // Trigger confetti on mount if completed
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+
+      const diff = tomorrow.getTime() - now.getTime();
+      if (diff <= 0) {
+        setTimeLeft("00h 00m 00s");
+        return;
+      }
+      
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / 1000 / 60) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      setTimeLeft(`${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`);
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(interval);
+  }, [quizOfTheDay?.completed]);
+
+  const handleShare = async () => {
+    if (!stats || !quizOfTheDay) return;
+    const text = `🔥 I'm on a ${stats.currentStreak}-day streak on StudyForge's Quiz of the Day! Can you beat my score?\n\nJoin me at StudyForge!`;
+    
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'StudyForge Quiz of the Day',
+          text: text,
+          url: window.location.origin
+        });
+      } else {
+        await navigator.clipboard.writeText(text);
+        toast({
+          title: "Copied to clipboard!",
+          description: "Share your streak with friends!",
+        });
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
 
   const fetchQuizOfTheDay = async () => {
     try {
@@ -272,10 +333,17 @@ export function QuizOfTheDay() {
               </motion.div>
 
               <motion.div
-                className="p-3 rounded-lg bg-gradient-to-br from-orange-500/10 to-orange-500/5 border border-orange-500/20"
+                className={`p-3 rounded-lg border ${stats.currentStreak > 0 ? 'bg-gradient-to-br from-orange-500/20 to-orange-500/10 border-orange-500/40 shadow-[0_0_15px_rgba(249,115,22,0.2)] relative overflow-hidden' : 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/20'}`}
                 whileHover={{ scale: 1.05 }}
                 transition={{ duration: 0.2 }}
               >
+                {stats.currentStreak > 0 && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-t from-orange-500/10 to-transparent"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                )}
                 <div className="flex items-center gap-2 mb-1">
                   <Flame className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                   <span className="text-xs font-medium text-muted-foreground">Streak</span>
@@ -316,11 +384,37 @@ export function QuizOfTheDay() {
           )}
 
           {quizOfTheDay.completed && (
-            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
-              <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                🎉 You've completed today's challenge! Come back tomorrow for a new quiz.
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="p-6 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border-2 border-green-500/30 text-center relative overflow-hidden shadow-lg mt-2"
+            >
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Trophy className="w-24 h-24" />
+              </div>
+              <h4 className="text-xl font-bold text-green-800 dark:text-green-400 mb-2">
+                🎉 Challenge Completed!
+              </h4>
+              <p className="text-sm text-green-700 dark:text-green-300 mb-4">
+                You've completed today's challenge! Come back tomorrow for a new quiz.
               </p>
-            </div>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
+                <div className="flex items-center gap-2 bg-background/50 px-4 py-2 rounded-lg font-mono font-medium border border-border/50">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <span>Next quiz in: {timeLeft}</span>
+                </div>
+                
+                <Button 
+                  onClick={handleShare}
+                  variant="outline"
+                  className="bg-background/80 hover:bg-background border-primary/20 hover:border-primary/50 text-primary transition-all shadow-sm"
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share My Streak
+                </Button>
+              </div>
+            </motion.div>
           )}
         </CardContent>
       </Card>

@@ -16,8 +16,11 @@ import {
   RefreshCw,
   Trash,
   Trash2,
+  Play,
+  Zap,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
 import { AddStudyItemDialog } from "./AddStudyItemDialog";
 import { EditStudyPlanDialog } from "./EditStudyPlanDialog";
 import { EditStudyItemDialog } from "./EditStudyItemDialog";
@@ -28,6 +31,8 @@ interface StudyPlanItem {
   description: string;
   duration: number;
   completed: boolean;
+  actionType?: "quiz" | "flashcards" | "read";
+  actionQuery?: string;
 }
 
 interface StudyPlan {
@@ -79,6 +84,7 @@ export function StudyPlanCard({
   isEditingItem,
   isCompleted = false,
 }: StudyPlanCardProps) {
+  const [, setLocation] = useLocation();
   const items = typeof plan.scheduleData === 'string' 
     ? JSON.parse(plan.scheduleData || '[]') 
     : plan.scheduleData || [];
@@ -244,6 +250,35 @@ export function StudyPlanCard({
                         <p className="text-xs text-gray-500">{item.duration} min</p>
                       </div>
                     </div>
+                    
+                    {/* ACTION LINKS */}
+                    {!item.completed && item.actionType && item.actionType !== "read" && item.actionQuery && (
+                      <div className="ml-2 mr-4 flex-shrink-0">
+                        {item.actionType === "quiz" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 gap-1 bg-primary/5 text-primary hover:bg-primary/15 border-primary/20"
+                            onClick={() => setLocation(`/quiz-mode?category=${encodeURIComponent(item.actionQuery!)}&difficulty=${plan.difficulty || 'medium'}&qotd=false`)}
+                          >
+                            <Play className="h-3 w-3" />
+                            Launch Quiz
+                          </Button>
+                        )}
+                        {item.actionType === "flashcards" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 gap-1 bg-orange-500/5 text-orange-600 hover:bg-orange-500/15 border-orange-500/20"
+                            onClick={() => setLocation(`/flashcards?topic=${encodeURIComponent(item.actionQuery!)}`)}
+                          >
+                            <Zap className="h-3 w-3" />
+                            Flashcards
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {!item.completed && !isCompleted && (
                         <>

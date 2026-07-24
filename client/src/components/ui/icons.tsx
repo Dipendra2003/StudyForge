@@ -42,6 +42,12 @@ import {
   Info,
   Archive,
   History,
+  Minus,
+  Map,
+  WrapText,
+  Wand2,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import React from "react";
 
@@ -108,4 +114,11 @@ export const Icons = {
   ),
   twitter: Twitter,
   check: Check,
+  minus: Minus,
+  plus: Plus,
+  map: Map,
+  wrap: WrapText,
+  wand: Wand2,
+  maximize: Maximize,
+  minimize: Minimize,
 };

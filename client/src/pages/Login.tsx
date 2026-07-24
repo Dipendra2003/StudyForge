@@ -29,14 +29,13 @@ export default function Login() {
         // Admin users should go to admin panel
         redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/admin';
       } else {
-        // Regular users go to dashboard
-        redirectPath = sessionStorage.getItem('redirectAfterLogin') || 
-                      sessionStorage.getItem('lastVisitedPage') || 
-                      '/dashboard';
+        // Regular users always go to dashboard after login (ignore lastVisitedPage)
+        redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/dashboard';
       }
       
-      // Clear the redirect flag
+      // Clear the redirect flags
       sessionStorage.removeItem('redirectAfterLogin');
+      sessionStorage.removeItem('lastVisitedPage');
       
       setLocation(redirectPath);
     }

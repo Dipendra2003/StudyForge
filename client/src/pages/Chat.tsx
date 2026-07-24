@@ -748,7 +748,7 @@ export default function Chat() {
                           variant="ghost"
                           size="icon"
                           className={cn(
-                            "absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
+                            "absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity",
                             message.role === 'user' 
                               ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90" 
                               : "bg-background text-foreground hover:bg-accent"

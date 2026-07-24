@@ -124,6 +124,7 @@ export default function StudyPlanner() {
   });
 
   const { toast } = useToast();
+  const [calendarDate, setCalendarDate] = useState<Date | undefined>(new Date());
 
   // Save active tab to sessionStorage whenever it changes
   useEffect(() => {
@@ -233,15 +234,17 @@ export default function StudyPlanner() {
   // Complete a study plan item
   const completeStudyPlanItemMutation = useMutation({
     mutationFn: async ({ planId, itemId }: { planId: number; itemId: string }) => {
-      return apiRequest<StudyPlan>(`/api/study-plans/${planId}/items/${itemId}/complete`, {
+      return apiRequest<any>(`/api/study-plans/${planId}/items/${itemId}/complete`, {
         method: 'PATCH',
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       refetch();
       toast({
         title: "Item completed",
-        description: "Study item marked as completed.",
+        description: data.pointsAwarded 
+          ? `Study item marked as completed. Earned +${data.pointsAwarded} XP!` 
+          : "Study item marked as completed.",
       });
     },
   });
@@ -857,10 +860,11 @@ export default function StudyPlanner() {
                   onValueChange={setActiveTab}
                   className="w-full"
                 >
-                  <TabsList className="grid grid-cols-3 w-full mb-4">
+                  <TabsList className="grid grid-cols-4 w-full mb-4">
                     <TabsTrigger value="all">All Plans</TabsTrigger>
                     <TabsTrigger value="active">Active</TabsTrigger>
                     <TabsTrigger value="completed">Completed</TabsTrigger>
+                    <TabsTrigger value="calendar">Calendar</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="all" className="space-y-4">
@@ -975,6 +979,104 @@ export default function StudyPlanner() {
                         ))}
                       </div>
                     )}
+                  </TabsContent>
+                  
+                  <TabsContent value="calendar" className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Schedule</CardTitle>
+                          <CardDescription>Select a date to view study tasks</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex justify-center">
+                          <Calendar
+                            mode="single"
+                            selected={calendarDate}
+                            onSelect={setCalendarDate}
+                            className="rounded-md border shadow"
+                            modifiers={{
+                              hasTasks: (date) => {
+                                if (!studyPlans) return false;
+                                return studyPlans.some(plan => {
+                                  if (plan.status === 'completed') return false;
+                                  const items = typeof plan.scheduleData === 'string' ? JSON.parse(plan.scheduleData || '[]') : (plan.scheduleData || []);
+                                  return items.some((item: any) => {
+                                    if (!item.scheduledDate) return false;
+                                    const itemDate = new Date(item.scheduledDate);
+                                    return itemDate.getDate() === date.getDate() &&
+                                           itemDate.getMonth() === date.getMonth() &&
+                                           itemDate.getFullYear() === date.getFullYear();
+                                  });
+                                });
+                              }
+                            }}
+                            modifiersStyles={{
+                              hasTasks: { fontWeight: 'bold', textDecoration: 'underline' }
+                            }}
+                          />
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>
+                            Tasks for {calendarDate ? format(calendarDate, "MMM d, yyyy") : "Select date"}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {studyPlans?.map(plan => {
+                              if (plan.status === 'completed') return null;
+                              const items = typeof plan.scheduleData === 'string' ? JSON.parse(plan.scheduleData || '[]') : (plan.scheduleData || []);
+                              const todaysItems = items.filter((item: any) => {
+                                if (!item.scheduledDate || !calendarDate) return false;
+                                const itemDate = new Date(item.scheduledDate);
+                                return itemDate.getDate() === calendarDate.getDate() &&
+                                       itemDate.getMonth() === calendarDate.getMonth() &&
+                                       itemDate.getFullYear() === calendarDate.getFullYear();
+                              });
+                              
+                              if (todaysItems.length === 0) return null;
+                              
+                              return (
+                                <div key={plan.id} className="mb-4">
+                                  <h4 className="font-semibold text-sm mb-2">{plan.title}</h4>
+                                  {todaysItems.map((item: any) => (
+                                    <div key={item.id} className="flex items-start space-x-3 p-3 mb-2 rounded-lg bg-muted/50">
+                                      <div className="mt-0.5">
+                                        <FileText className="h-5 w-5 text-primary/60" />
+                                      </div>
+                                      <div className="flex-1 space-y-1 min-w-0">
+                                        <p className="font-medium text-sm truncate">{item.title}</p>
+                                        <div className="flex items-center text-xs text-muted-foreground">
+                                          <Clock className="h-3 w-3 mr-1" />
+                                          <span>{item.duration} min</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                            {!studyPlans?.some(plan => {
+                              if (plan.status === 'completed') return false;
+                              const items = typeof plan.scheduleData === 'string' ? JSON.parse(plan.scheduleData || '[]') : (plan.scheduleData || []);
+                              return items.some((item: any) => {
+                                if (!item.scheduledDate || !calendarDate) return false;
+                                const itemDate = new Date(item.scheduledDate);
+                                return itemDate.getDate() === calendarDate.getDate() &&
+                                       itemDate.getMonth() === calendarDate.getMonth() &&
+                                       itemDate.getFullYear() === calendarDate.getFullYear();
+                              });
+                            }) && (
+                              <div className="text-center py-8">
+                                <p className="text-muted-foreground text-sm">No tasks scheduled for this date</p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
                   </TabsContent>
                 </Tabs>
               </motion.div>

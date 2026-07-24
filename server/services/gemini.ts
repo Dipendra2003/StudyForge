@@ -1488,18 +1488,22 @@ Return the response in the following JSON format:
       "type": "learning",
       "prerequisites": [],
       "resources": ["resource1", "resource2"],
-      "reviewDay": false
+      "reviewDay": false,
+      "actionType": "quiz",
+      "actionQuery": "Specific topic name to generate a quiz for"
     }
   ]
 }
 
 IMPORTANT:
 - Generate exactly ${durationDays} items in the scheduleData array
-- Each item must have: id, title, description, duration, completed, dayNumber, difficulty, type, prerequisites, resources, reviewDay
+- Each item must have: id, title, description, duration, completed, dayNumber, difficulty, type, prerequisites, resources, reviewDay, actionType, actionQuery
 - Duration should respect the ${dailyTime} minute daily limit (can be 30-${dailyTime} minutes)
 - Include at least ${Math.floor(durationDays / 4)} review days (reviewDay: true)
 - Difficulty progression: easy → medium → hard
 - Types: "learning", "practice", "review", "assessment"
+- actionType MUST be exactly one of: "quiz", "flashcards", or "read"
+- actionQuery MUST be a short, specific search term or topic related to the item (e.g. "React Hooks basics")
 - Prerequisites: array of item IDs that should be completed first
 - Resources: array of recommended resource types (videos, articles, exercises, etc.)
 - Keep descriptions actionable and specific (what to learn, what to practice)

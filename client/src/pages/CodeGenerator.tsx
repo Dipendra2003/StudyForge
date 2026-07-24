@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import MonacoCodeEditor from "@/components/MonacoCodeEditor";
 
 import {
   Form,
@@ -910,202 +911,81 @@ export default function CodeGenerator() {
           </TabsContent>
 
           <TabsContent value="playground" className="mt-4 sm:mt-6 md:mt-8">
-            <Card className="border-2 shadow-lg">
+            <Card className="border-2 shadow-lg overflow-hidden">
               <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6">
-                <div className="flex flex-col gap-3 sm:gap-4">
-                  <div>
-                    <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">
-                      <Icons.play className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
-                      <span className="truncate">Code Playground</span>
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs sm:text-sm">
-                      Write and execute code directly
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 sm:gap-3">
-                    <Select value={playgroundLanguage} onValueChange={setPlaygroundLanguage}>
-                      <SelectTrigger className="w-full xs:w-[140px] sm:w-[180px] focus:ring-purple-500 h-9 sm:h-10">
-                        <SelectValue placeholder="Language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="javascript">JavaScript</SelectItem>
-                        <SelectItem value="python">Python</SelectItem>
-                        <SelectItem value="java">Java</SelectItem>
-                        <SelectItem value="c++">C++</SelectItem>
-                        <SelectItem value="typescript">TypeScript</SelectItem>
-                        <SelectItem value="go">Go</SelectItem>
-                        <SelectItem value="rust">Rust</SelectItem>
-                        <SelectItem value="ruby">Ruby</SelectItem>
-                        <SelectItem value="php">PHP</SelectItem>
-                        <SelectItem value="swift">Swift</SelectItem>
-                        <SelectItem value="kotlin">Kotlin</SelectItem>
-                        <SelectItem value="c#">C#</SelectItem>
-                        <SelectItem value="r">R</SelectItem>
-                        <SelectItem value="sql">SQL</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="default"
-                      className="gap-2 bg-green-600 hover:bg-green-700 h-9 sm:h-10 text-sm sm:text-base w-full xs:w-auto"
-                      onClick={runPlaygroundCode}
-                      disabled={isPlaygroundRunning}
-                    >
-                      {isPlaygroundRunning ? (
-                        <>
-                          <Icons.spinner className="h-4 w-4 animate-spin" />
-                          <span className="hidden sm:inline">Running...</span>
-                          <span className="sm:hidden">Run...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Icons.play className="h-4 w-4" />
-                          <span>Run Code</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
+                <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">
+                  <Icons.play className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+                  <span className="truncate">Code Playground</span>
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs sm:text-sm">
+                  Professional code editor with IntelliSense, syntax highlighting, and more
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6">
-                <div className="space-y-2 sm:space-y-3">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2">
-                      <Icons.file className="h-3 w-3 sm:h-4 sm:w-4" />
-                      Code Editor
-                    </h3>
-                    <div className="flex flex-wrap gap-1 sm:gap-2 w-full sm:w-auto">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                        onClick={() => setShowTemplates(!showTemplates)}
-                      >
-                        <Icons.bookOpen className="h-3 w-3 sm:h-4 sm:w-4" />
-                        <span className="hidden sm:inline">Templates</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                        onClick={() => analyzeComplexity(playgroundCode)}
-                      >
-                        <Icons.zap className="h-3 w-3 sm:h-4 sm:w-4" />
-                        <span className="hidden md:inline">Analyze</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                        onClick={() => downloadCode(playgroundCode, playgroundLanguage, 'playground-code')}
-                      >
-                        <Icons.arrowRight className="h-3 w-3 sm:h-4 sm:w-4 rotate-90" />
-                        <span className="hidden sm:inline">Download</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                        onClick={() => {
-                          setPlaygroundCode("");
-                          setPlaygroundOutput("");
-                          toast({
-                            title: "Cleared",
-                            description: "Code editor and output cleared",
-                          });
-                        }}
-                      >
-                        <Icons.trash className="h-3 w-3 sm:h-4 sm:w-4" />
-                        <span className="hidden sm:inline">Clear</span>
-                      </Button>
+              <CardContent className="p-0">
+                {/* Templates Dropdown */}
+                {showTemplates && (
+                  <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 border-b">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Icons.bookOpen className="h-4 w-4" />
+                      Quick Start Templates
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES] ? (
+                        Object.keys(CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES]).map((template) => (
+                          <Button
+                            key={template}
+                            variant="outline"
+                            size="sm"
+                            className="justify-start"
+                            onClick={() => loadTemplate(template)}
+                          >
+                            {template}
+                          </Button>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground col-span-full">
+                          No templates available for {playgroundLanguage}
+                        </p>
+                      )}
                     </div>
                   </div>
+                )}
 
-                  {/* Templates Dropdown */}
-                  {showTemplates && (
-                    <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 rounded-lg border">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Icons.bookOpen className="h-4 w-4" />
-                        Quick Start Templates
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES] ? (
-                          Object.keys(CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES]).map((template) => (
-                            <Button
-                              key={template}
-                              variant="outline"
-                              size="sm"
-                              className="justify-start"
-                              onClick={() => loadTemplate(template)}
-                            >
-                              {template}
-                            </Button>
-                          ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground col-span-full">
-                            No templates available for {playgroundLanguage}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Complexity Analysis for Playground */}
-                  {showComplexity && codeComplexity && (
-                    <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 rounded-lg border border-yellow-200 dark:border-yellow-900">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3 flex-1">
-                          <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
-                            <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
-                          </div>
+                {/* Complexity Analysis for Playground */}
+                {showComplexity && codeComplexity && (
+                  <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 border-b border-yellow-200 dark:border-yellow-900">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
+                          <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowComplexity(false)}
-                        >
-                          <Icons.close className="h-4 w-4" />
-                        </Button>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowComplexity(false)}
+                      >
+                        <Icons.close className="h-4 w-4" />
+                      </Button>
                     </div>
-                  )}
-                  <Textarea
-                    value={playgroundCode}
-                    onChange={(e) => setPlaygroundCode(e.target.value)}
-                    className="font-mono text-xs sm:text-sm min-h-[300px] sm:min-h-[400px] resize-y bg-slate-950 text-slate-50 border-slate-800 focus-visible:ring-green-500"
-                    placeholder={`// Write your ${playgroundLanguage} code here...\n\n${
-                      playgroundLanguage === 'javascript' 
-                        ? 'console.log("Hello, World!");' 
-                        : playgroundLanguage === 'python'
-                        ? 'print("Hello, World!")'
-                        : playgroundLanguage === 'java'
-                        ? 'System.out.println("Hello, World!");'
-                        : 'Write your code here...'
-                    }`}
-                  />
-                </div>
-
-                {playgroundOutput && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Icons.code className="h-4 w-4 text-green-600" />
-                      <h3 className="font-semibold text-base">Output</h3>
-                    </div>
-                    <pre className="p-4 bg-slate-950 text-green-400 rounded-lg overflow-x-auto text-sm min-h-[150px] border border-slate-800">
-                      <code>{playgroundOutput}</code>
-                    </pre>
                   </div>
                 )}
 
-                {!playgroundOutput && (
-                  <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-lg border-2 border-dashed text-center">
-                    <Icons.zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      Write your code above and click "Run Code" to see the output here
-                    </p>
-                  </div>
-                )}
+                <MonacoCodeEditor
+                  value={playgroundCode}
+                  onChange={setPlaygroundCode}
+                  language={playgroundLanguage}
+                  onLanguageChange={setPlaygroundLanguage}
+                  onRun={runPlaygroundCode}
+                  isRunning={isPlaygroundRunning}
+                  output={playgroundOutput}
+                  onClearOutput={() => setPlaygroundOutput("")}
+                  showTemplates={() => setShowTemplates(!showTemplates)}
+                  onDownload={() => downloadCode(playgroundCode, playgroundLanguage, 'playground-code')}
+                  onAnalyze={() => analyzeComplexity(playgroundCode)}
+                />
               </CardContent>
             </Card>
           </TabsContent>

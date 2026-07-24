@@ -59,13 +59,15 @@ export class QuizOfTheDayService {
       if (trendingCategory) {
         Logger.info(LogCategory.BUSINESS, 'Found trending category', { category: trendingCategory });
         
+        const capitalizedCategory = trendingCategory.charAt(0).toUpperCase() + trendingCategory.slice(1);
+        
         return {
           id: `qotd-${dateString}`,
           date: dateString,
           category: trendingCategory,
           difficulty: this.getDifficultyForDate(date),
           questionCount: QuizOfTheDayService.QUESTION_COUNT,
-          title: `${trendingCategory} Challenge`,
+          title: `${capitalizedCategory} Challenge`,
           description: `Today's trending topic: ${trendingCategory}. Complete this quiz to earn bonus points!`,
           isTrending: true,
           bonusPoints: QuizOfTheDayService.BONUS_POINTS,
@@ -75,6 +77,7 @@ export class QuizOfTheDayService {
       // Fallback to popular quiz
       Logger.info(LogCategory.BUSINESS, 'No trending data, falling back to popular quiz');
       const popularCategory = await this.getPopularCategory();
+      const capitalizedPopular = popularCategory.charAt(0).toUpperCase() + popularCategory.slice(1);
 
       return {
         id: `qotd-${dateString}`,
@@ -82,7 +85,7 @@ export class QuizOfTheDayService {
         category: popularCategory,
         difficulty: this.getDifficultyForDate(date),
         questionCount: QuizOfTheDayService.QUESTION_COUNT,
-        title: `${popularCategory} Daily Challenge`,
+        title: `${capitalizedPopular} Daily Challenge`,
         description: `Today's popular topic: ${popularCategory}. Complete this quiz to earn bonus points!`,
         isTrending: false,
         bonusPoints: QuizOfTheDayService.BONUS_POINTS,
@@ -347,24 +350,15 @@ export class QuizOfTheDayService {
     totalBonusPoints: number;
   }> {
     try {
-      // Get completions from quiz_of_the_day_completions table
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
       const completions = await db
         .select({
-          date: sql<string>`DATE(${quizOfTheDayCompletions.date})`.as('date'),
+          quizId: quizOfTheDayCompletions.quizId,
           bonusAwarded: sql<number>`SUM(${quizOfTheDayCompletions.bonusAwarded})`.as('bonusAwarded'),
         })
         .from(quizOfTheDayCompletions)
-        .where(
-          and(
-            eq(quizOfTheDayCompletions.userId, userId),
-            gte(quizOfTheDayCompletions.date, thirtyDaysAgo)
-          )
-        )
-        .groupBy(sql`DATE(${quizOfTheDayCompletions.date})`)
-        .orderBy(desc(sql`DATE(${quizOfTheDayCompletions.date})`));
+        .where(eq(quizOfTheDayCompletions.userId, userId))
+        .groupBy(quizOfTheDayCompletions.quizId)
+        .orderBy(desc(quizOfTheDayCompletions.quizId));
 
       const totalCompleted = completions.length;
       
@@ -379,28 +373,63 @@ export class QuizOfTheDayService {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      for (let i = 0; i < completions.length; i++) {
-        const completionDate = new Date(completions[i].date);
-        completionDate.setHours(0, 0, 0, 0);
-        
-        const expectedDate = new Date(today);
-        expectedDate.setDate(expectedDate.getDate() - i);
-        
-        if (completionDate.getTime() === expectedDate.getTime()) {
-          tempStreak++;
-          if (i === 0 || currentStreak > 0) {
-            currentStreak = tempStreak;
-          }
-        } else {
-          if (tempStreak > longestStreak) {
-            longestStreak = tempStreak;
-          }
-          tempStreak = 0;
-        }
-      }
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
       
-      if (tempStreak > longestStreak) {
-        longestStreak = tempStreak;
+      if (completions.length > 0) {
+        let expectedDate: Date | null = null;
+
+        for (let i = 0; i < completions.length; i++) {
+          // quizId format: 'qotd-2026-07-24'
+          const dateString = completions[i].quizId.replace('qotd-', '');
+          const [year, month, day] = dateString.split('-').map(Number);
+          const completionDate = new Date(year, month - 1, day);
+          completionDate.setHours(0, 0, 0, 0);
+          
+          if (i === 0) {
+            expectedDate = new Date(completionDate);
+            tempStreak = 1;
+            expectedDate.setDate(expectedDate.getDate() - 1);
+          } else if (expectedDate && completionDate.getTime() === expectedDate.getTime()) {
+            tempStreak++;
+            expectedDate.setDate(expectedDate.getDate() - 1);
+          } else {
+            if (tempStreak > longestStreak) longestStreak = tempStreak;
+            tempStreak = 1;
+            expectedDate = new Date(completionDate);
+            expectedDate.setDate(expectedDate.getDate() - 1);
+          }
+        }
+        if (tempStreak > longestStreak) longestStreak = tempStreak;
+
+        // Determine current streak
+        const dateString = completions[0].quizId.replace('qotd-', '');
+        const [year, month, day] = dateString.split('-').map(Number);
+        const lastCompletionDate = new Date(year, month - 1, day);
+        lastCompletionDate.setHours(0, 0, 0, 0);
+        
+        // If last completion was today or yesterday, find consecutive streak from it
+        if (lastCompletionDate.getTime() === today.getTime() || lastCompletionDate.getTime() === yesterday.getTime()) {
+          let activeStreak = 0;
+          let currentExpected = new Date(lastCompletionDate);
+          
+          for (let i = 0; i < completions.length; i++) {
+            const dString = completions[i].quizId.replace('qotd-', '');
+            const [y, m, d] = dString.split('-').map(Number);
+            const cDate = new Date(y, m - 1, d);
+            cDate.setHours(0, 0, 0, 0);
+            
+            if (cDate.getTime() === currentExpected.getTime()) {
+              activeStreak++;
+              currentExpected.setDate(currentExpected.getDate() - 1);
+            } else {
+              break;
+            }
+          }
+          currentStreak = activeStreak;
+        } else {
+          currentStreak = 0;
+        }
       }
 
       return {

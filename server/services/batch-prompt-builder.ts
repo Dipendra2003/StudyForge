@@ -139,15 +139,16 @@ BEFORE FINALIZING:
     { "id": "d", "text": "Fourth option" }
   ],
   "correctAnswer": "a",
-  "explanation": "Brief explanation of why this is correct"
+  "explanation": "The correct answer is '[Exact text of the correct option]'. Brief explanation of why this is correct. DO NOT mention 'Option A' or 'Option B' etc."
 }
 
 CRITICAL MCQ RULES:
 - The "correctAnswer" field MUST be one of: "a", "b", "c", or "d"
 - The correct answer MUST actually be present in the options array
-- The explanation MUST reference the SAME answer as the correctAnswer field
+- The explanation MUST ALWAYS start with: "The correct answer is '[Exact text]'. " where [Exact text] is the exact literal string of the correct option.
 - Double-check your math/logic before setting correctAnswer
 - The option marked as correctAnswer MUST be the actual correct solution
+- NEVER self-correct in the explanation. If you realize you made a mistake while writing the explanation, fix the correctAnswer and the options instead.
 
 ⚠️ MANDATORY ANSWER RANDOMIZATION (CRITICAL - DO NOT IGNORE) ⚠️:
 YOU MUST DISTRIBUTE CORRECT ANSWERS EVENLY ACROSS ALL FOUR POSITIONS!

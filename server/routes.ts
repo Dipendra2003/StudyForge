@@ -2,8 +2,8 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db/index";
-import { quizAttempts, questionAttempts, questions } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { quizAttempts, questionAttempts, questions, users, userPoints } from "@shared/schema";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { registerQuizRoutes } from "./routes/quiz.routes";
 import { registerLeaderboardRoutes } from "./routes/leaderboard.routes";
 import { registerShareableQuizRoutes } from "./routes/shareable-quiz.routes";
@@ -5142,15 +5142,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const completedPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
       
       // Update the study plan with the modified scheduleData and completion percentage
+      const isCompleted = completedPercentage === 100;
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         scheduleData,
         completedPercentage,
-        status: completedPercentage === 100 ? 'completed' : 'active'
+        status: isCompleted ? 'completed' : 'active'
       });
+      
+      // GAMIFICATION: Award points for completing the item
+      const itemPoints = 10;
+      let totalBonusPoints = itemPoints;
+      
+      // Add completion bonus if 100%
+      if (isCompleted && plan.status !== 'completed') {
+        totalBonusPoints += 100; // 100 extra points for finishing the plan
+      }
+      
+      // Insert point history
+      await db.insert(userPoints).values({
+        userId: req.user?.id!,
+        points: totalBonusPoints,
+        source: 'study_plan',
+        amount: totalBonusPoints,
+        description: isCompleted ? `Study Plan completed: ${plan.title}` : `Completed study item in ${plan.title}`,
+        metadata: { planId, itemId, completedPercentage }
+      });
+      
+      // Update total points
+      await db.update(users).set({
+        totalPoints: sql`${users.totalPoints} + ${totalBonusPoints}`
+      }).where(eq(users.id, req.user?.id!));
       
       return res.status(200).json({
         message: "Study item completed successfully",
-        plan: updatedPlan
+        plan: updatedPlan,
+        pointsAwarded: totalBonusPoints
       });
     } catch (error) {
       return handleApiError(error, res);

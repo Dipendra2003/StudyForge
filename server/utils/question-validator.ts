@@ -119,11 +119,12 @@ export function validateMCQQuestion(question: Question): ValidationResult {
 
   // Check 4: Look for contradictions in explanation
   const contradictionPatterns = [
-    /correct answer is (\w+)/i,
-    /answer is (\w+)/i,
-    /should be (\w+)/i,
-    /actually (\w+)/i,
-    /apologies.*?(\w+)/i,
+    /correct answer is ['"]?(\w+)['"]?/i,
+    /answer is ['"]?(\w+)['"]?/i,
+    /should be ['"]?(\w+)['"]?/i,
+    /actually ['"]?(\w+)['"]?/i,
+    /apologies.*?['"]?(\w+)['"]?/i,
+    /option ['"]?(\w+)['"]? is correct/i,
   ];
 
   for (const pattern of contradictionPatterns) {
@@ -289,8 +290,10 @@ export function attemptAutoFix(question: Question): Question | null {
   
   // Strategy 1: Try to extract the correct answer from explanation text patterns
   const patterns = [
-    /correct answer is (\w+)/i,
-    /answer is (\w+)/i,
+    /the correct answer is ['"](.*?)['"]/i,
+    /correct answer is ['"]?(\w+)['"]?/i,
+    /answer is ['"]?(\w+)['"]?/i,
+    /option ['"]?(\w+)['"]? is correct/i,
   ];
 
   for (const pattern of patterns) {
@@ -298,9 +301,9 @@ export function attemptAutoFix(question: Question): Question | null {
     if (match && match[1]) {
       const mentionedAnswer = match[1].toLowerCase();
       
-      // Check if this matches an option ID
+      // Check if this matches an option ID or option text
       const matchingOption = options.find(
-        (opt: any) => opt.id.toLowerCase() === mentionedAnswer
+        (opt: any) => opt.id.toLowerCase() === mentionedAnswer || opt.text.toLowerCase() === mentionedAnswer
       );
       
       if (matchingOption) {
