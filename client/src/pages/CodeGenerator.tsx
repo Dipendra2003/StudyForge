@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import MonacoCodeEditor from "@/components/MonacoCodeEditor";
+import MonacoCodeEditor, { DEFAULT_CODE_TEMPLATES } from "@/components/MonacoCodeEditor";
 
 import {
   Form,
@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -127,6 +128,7 @@ const CODE_TEMPLATES = {
   },
 };
 
+
 // Define the form schema for code generation
 const codeGenerationSchema = z.object({
   problem: z.string().min(10, "Please describe your problem in more detail"),
@@ -178,20 +180,103 @@ interface CodeSnippet {
   createdAt?: Date;
 }
 
+const detectLanguage = (code: string): string | null => {
+  if (/^\s*#include\s+<(iostream|stdio\.h)>/m.test(code)) return "c++";
+  if (/public\s+class\s+\w+\s*\{|public\s+static\s+void\s+main/m.test(code)) return "java";
+  if (/^\s*def\s+\w+\s*\(|^\s*print\(|^\s*import\s+(sys|os|math|numpy)/m.test(code)) return "python";
+  if (/console\.log\(|^\s*const\s+\w+\s*=\s*(require|document|window)/m.test(code)) return "javascript";
+  if (/^\s*package\s+main|^\s*func\s+main\(\)/m.test(code)) return "go";
+  if (/^\s*fn\s+main\(\)/m.test(code)) return "rust";
+  if (/^\s*<\?php/m.test(code)) return "php";
+  if (/^\s*using\s+System;|namespace\s+\w+/m.test(code)) return "c#";
+  return null;
+};
+
 export default function CodeGenerator() {
+  const { toast } = useToast();
   // Persist active tab across page refreshes
   const [activeTab, setActiveTab] = useState(() => {
     return sessionStorage.getItem('codeGenActiveTab') || "generator";
   });
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>("all");
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
-  const [editableCode, setEditableCode] = useState<string>("");
+  const [editableCode, setEditableCode] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('studyforge_editable_code');
+      if (saved) return saved;
+    }
+    return "";
+  });
   const [codeOutput, setCodeOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
+  const [refinePrompt, setRefinePrompt] = useState("");
   
   // Playground state
-  const [playgroundCode, setPlaygroundCode] = useState<string>("");
-  const [playgroundLanguage, setPlaygroundLanguage] = useState<string>("javascript");
+  const [playgroundCode, setPlaygroundCode] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('studyforge_playground_code');
+      if (saved) return saved;
+    }
+    return "";
+  });
+  const [playgroundLanguage, setPlaygroundLanguage] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('studyforge_playground_language');
+      if (saved) return saved;
+    }
+    return "javascript";
+  });
+  const isInitialMount = useRef(true);
+
+  // Auto-language detection logic
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (!playgroundCode.trim()) return;
+
+      let detectedLang = detectLanguage(playgroundCode);
+
+      if (detectedLang && detectedLang !== playgroundLanguage) {
+        setPlaygroundLanguage(detectedLang);
+        toast({
+          title: "Language Auto-Detected 🪄",
+          description: `Switched to ${detectedLang === "c++" ? "C/C++" : detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)} based on your code.`,
+        });
+      }
+    }, 800); // 800ms debounce
+
+    return () => clearTimeout(timer);
+  }, [playgroundCode, playgroundLanguage, toast]);
+
+  const [playgroundStdin, setPlaygroundStdin] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('studyforge_playground_stdin');
+      if (saved) return saved;
+    }
+    return "";
+  });
+  
+  // Save state to localStorage to prevent data loss on refresh
+  useEffect(() => {
+    localStorage.setItem('studyforge_editable_code', editableCode);
+  }, [editableCode]);
+
+  useEffect(() => {
+    localStorage.setItem('studyforge_playground_code', playgroundCode);
+  }, [playgroundCode]);
+
+  useEffect(() => {
+    localStorage.setItem('studyforge_playground_language', playgroundLanguage);
+  }, [playgroundLanguage]);
+
+  useEffect(() => {
+    localStorage.setItem('studyforge_playground_stdin', playgroundStdin);
+  }, [playgroundStdin]);
+
   const [playgroundOutput, setPlaygroundOutput] = useState<string>("");
   const [isPlaygroundRunning, setIsPlaygroundRunning] = useState(false);
   
@@ -206,7 +291,6 @@ export default function CodeGenerator() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingSnippetId, setDeletingSnippetId] = useState<number | null>(null);
   
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   
   // Save active tab to sessionStorage whenever it changes
@@ -214,7 +298,6 @@ export default function CodeGenerator() {
     sessionStorage.setItem('codeGenActiveTab', activeTab);
   }, [activeTab]);
   
-  // Define form with validation
   const form = useForm<CodeGenerationFormValues>({
     resolver: zodResolver(codeGenerationSchema),
     defaultValues: {
@@ -224,6 +307,22 @@ export default function CodeGenerator() {
       context: "",
     },
   });
+
+  const handleRefine = () => {
+    if (!refinePrompt.trim() || !editableCode) return;
+    
+    // We append the refinement to the original problem or just use it as the new problem with context
+    const currentProblem = form.getValues("problem");
+    const newProblem = `Original request: ${currentProblem}\n\nRefinement: ${refinePrompt}`;
+    
+    form.setValue("problem", newProblem);
+    form.setValue("context", editableCode);
+    
+    // Trigger generation
+    const values = form.getValues();
+    onSubmit(values);
+    setRefinePrompt("");
+  };
 
   interface CodeSnippetsResponse {
     snippets: CodeSnippet[];
@@ -404,39 +503,27 @@ export default function CodeGenerator() {
   };
 
   // Analyze code complexity
-  const analyzeComplexity = (code: string) => {
-    // Simple heuristic-based complexity analysis
-    let complexity = "O(1) - Constant";
+  const analyzeComplexity = async (code: string) => {
+    if (!code) return;
     
-    if (code.includes('for') || code.includes('while')) {
-      const nestedLoops = (code.match(/for|while/g) || []).length;
-      if (nestedLoops === 1) {
-        complexity = "O(n) - Linear";
-      } else if (nestedLoops === 2) {
-        complexity = "O(n²) - Quadratic";
-      } else if (nestedLoops >= 3) {
-        complexity = "O(n³) - Cubic";
-      }
-    }
-    
-    if (code.includes('sort') || code.includes('Sort')) {
-      complexity = "O(n log n) - Linearithmic";
-    }
-    
-    // Check for recursion patterns
-    const functionNames = code.match(/function\s+(\w+)/g);
-    if (functionNames) {
-      for (const funcMatch of functionNames) {
-        const funcName = funcMatch.replace('function ', '');
-        if (code.includes(funcName + '(') && code.split(funcName).length > 2) {
-          complexity = "O(2ⁿ) - Exponential (possible recursion)";
-          break;
-        }
-      }
-    }
-    
-    setCodeComplexity(complexity);
+    setCodeComplexity("Analyzing...");
     setShowComplexity(true);
+    
+    try {
+      const data = await apiRequest('/api/code-generator/analyze', {
+        method: 'POST',
+        data: { code },
+      });
+      setCodeComplexity(data.complexity);
+    } catch (error) {
+      console.error("Error analyzing complexity:", error);
+      setCodeComplexity("Failed to analyze complexity");
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze code complexity. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Get the latest generated snippet
@@ -483,20 +570,36 @@ export default function CodeGenerator() {
       });
 
       setCodeOutput(response.output || "Code executed successfully with no output");
-      toast({
-        title: "Code executed",
-        description: "Your code ran successfully",
-      });
     } catch (error: any) {
-      const errorMessage = error.message || "Failed to execute code";
-      setCodeOutput(`Error: ${errorMessage}`);
-      toast({
-        variant: "destructive",
-        title: "Execution failed",
-        description: errorMessage,
-      });
+      let errorMessage = error.response?.output || error.message || "Failed to execute code";
+      if (errorMessage.includes("Daily limit reached")) {
+        errorMessage = "You have reached your daily code execution limit. Please try again tomorrow to continue running code.";
+        setCodeOutput(`⚠️ Limit Reached:\n${errorMessage}`);
+        toast({
+          variant: "destructive",
+          title: "Daily Limit Reached",
+          description: errorMessage,
+          duration: 4000,
+        });
+      } else {
+        setCodeOutput(`Error: ${errorMessage}`);
+        toast({
+          variant: "destructive",
+          title: "Execution failed",
+          description: errorMessage,
+          duration: 4000,
+        });
+      }
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  // Handle manual language change
+  const handleLanguageChange = (lang: string) => {
+    setPlaygroundLanguage(lang);
+    if (DEFAULT_CODE_TEMPLATES[lang]) {
+      setPlaygroundCode(DEFAULT_CODE_TEMPLATES[lang]);
     }
   };
 
@@ -514,28 +617,50 @@ export default function CodeGenerator() {
     setIsPlaygroundRunning(true);
     setPlaygroundOutput("Running code...");
 
+    const actualLanguage = detectLanguage(playgroundCode) || playgroundLanguage;
+    
+    // Force the editor to switch to the detected language immediately so linting/squiggles update
+    if (actualLanguage !== playgroundLanguage) {
+      setPlaygroundLanguage(actualLanguage);
+    }
+
     try {
       const response = await apiRequest('/api/code-executor', {
         method: 'POST',
         data: {
           code: playgroundCode,
-          language: playgroundLanguage,
+          language: actualLanguage,
+          stdin: playgroundStdin,
         },
       });
 
-      setPlaygroundOutput(response.output || "Code executed successfully with no output");
-      toast({
-        title: "Code executed",
-        description: "Your code ran successfully",
-      });
+      let finalOutput = response.output || "Code executed successfully with no output";
+      
+      if (!playgroundStdin.trim() && (finalOutput.includes("NoSuchElementException") || finalOutput.includes("EOFError"))) {
+        finalOutput = "💡 Oops! Your code crashed because it was expecting an input, but the 'Standard Input (stdin)' box is empty.\n👉 Please type your input in the box above and click Run Code again.\n\n" + "-".repeat(40) + "\n\n" + finalOutput;
+      }
+
+      setPlaygroundOutput(finalOutput);
     } catch (error: any) {
-      const errorMessage = error.message || "Failed to execute code";
-      setPlaygroundOutput(`Error: ${errorMessage}`);
-      toast({
-        variant: "destructive",
-        title: "Execution failed",
-        description: errorMessage,
-      });
+      let errorMessage = error.response?.output || error.message || "Failed to execute code";
+      if (errorMessage.includes("Daily limit reached")) {
+        errorMessage = "You have reached your daily code execution limit. Please try again tomorrow to continue running code.";
+        setPlaygroundOutput(`⚠️ Limit Reached:\n${errorMessage}`);
+        toast({
+          variant: "destructive",
+          title: "Daily Limit Reached",
+          description: errorMessage,
+          duration: 4000,
+        });
+      } else {
+        setPlaygroundOutput(`Error: ${errorMessage}`);
+        toast({
+          variant: "destructive",
+          title: "Execution failed",
+          description: errorMessage,
+          duration: 4000,
+        });
+      }
     } finally {
       setIsPlaygroundRunning(false);
     }
@@ -583,17 +708,20 @@ export default function CodeGenerator() {
           <TabsContent value="generator" className="mt-4 sm:mt-6 md:mt-8">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
               {/* Code Generation Form - Left Panel */}
-              <Card className="lg:col-span-2 border-2 shadow-lg">
-                <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6">
+              <Card className="lg:col-span-2 border-2 shadow-lg overflow-hidden group">
+                <div className="h-1.5 w-full bg-gradient-to-r from-purple-500 to-blue-500"></div>
+                <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6 bg-gradient-to-b from-purple-50/50 to-transparent dark:from-purple-900/10">
                   <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">
-                    <Icons.file className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0" />
-                    <span className="truncate">Problem Details</span>
+                    <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                      <Icons.file className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0" />
+                    </div>
+                    <span className="truncate font-bold">Problem Details</span>
                   </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">
+                  <CardDescription className="text-xs sm:text-sm pt-1">
                     Describe your coding challenge and let AI create the solution
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="px-4 sm:px-6">
+                <CardContent className="px-4 sm:px-6 pt-2">
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5">
                       <FormField
@@ -620,13 +748,13 @@ export default function CodeGenerator() {
                           name="language"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm sm:text-base font-semibold">Language</FormLabel>
+                              <FormLabel className="text-sm sm:text-base font-semibold text-slate-700 dark:text-slate-300">Language</FormLabel>
                               <Select
                                 onValueChange={field.onChange}
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger className="focus:ring-purple-500">
+                                  <SelectTrigger className="focus:ring-purple-500 h-10 bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-slate-800 transition-colors">
                                     <SelectValue placeholder="Select language" />
                                   </SelectTrigger>
                                 </FormControl>
@@ -657,13 +785,13 @@ export default function CodeGenerator() {
                           name="difficulty"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-sm sm:text-base font-semibold">Difficulty</FormLabel>
+                              <FormLabel className="text-sm sm:text-base font-semibold text-slate-700 dark:text-slate-300">Difficulty</FormLabel>
                               <Select
                                 onValueChange={field.onChange}
                                 defaultValue={field.value}
                               >
                                 <FormControl>
-                                  <SelectTrigger className="focus:ring-purple-500">
+                                  <SelectTrigger className="focus:ring-purple-500 h-10 bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-slate-800 transition-colors">
                                     <SelectValue placeholder="Select difficulty" />
                                   </SelectTrigger>
                                 </FormControl>
@@ -700,22 +828,28 @@ export default function CodeGenerator() {
                         )}
                       />
 
-                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                      <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-transparent bg-slate-50 hover:bg-purple-50 dark:bg-gray-900/50 dark:hover:bg-gray-800 transition-colors cursor-pointer flex-1 group">
                           <input
                             type="checkbox"
                             className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0"
                             onChange={(e) => form.setValue('optimizeCode', e.target.checked)}
                           />
-                          <span className="text-xs sm:text-sm font-medium">Optimize for performance</span>
+                          <div className="flex flex-col">
+                            <span className="text-xs sm:text-sm font-semibold group-hover:text-purple-700 dark:group-hover:text-purple-400 transition-colors">Optimize Code</span>
+                            <span className="text-[10px] sm:text-xs text-muted-foreground">Focus on performance</span>
+                          </div>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-transparent bg-slate-50 hover:bg-blue-50 dark:bg-gray-900/50 dark:hover:bg-gray-800 transition-colors cursor-pointer flex-1 group">
                           <input
                             type="checkbox"
-                            className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0"
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
                             onChange={(e) => form.setValue('generateMultiple', e.target.checked)}
                           />
-                          <span className="text-xs sm:text-sm font-medium">Multiple solutions</span>
+                          <div className="flex flex-col">
+                            <span className="text-xs sm:text-sm font-semibold group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">Multiple Solutions</span>
+                            <span className="text-[10px] sm:text-xs text-muted-foreground">Get alternative approaches</span>
+                          </div>
                         </label>
                       </div>
                       
@@ -744,17 +878,20 @@ export default function CodeGenerator() {
               </Card>
               
               {/* Results Preview - Right Panel */}
-              <Card className="lg:col-span-3 border-2 shadow-lg">
-                <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6">
+              <Card className="lg:col-span-3 border-2 shadow-lg overflow-hidden flex flex-col h-full">
+                <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+                <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-900/10">
                   <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">
-                    <Icons.code className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
-                    <span className="truncate">Generated Solution</span>
+                    <div className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                      <Icons.code className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
+                    </div>
+                    <span className="truncate font-bold">Generated Solution</span>
                   </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">
+                  <CardDescription className="text-xs sm:text-sm pt-1">
                     Your AI-generated code with explanation
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="px-4 sm:px-6">
+                <CardContent className="px-4 sm:px-6 flex-1 flex flex-col pt-2">
                   {isPending ? (
                     <div className="flex flex-col items-center justify-center h-full min-h-[300px] sm:min-h-[400px] md:min-h-[500px] bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 rounded-lg p-4">
                       <div className="relative">
@@ -777,30 +914,8 @@ export default function CodeGenerator() {
                         </div>
                       </div>
                       
-                      {/* Complexity Analysis */}
-                      {showComplexity && codeComplexity && (
-                        <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 rounded-lg border border-yellow-200 dark:border-yellow-900">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 flex-1">
-                              <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
-                                <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setShowComplexity(false)}
-                            >
-                              <Icons.close className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Code Editor Section */}
-                      <div className="space-y-2 sm:space-y-3">
+                      <div className="space-y-4">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold text-sm sm:text-base">Solution Code</h3>
@@ -808,80 +923,83 @@ export default function CodeGenerator() {
                               {latestSnippet.language}
                             </Badge>
                           </div>
-                          <div className="flex flex-wrap gap-1 sm:gap-2 w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                              onClick={() => {
-                                navigator.clipboard.writeText(editableCode);
-                                toast({
-                                  title: "Copied!",
-                                  description: "Code copied to clipboard",
-                                });
-                              }}
-                            >
-                              <Icons.copy className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">Copy</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                              onClick={() => downloadCode(editableCode, latestSnippet.language, latestSnippet.title || 'code')}
-                            >
-                              <Icons.arrowRight className="h-3 w-3 sm:h-4 sm:w-4 rotate-90" />
-                              <span className="hidden sm:inline">Download</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                              onClick={() => analyzeComplexity(editableCode)}
-                            >
-                              <Icons.zap className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden md:inline">Complexity</span>
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="gap-1 sm:gap-2 bg-green-600 hover:bg-green-700 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
-                              onClick={runCode}
-                              disabled={isRunning}
-                            >
-                              {isRunning ? (
-                                <>
-                                  <Icons.spinner className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                                  <span className="hidden sm:inline">Running...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Icons.play className="h-3 w-3 sm:h-4 sm:w-4" />
-                                  <span className="hidden sm:inline">Run</span>
-                                </>
-                              )}
-                            </Button>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
+                            onClick={() => {
+                              navigator.clipboard.writeText(editableCode);
+                              toast({
+                                title: "Copied!",
+                                description: "Code copied to clipboard",
+                              });
+                            }}
+                          >
+                            <Icons.copy className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span className="hidden sm:inline">Copy</span>
+                          </Button>
                         </div>
-                        <Textarea
-                          value={editableCode}
-                          onChange={(e) => setEditableCode(e.target.value)}
-                          className="font-mono text-xs sm:text-sm min-h-[250px] sm:min-h-[350px] resize-y bg-slate-950 text-slate-50 border-slate-800 focus-visible:ring-blue-500"
-                          placeholder="Your code will appear here..."
-                        />
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden shadow-sm">
+                          <MonacoCodeEditor
+                            value={editableCode}
+                            onChange={setEditableCode}
+                            language={latestSnippet.language?.toLowerCase() || "javascript"}
+                            onLanguageChange={() => {}}
+                            onRun={runCode}
+                            isRunning={isRunning}
+                            output={codeOutput}
+                            onClearOutput={() => setCodeOutput("")}
+                            onDownload={() => downloadCode(editableCode, latestSnippet.language, latestSnippet.title || 'code')}
+                            onAnalyze={() => analyzeComplexity(editableCode)}
+                          >
+                            {/* Complexity Analysis */}
+                            {showComplexity && codeComplexity && (
+                              <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 border-b border-yellow-200 dark:border-yellow-900">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-start gap-3 flex-1">
+                                    <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                      <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
+                                      <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowComplexity(false)}
+                                  >
+                                    <Icons.close className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </MonacoCodeEditor>
+                        </div>
+                        
+                        {/* Refinement Section */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <Input
+                            placeholder="Ask AI to refine this code (e.g., 'Optimize it', 'Add comments')..."
+                            value={refinePrompt}
+                            onChange={(e) => setRefinePrompt(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleRefine();
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                          <Button 
+                            onClick={handleRefine} 
+                            disabled={isPending || !refinePrompt.trim()}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            {isPending ? <Icons.spinner className="h-4 w-4 animate-spin" /> : <Icons.sparkles className="h-4 w-4 mr-2" />}
+                            Refine
+                          </Button>
+                        </div>
                       </div>
-                      
-                      {/* Output Section */}
-                      {codeOutput && (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Icons.code className="h-4 w-4 text-green-600" />
-                            <h3 className="font-semibold text-base">Execution Output</h3>
-                          </div>
-                          <pre className="p-4 bg-slate-950 text-green-400 rounded-lg overflow-x-auto text-sm min-h-[120px] border border-slate-800">
-                            <code>{codeOutput}</code>
-                          </pre>
-                        </div>
-                      )}
                       
                       {/* Explanation Section */}
                       <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 rounded-lg border">
@@ -922,70 +1040,72 @@ export default function CodeGenerator() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                {/* Templates Dropdown */}
-                {showTemplates && (
-                  <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 border-b">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Icons.bookOpen className="h-4 w-4" />
-                      Quick Start Templates
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES] ? (
-                        Object.keys(CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES]).map((template) => (
-                          <Button
-                            key={template}
-                            variant="outline"
-                            size="sm"
-                            className="justify-start"
-                            onClick={() => loadTemplate(template)}
-                          >
-                            {template}
-                          </Button>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground col-span-full">
-                          No templates available for {playgroundLanguage}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Complexity Analysis for Playground */}
-                {showComplexity && codeComplexity && (
-                  <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 border-b border-yellow-200 dark:border-yellow-900">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
-                          <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowComplexity(false)}
-                      >
-                        <Icons.close className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 <MonacoCodeEditor
                   value={playgroundCode}
                   onChange={setPlaygroundCode}
                   language={playgroundLanguage}
-                  onLanguageChange={setPlaygroundLanguage}
+                  onLanguageChange={handleLanguageChange}
                   onRun={runPlaygroundCode}
                   isRunning={isPlaygroundRunning}
                   output={playgroundOutput}
                   onClearOutput={() => setPlaygroundOutput("")}
+                  stdin={playgroundStdin}
+                  onStdinChange={/Scanner|cin|input\s*\(|scanf|readline/i.test(playgroundCode) ? setPlaygroundStdin : undefined}
                   showTemplates={() => setShowTemplates(!showTemplates)}
                   onDownload={() => downloadCode(playgroundCode, playgroundLanguage, 'playground-code')}
                   onAnalyze={() => analyzeComplexity(playgroundCode)}
-                />
+                >
+                  {/* Templates Dropdown */}
+                  {showTemplates && (
+                    <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 border-b">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Icons.bookOpen className="h-4 w-4" />
+                        Quick Start Templates
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES] ? (
+                          Object.keys(CODE_TEMPLATES[playgroundLanguage as keyof typeof CODE_TEMPLATES]).map((template) => (
+                            <Button
+                              key={template}
+                              variant="outline"
+                              size="sm"
+                              className="justify-start"
+                              onClick={() => loadTemplate(template)}
+                            >
+                              {template}
+                            </Button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground col-span-full">
+                            No templates available for {playgroundLanguage}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Complexity Analysis for Playground */}
+                  {showComplexity && codeComplexity && (
+                    <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 border-b border-yellow-200 dark:border-yellow-900">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1">
+                          <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
+                            <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowComplexity(false)}
+                        >
+                          <Icons.close className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </MonacoCodeEditor>
               </CardContent>
             </Card>
           </TabsContent>
@@ -993,19 +1113,19 @@ export default function CodeGenerator() {
           <TabsContent value="history" className="mt-4 sm:mt-6 md:mt-8">
             <Card className="border-2 shadow-lg">
               <CardHeader className="space-y-3 sm:space-y-4 px-4 sm:px-6">
-                <div className="flex flex-col gap-3 sm:gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">
-                      <Icons.bookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0" />
+                      <Icons.bookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 flex-shrink-0" />
                       <span className="truncate">Your Saved Solutions</span>
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs sm:text-sm">
                       Browse and manage your code snippets
                     </CardDescription>
                   </div>
-                  <div className="flex flex-col xs:flex-row gap-2 w-full">
+                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
                     <Select value={selectedLanguageFilter} onValueChange={setSelectedLanguageFilter}>
-                      <SelectTrigger className="w-full xs:w-[140px] sm:w-[180px] focus:ring-purple-500 h-9 sm:h-10">
+                      <SelectTrigger className="w-full sm:w-[160px] md:w-[180px] focus:ring-purple-500 h-10 bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Language" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1027,7 +1147,7 @@ export default function CodeGenerator() {
                       </SelectContent>
                     </Select>
                     <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
-                      <SelectTrigger className="w-full xs:w-[140px] sm:w-[180px] focus:ring-purple-500 h-9 sm:h-10">
+                      <SelectTrigger className="w-full sm:w-[160px] md:w-[180px] focus:ring-purple-500 h-10 bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Tags" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1049,20 +1169,22 @@ export default function CodeGenerator() {
                     <p className="text-muted-foreground text-sm sm:text-base">Loading your solutions...</p>
                   </div>
                 ) : (snippets && snippets.snippets && snippets.snippets.length > 0) ? (
-                  <div className="space-y-4 sm:space-y-5">
+                  <div className="grid grid-cols-1 gap-4 sm:gap-6">
                     {snippets.snippets.map((snippet: CodeSnippet) => (
-                      <Card key={snippet.id} className="overflow-hidden border-2 hover:shadow-lg transition-shadow">
-                        <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 py-3 sm:py-4 md:py-5 px-3 sm:px-4 md:px-6">
-                          <div className="flex flex-col gap-2 sm:gap-3">
-                            <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-0">
-                              <div className="flex-1 min-w-0 pr-2">
-                                <CardTitle className="text-base sm:text-lg font-semibold flex items-start gap-2">
-                                  <Icons.file className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                                  <span className="break-words line-clamp-2">{snippet.title}</span>
+                      <Card key={snippet.id} className="overflow-hidden border-2 hover:border-purple-200 dark:hover:border-purple-900 hover:shadow-xl transition-all duration-300">
+                        <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 py-3 sm:py-4 px-4 sm:px-6 border-b">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                              <div className="flex-1 min-w-0 w-full">
+                                <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                                  <div className="p-1.5 bg-white dark:bg-gray-800 rounded-md shadow-sm flex-shrink-0">
+                                    <Icons.file className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+                                  </div>
+                                  <span className="truncate">{snippet.title}</span>
                                 </CardTitle>
                               </div>
-                              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                                <Badge variant="secondary" className="font-mono text-xs">
+                              <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-end bg-white/50 dark:bg-gray-800/50 p-1 rounded-lg">
+                                <Badge variant="secondary" className="font-mono text-[10px] sm:text-xs px-2 py-1 uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 mr-1">
                                   {snippet.language}
                                 </Badge>
                                 <Button 
@@ -1128,10 +1250,19 @@ export default function CodeGenerator() {
                               <Icons.code className="h-3 w-3 sm:h-4 sm:w-4" />
                               Solution Code
                             </h3>
-                            <div className="relative">
-                              <pre className="p-3 sm:p-4 bg-slate-950 text-slate-50 rounded-lg overflow-x-auto text-xs border border-slate-800 max-h-[300px] sm:max-h-[400px] overflow-y-auto">
-                                <code className="break-all whitespace-pre-wrap">{snippet.code}</code>
-                              </pre>
+                            <div className="relative border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
+                              <MonacoCodeEditor
+                                value={snippet.code}
+                                onChange={() => {}}
+                                language={snippet.language?.toLowerCase() || "javascript"}
+                                onLanguageChange={() => {}}
+                                onRun={() => {}}
+                                isRunning={false}
+                                output={""}
+                                onClearOutput={() => {}}
+                                readOnly={true}
+                                height="200px"
+                              />
                             </div>
                           </div>
                           
@@ -1204,11 +1335,19 @@ export default function CodeGenerator() {
                 </div>
                 <div>
                   <label className="text-xs sm:text-sm font-semibold mb-1 sm:mb-2 block">Code</label>
-                  <Textarea
-                    className="font-mono text-xs sm:text-sm min-h-[200px] sm:min-h-[300px] bg-slate-950 text-slate-50"
-                    value={editingSnippet.code}
-                    onChange={(e) => setEditingSnippet({ ...editingSnippet, code: e.target.value })}
-                  />
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden shadow-sm">
+                    <MonacoCodeEditor
+                      value={editingSnippet.code}
+                      onChange={(code) => setEditingSnippet({ ...editingSnippet, code })}
+                      language={editingSnippet.language?.toLowerCase() || "javascript"}
+                      onLanguageChange={() => {}}
+                      onRun={() => {}}
+                      isRunning={false}
+                      output={""}
+                      onClearOutput={() => {}}
+                      height="300px"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs sm:text-sm font-semibold mb-1 sm:mb-2 block">Explanation</label>

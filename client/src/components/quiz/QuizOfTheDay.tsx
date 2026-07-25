@@ -41,6 +41,7 @@ interface QOTDStats {
   currentStreak: number;
   longestStreak: number;
   totalBonusPoints: number;
+  globalXP?: number;
 }
 
 export function QuizOfTheDay() {
@@ -310,7 +311,7 @@ export function QuizOfTheDay() {
               </Badge>
               <Badge variant="outline" className="bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20">
                 <Award className="h-3 w-3 mr-1" />
-                +{quizOfTheDay.bonusPoints} Bonus Points
+                +{quizOfTheDay.bonusPoints} XP Points
               </Badge>
             </div>
           </div>
@@ -373,11 +374,11 @@ export function QuizOfTheDay() {
                 transition={{ duration: 0.2 }}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <Star className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                  <span className="text-xs font-medium text-muted-foreground">Bonus</span>
+                  <Award className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs font-medium text-muted-foreground">Total XP</span>
                 </div>
                 <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                  {stats.totalBonusPoints}
+                  {stats.globalXP || 0}
                 </p>
               </motion.div>
             </div>

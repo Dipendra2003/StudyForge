@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { questions, quizAttempts, userQuizStats, userPoints, quizOfTheDayCompletions, users } from '../../shared/schema';
+import { questions, quizAttempts, userQuizStats, quizOfTheDayCompletions, users } from '../../shared/schema';
 import { eq, desc, sql, and, gte } from 'drizzle-orm';
 import { Logger, LogCategory } from '../utils/logger';
 
@@ -185,33 +185,20 @@ export class QuizOfTheDayService {
         bonusAwarded: bonusPoints,
       });
 
-      // Insert into user_points table
-      await db.insert(userPoints).values({
-        userId,
-        points: bonusPoints,
-        source: 'qotd',
-        amount: bonusPoints,
-        description: `Quiz of the Day completion bonus - ${quizId}`,
-        metadata: {
-          quizId,
-          category: completionData.category,
-          difficulty: completionData.difficulty,
-          score: completionData.score,
-        },
-      });
+      // Award XP via GamificationService
+      let gamificationStats = null;
+      try {
+        const { GamificationService } = await import('./gamification.service');
+        gamificationStats = await GamificationService.awardXP(userId, 'QUIZ_OF_THE_DAY');
+      } catch (err) {
+        Logger.error(LogCategory.BUSINESS, 'Failed to award QOTD XP', err as Error);
+      }
 
-      // Update user's total points
-      await db
-        .update(users)
-        .set({
-          totalPoints: sql`${users.totalPoints} + ${bonusPoints}`,
-        })
-        .where(eq(users.id, userId));
-
-      Logger.info(LogCategory.BUSINESS, 'Bonus points awarded successfully', {
+      Logger.info(LogCategory.BUSINESS, 'Quiz of the day bonus XP awarded successfully', {
         userId,
         amount: bonusPoints,
         quizId,
+        newLevel: gamificationStats?.level
       });
       
       return bonusPoints;

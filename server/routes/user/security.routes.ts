@@ -25,7 +25,7 @@ router.use(requireAuth);
  */
 router.get('/login-history', async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const limit = parseInt(req.query.limit as string) || 50;
 
     const history = await adminSecurityService.getUserLoginHistory(userId, limit);
@@ -56,7 +56,7 @@ router.post('/change-email', async (req: Request, res: Response): Promise<void> 
     });
 
     const { newEmail, password } = schema.parse(req.body);
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     // Verify password
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -119,7 +119,7 @@ router.post('/verify-email-change', async (req: Request, res: Response): Promise
     });
 
     const { token, otp } = schema.parse(req.body);
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     await adminSecurityService.verifyEmailChange(userId, token, otp);
 
@@ -158,7 +158,7 @@ router.post('/set-backup-email', async (req: Request, res: Response): Promise<vo
     });
 
     const { backupEmail, password } = schema.parse(req.body);
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     // Verify password
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -226,7 +226,7 @@ router.post('/set-security-questions', async (req: Request, res: Response): Prom
     });
 
     const { password, question1, answer1, question2, answer2 } = schema.parse(req.body);
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     // Verify password
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -295,7 +295,7 @@ router.post('/set-security-questions', async (req: Request, res: Response): Prom
  */
 router.get('/recovery-options', async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     const [user] = await db
       .select({

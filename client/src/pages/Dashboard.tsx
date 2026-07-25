@@ -33,6 +33,8 @@ export default function Dashboard() {
     codeSnippets: 0,
     studyTime: 0,
     streak: 0,
+    xp: 0,
+    level: 1,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [dueFlashcards, setDueFlashcards] = useState<any[]>([]);
@@ -67,6 +69,8 @@ export default function Dashboard() {
           codeSnippets: data.stats.codeSnippetsGenerated || 0,
           studyTime: data.stats.totalStudyTime || 0,
           streak: data.stats.streakDays || 0,
+          xp: data.stats.xpPoints || 0,
+          level: data.stats.level || 1,
         });
       } catch (error) {
         console.error("Error fetching user stats:", error);
@@ -240,7 +244,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -320,6 +324,34 @@ export default function Dashboard() {
                 <div className="flex items-center gap-1 mt-2 text-xs text-green-600 dark:text-green-400">
                   <Zap className="h-3 w-3" />
                   <span>You're productive!</span>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+            className="sm:col-span-2 lg:col-span-1"
+          >
+            <Card className="relative overflow-hidden border-none shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full -mr-16 -mt-16" />
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Trophy className="h-4 w-4" />
+                  Level & XP
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-3">
+                  <div className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent flex items-baseline">
+                    <span className="text-2xl mr-1">Lvl</span> {isLoading ? "..." : stats.level}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-sm text-purple-600 dark:text-purple-400 font-medium">
+                  <Trophy className="h-4 w-4" />
+                  <span>{stats.xp} Total XP</span>
                 </div>
               </CardContent>
             </Card>

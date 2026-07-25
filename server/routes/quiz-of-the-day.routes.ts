@@ -4,6 +4,7 @@ import { AchievementService } from "../services/achievement.service";
 import { requireAuth } from "../middleware/auth.middleware";
 import { handleApiError } from "../middleware/errorHandler";
 import { Logger, LogCategory } from "../utils/logger";
+import { storage } from "../storage";
 
 const achievementService = new AchievementService();
 
@@ -45,6 +46,7 @@ export function registerQuizOfTheDayRoutes(router: Router): void {
 
       // Get user's QOTD stats
       const stats = await quizOfTheDayService.getUserQOTDStats(userId);
+      const userStats = await storage.getUserStats(userId);
 
       return res.status(200).json({
         success: true,
@@ -52,7 +54,10 @@ export function registerQuizOfTheDayRoutes(router: Router): void {
           ...qotd,
           completed: hasCompleted,
         },
-        stats,
+        stats: {
+          ...stats,
+          globalXP: userStats?.xpPoints || 0
+        },
       });
     } catch (error) {
       Logger.error(LogCategory.API, 'Error fetching Quiz of the Day', error as Error);

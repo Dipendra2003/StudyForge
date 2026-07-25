@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db/index";
-import { quizAttempts, questionAttempts, questions, users, userPoints, attachments } from "@shared/schema";
+import { quizAttempts, questionAttempts, questions, users, attachments } from "@shared/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { registerQuizRoutes } from "./routes/quiz.routes";
 import { registerLeaderboardRoutes } from "./routes/leaderboard.routes";
@@ -1689,14 +1689,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         summaryId: savedSummary.id,
       });
       
+      // Award Gamification XP
+      let gamificationStats = null;
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        gamificationStats = await GamificationService.awardXP(userId, 'DOCUMENT_SUMMARIZED');
+      } catch (err) {
+        console.error('Failed to award XP for summary', err);
+      }
+      
       // Return the saved summary
       return res.status(201).json({
         message: "Summary created successfully",
-        summary: savedSummary
+        summary: savedSummary,
+        gamification: gamificationStats
       });
     } catch (error) {
       Logger.error(LogCategory.API, 'Summary creation error', error as Error);
       return handleApiError(error, res);
+    }
+  });
+  
+  // Analyze code complexity
+  app.post('/api/code-generator/analyze', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ message: "Code is required" });
+      
+      const { geminiService } = await import('./services/gemini');
+      const analysis = await geminiService.generateContent(
+        `Analyze the time and space complexity of the following code. Provide a concise explanation starting with "Time Complexity: O(...), Space Complexity: O(...)".\n\nCode:\n${code}`,
+        { maxOutputTokens: 200 },
+        req.user?.id
+      );
+      
+      return res.status(200).json({ complexity: analysis });
+    } catch (error) {
+      console.error("Error analyzing complexity:", error);
+      return res.status(500).json({ message: "Failed to analyze complexity" });
     }
   });
   
@@ -1794,6 +1824,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       await storage.deleteSummary(summaryId);
+      
+      // Revoke XP for anti-cheat
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        await GamificationService.revokeXP(summary.userId, 'DOCUMENT_SUMMARIZED');
+      } catch (err) {
+        console.error('Failed to revoke XP on summary delete', err);
+      }
       
       return res.status(200).json({ message: "Summary deleted successfully" });
     } catch (error) {
@@ -1981,6 +2019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get user info for personalization
       const user = await storage.getUser(userId);
+      const userStats = await storage.getUserStats(userId);
       const userName = user?.fullName?.split(' ')[0] || user?.username || user?.email?.split('@')[0] || "there";
       const userPlans = await storage.getStudyPlansByUserId(userId);
       const activePlans = userPlans.filter(p => p.status === 'active');
@@ -2009,7 +2048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Your identity is Jadoo. When asked 'who are you', identify yourself as Jadoo, the StudyForge AI study assistant. " +
             "\n\n--- USER CONTEXT ---\n" +
             `User's Name: ${userName}\n` +
-            `User's Total XP: ${user?.totalPoints || 0}\n` +
+            `User's Total XP: ${userStats?.xpPoints || 0}\n` +
             `Active Study Plans: ${activePlans.length > 0 ? activePlans.map(p => p.title).join(', ') : 'None'}\n` +
             (documentContext ? `\n--- DOCUMENT CONTEXT ---\nThe user has uploaded or is reviewing the following document. Use this content to answer their questions about it:\n${documentContext}\n--- END DOCUMENT ---\n` : "") +
             "\n\nYour purpose is to help students learn effectively across ALL subjects and topics, including: " +
@@ -2854,6 +2893,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.deleteFlashcard(flashcardId);
       
+      // Revoke XP for anti-cheat
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        await GamificationService.revokeXP(flashcard.userId, 'FLASHCARDS_GENERATED');
+      } catch (err) {
+        console.error('Failed to revoke XP on flashcard delete', err);
+      }
+      
       return res.status(200).json({ message: "Flashcard deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
@@ -3152,9 +3199,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         generatedCount: flashcardsData.length,
       });
       
+      // Award Gamification XP
+      let gamificationStats = null;
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        gamificationStats = await GamificationService.awardXP(userId, 'FLASHCARDS_GENERATED');
+      } catch (err) {
+        console.error('Failed to award XP for flashcards', err);
+      }
+
       return res.status(200).json({
         message: `Successfully generated ${flashcardsData.length} flashcards`,
         flashcards: flashcardsData,
+        gamification: gamificationStats
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -3681,12 +3738,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the request if achievements fail
       }
       
+      // Award Gamification XP
+      let gamificationStats = null;
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        gamificationStats = await GamificationService.awardXP(userId, 'QUIZ_COMPLETED');
+      } catch (err) {
+        console.error('Failed to award XP for quiz completion', err);
+      }
+      
       return res.status(201).json({
         success: true,
         message: "Quiz attempt saved successfully",
         id: attemptId,
         newAchievements,
         achievementsEarned: newAchievements.length,
+        gamification: gamificationStats
       });
     } catch (error: any) {
       console.error('Error saving quiz attempt:', error);
@@ -3841,6 +3908,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db
         .delete(quizAttempts)
         .where(eq(quizAttempts.id, attemptId));
+
+      // Revoke XP for anti-cheat
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        await GamificationService.revokeXP(userId, 'QUIZ_COMPLETED');
+      } catch (err) {
+        console.error('Failed to revoke XP on quiz attempt delete', err);
+      }
 
       return res.status(200).json({
         success: true,
@@ -4874,9 +4949,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Award Gamification XP
+      let gamificationStats = null;
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        gamificationStats = await GamificationService.awardXP(userId, 'CODE_GENERATED');
+      } catch (err) {
+        console.error('Failed to award XP for code generation', err);
+      }
+      
       return res.status(200).json({
         message: "Code generated successfully",
-        codeSnippet
+        codeSnippet,
+        gamification: gamificationStats
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -5000,6 +5085,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete the snippet
       await storage.deleteCodeSnippet(snippetId);
 
+      // Revoke XP for anti-cheat
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        await GamificationService.revokeXP(userId, 'CODE_GENERATED');
+      } catch (err) {
+        console.error('Failed to revoke XP on code snippet delete', err);
+      }
+
       return res.status(200).json({
         message: "Code snippet deleted successfully"
       });
@@ -5022,7 +5115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'javascript': 'nodejs',
         'python': 'python3',
         'java': 'java',
-        'c++': 'cpp17',
+        'c++': 'cpp',
         'typescript': 'nodejs',
         'go': 'go',
         'rust': 'rust',
@@ -5059,6 +5152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           script: code,
           language: jdoodleLanguage,
           versionIndex: '0',
+          stdin: req.body.stdin || "",
         }),
       });
 
@@ -5565,33 +5659,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // GAMIFICATION: Award points for completing the item
-      const itemPoints = 10;
-      let totalBonusPoints = itemPoints;
-      
-      // Add completion bonus if 100%
-      if (isCompleted && plan.status !== 'completed') {
-        totalBonusPoints += 100; // 100 extra points for finishing the plan
+      let gamificationStats = null;
+      try {
+        const { GamificationService } = await import('./services/gamification.service');
+        gamificationStats = await GamificationService.awardXP(req.user?.id!, 'STUDY_PLAN_ITEM_COMPLETED');
+        
+        // Add completion bonus if 100%
+        if (isCompleted && plan.status !== 'completed') {
+          gamificationStats = await GamificationService.awardXP(req.user?.id!, 'STUDY_PLAN_COMPLETED');
+        }
+      } catch (err) {
+        console.error('Failed to award XP for study plan', err);
       }
-      
-      // Insert point history
-      await db.insert(userPoints).values({
-        userId: req.user?.id!,
-        points: totalBonusPoints,
-        source: 'study_plan',
-        amount: totalBonusPoints,
-        description: isCompleted ? `Study Plan completed: ${plan.title}` : `Completed study item in ${plan.title}`,
-        metadata: { planId, itemId, completedPercentage }
-      });
-      
-      // Update total points
-      await db.update(users).set({
-        totalPoints: sql`${users.totalPoints} + ${totalBonusPoints}`
-      }).where(eq(users.id, req.user?.id!));
       
       return res.status(200).json({
         message: "Study item completed successfully",
         plan: updatedPlan,
-        pointsAwarded: totalBonusPoints
+        gamification: gamificationStats
       });
     } catch (error) {
       return handleApiError(error, res);
@@ -5897,6 +5981,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stats = await storage.updateUserStats(userId, {});
       }
       
+      // Override quizzesCompleted with actual undeleted quiz attempts count
+      try {
+        const quizStats = await storage.getQuizStatsByUserId(userId);
+        if (quizStats && quizStats.totalAttempts !== undefined) {
+          stats.quizzesCompleted = quizStats.totalAttempts;
+        }
+        
+        // Sync study time from quiz time spent (convert seconds to minutes)
+        if (quizStats && quizStats.totalTimeSpent !== undefined) {
+          stats.totalStudyTime = Math.round(quizStats.totalTimeSpent / 60);
+        }
+        
+        // Override documentsUploaded with actual summaries count
+        const summaries = await storage.getSummariesByUserId(userId);
+        if (summaries) {
+          stats.documentsUploaded = summaries.length;
+        }
+
+        // Gamification: Sync historical XP if userStats.xpPoints is 0 but user has legacy points
+        if (stats.xpPoints === 0) {
+          const user = await storage.getUser(userId);
+          if (user && user.totalPoints > 0) {
+            const { GamificationService } = await import('./services/gamification.service');
+            const newLevel = GamificationService.calculateLevel(user.totalPoints);
+            stats = await storage.updateUserStats(userId, { 
+              xpPoints: user.totalPoints,
+              level: newLevel 
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync stats for user-stats', err);
+      }
+      
       return res.status(200).json({ stats });
     } catch (error) {
       return handleApiError(error, res);
@@ -5997,6 +6115,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let stats = await storage.getUserStats(userId);
       if (!stats) {
         stats = await storage.updateUserStats(userId, {});
+      }
+      
+      // Override quizzesCompleted with actual undeleted quiz attempts count
+      try {
+        const quizStats = await storage.getQuizStatsByUserId(userId);
+        if (quizStats && quizStats.totalAttempts !== undefined) {
+          stats.quizzesCompleted = quizStats.totalAttempts;
+        }
+        
+        // Sync study time from quiz time spent (convert seconds to minutes)
+        if (quizStats && quizStats.totalTimeSpent !== undefined) {
+          stats.totalStudyTime = Math.round(quizStats.totalTimeSpent / 60);
+        }
+        
+        // Override documentsUploaded with actual summaries count
+        const summaries = await storage.getSummariesByUserId(userId);
+        if (summaries) {
+          stats.documentsUploaded = summaries.length;
+        }
+
+        // Gamification: Sync historical XP if userStats.xpPoints is 0 but user has legacy points
+        if (stats.xpPoints === 0 && user.totalPoints > 0) {
+          const { GamificationService } = await import('./services/gamification.service');
+          const newLevel = GamificationService.calculateLevel(user.totalPoints);
+          stats = await storage.updateUserStats(userId, { 
+            xpPoints: user.totalPoints,
+            level: newLevel 
+          });
+        }
+      } catch (err) {
+        console.error('Failed to sync stats for profile', err);
       }
       
       // Don't return password
@@ -6375,4 +6524,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
-

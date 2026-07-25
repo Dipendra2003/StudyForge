@@ -454,25 +454,30 @@ export default function Profile() {
                   <CardDescription>Track your learning progress</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                      <BookOpen className="h-6 w-6 mx-auto mb-2 text-blue-600" />
-                      <div className="text-2xl font-bold text-blue-600">{stats.flashcardsCreated}</div>
-                      <div className="text-xs text-muted-foreground">Flashcards</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <div className="text-center p-4 rounded-lg bg-orange-50 dark:bg-orange-950/20">
+                      <Icons.fileQuestion className="h-6 w-6 mx-auto mb-2 text-orange-600" />
+                      <div className="text-2xl font-bold text-orange-600">{stats.quizzesCompleted}</div>
+                      <div className="text-xs text-muted-foreground">Quizzes</div>
                     </div>
                     <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-950/20">
-                      <FileText className="h-6 w-6 mx-auto mb-2 text-green-600" />
-                      <div className="text-2xl font-bold text-green-600">{stats.documentsUploaded}</div>
-                      <div className="text-xs text-muted-foreground">Documents</div>
+                      <BookOpen className="h-6 w-6 mx-auto mb-2 text-green-600" />
+                      <div className="text-2xl font-bold text-green-600">{stats.flashcardsCreated}</div>
+                      <div className="text-xs text-muted-foreground">Flashcards</div>
                     </div>
                     <div className="text-center p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20">
-                      <Code className="h-6 w-6 mx-auto mb-2 text-purple-600" />
-                      <div className="text-2xl font-bold text-purple-600">{stats.codeSnippetsGenerated}</div>
+                      <FileText className="h-6 w-6 mx-auto mb-2 text-purple-600" />
+                      <div className="text-2xl font-bold text-purple-600">{stats.documentsUploaded}</div>
+                      <div className="text-xs text-muted-foreground">Documents</div>
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-indigo-50 dark:bg-indigo-950/20">
+                      <Code className="h-6 w-6 mx-auto mb-2 text-indigo-600" />
+                      <div className="text-2xl font-bold text-indigo-600">{stats.codeSnippetsGenerated}</div>
                       <div className="text-xs text-muted-foreground">Code Snippets</div>
                     </div>
-                    <div className="text-center p-4 rounded-lg bg-orange-50 dark:bg-orange-950/20">
-                      <Icons.clock className="h-6 w-6 mx-auto mb-2 text-orange-600" />
-                      <div className="text-2xl font-bold text-orange-600">{formatStudyTime(stats.totalStudyTime)}</div>
+                    <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                      <Icons.clock className="h-6 w-6 mx-auto mb-2 text-blue-600" />
+                      <div className="text-2xl font-bold text-blue-600">{formatStudyTime(stats.totalStudyTime)}</div>
                       <div className="text-xs text-muted-foreground">Study Time</div>
                     </div>
                   </div>

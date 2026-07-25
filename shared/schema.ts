@@ -612,23 +612,6 @@ export const favoriteQuizzes = mysqlTable("favorite_quizzes", {
   }
 });
 
-// User points tracking for gamification
-export const userPoints = mysqlTable("user_points", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  points: int("points").notNull(),
-  source: varchar("source", { length: 50 }).notNull(), // 'qotd', 'quiz', 'achievement', 'streak'
-  amount: int("amount").notNull(),
-  description: text("description"),
-  metadata: json("metadata"), // Additional context (quizId, achievementId, etc.)
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => {
-  return {
-    userIdIdx: index("up_user_id_idx").on(table.userId),
-    sourceIdx: index("up_source_idx").on(table.source),
-    createdAtIdx: index("up_created_at_idx").on(table.createdAt),
-  }
-});
 
 // Quiz of the Day completions tracking
 export const quizOfTheDayCompletions = mysqlTable("quiz_of_the_day_completions", {

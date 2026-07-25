@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 
 interface MonacoCodeEditorProps {
   value: string;
@@ -22,9 +23,14 @@ interface MonacoCodeEditorProps {
   isRunning: boolean;
   output: string;
   onClearOutput: () => void;
+  stdin?: string;
+  onStdinChange?: (value: string) => void;
   showTemplates?: () => void;
   onDownload?: () => void;
   onAnalyze?: () => void;
+  readOnly?: boolean;
+  height?: string;
+  children?: React.ReactNode;
 }
 
 type ThemeType = "vs-dark" | "light" | "dracula" | "github-dark";
@@ -47,24 +53,25 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 // Default code templates for each language
+export const DEFAULT_CODE_TEMPLATES: Record<string, string> = {
+  javascript: '// Write your JavaScript code here\nconsole.log("Hello, World!");',
+  typescript: '// Write your TypeScript code here\nconst message: string = "Hello, World!";\nconsole.log(message);',
+  python: '# Write your Python code here\nprint("Hello, World!")',
+  java: '// Write your Java code here\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
+  "c++": '// Write your C++ code here\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, World!" << endl;\n    return 0;\n}',
+  "c#": '// Write your C# code here\nusing System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello, World!");\n    }\n}',
+  go: '// Write your Go code here\npackage main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}',
+  rust: '// Write your Rust code here\nfn main() {\n    println!("Hello, World!");\n}',
+  ruby: '# Write your Ruby code here\nputs "Hello, World!"',
+  php: '<?php\n// Write your PHP code here\necho "Hello, World!";\n?>',
+  swift: '// Write your Swift code here\nprint("Hello, World!")',
+  kotlin: '// Write your Kotlin code here\nfun main() {\n    println("Hello, World!")\n}',
+  r: '# Write your R code here\nprint("Hello, World!")',
+  sql: '-- Write your SQL code here\nSELECT "Hello, World!" AS message;',
+};
+
 const getDefaultCode = (language: string): string => {
-  const defaults: Record<string, string> = {
-    javascript: '// Write your JavaScript code here\nconsole.log("Hello, World!");',
-    typescript: '// Write your TypeScript code here\nconst message: string = "Hello, World!";\nconsole.log(message);',
-    python: '# Write your Python code here\nprint("Hello, World!")',
-    java: '// Write your Java code here\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
-    "c++": '// Write your C++ code here\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, World!" << endl;\n    return 0;\n}',
-    "c#": '// Write your C# code here\nusing System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello, World!");\n    }\n}',
-    go: '// Write your Go code here\npackage main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}',
-    rust: '// Write your Rust code here\nfn main() {\n    println!("Hello, World!");\n}',
-    ruby: '# Write your Ruby code here\nputs "Hello, World!"',
-    php: '<?php\n// Write your PHP code here\necho "Hello, World!";\n?>',
-    swift: '// Write your Swift code here\nprint("Hello, World!")',
-    kotlin: '// Write your Kotlin code here\nfun main() {\n    println("Hello, World!")\n}',
-    r: '# Write your R code here\nprint("Hello, World!")',
-    sql: '-- Write your SQL code here\nSELECT "Hello, World!" AS message;',
-  };
-  return defaults[language] || '// Start coding...';
+  return DEFAULT_CODE_TEMPLATES[language] || '// Start coding...';
 };
 
 export default function MonacoCodeEditor({
@@ -76,15 +83,22 @@ export default function MonacoCodeEditor({
   isRunning,
   output,
   onClearOutput,
+  stdin,
+  onStdinChange,
   showTemplates,
   onDownload,
   onAnalyze,
+  readOnly = false,
+  height,
+  children,
 }: MonacoCodeEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<ThemeType>("vs-dark");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editorHeight, setEditorHeight] = useState(() => {
+    if (height) return height;
     // Responsive height based on screen size
     if (typeof window !== 'undefined') {
       return window.innerWidth < 640 ? "300px" : window.innerWidth < 1024 ? "400px" : "500px";
@@ -104,6 +118,13 @@ export default function MonacoCodeEditor({
 
   // Ensure we have a default value
   const editorValue = value || getDefaultCode(language);
+
+  // Propagate default code to parent if value is empty
+  useEffect(() => {
+    if (!value) {
+      onChange(getDefaultCode(language));
+    }
+  }, [value, language]);
 
   // Define custom themes
   useEffect(() => {
@@ -158,13 +179,10 @@ export default function MonacoCodeEditor({
     }
   }, [monacoRef.current]);
 
-  // Handle responsive adjustments
+  // Handle responsive adjustments and resize observations
   useEffect(() => {
     const handleResize = () => {
       if (!isFullscreen && typeof window !== 'undefined') {
-        const newHeight = window.innerWidth < 640 ? "300px" : window.innerWidth < 1024 ? "400px" : "500px";
-        setEditorHeight(newHeight);
-        
         // Auto-hide minimap on mobile
         if (window.innerWidth < 768 && showMinimap) {
           setShowMinimap(false);
@@ -177,9 +195,50 @@ export default function MonacoCodeEditor({
     return () => window.removeEventListener('resize', handleResize);
   }, [isFullscreen, showMinimap]);
 
+  // Dynamic height is now handled accurately inside handleEditorDidMount using onDidContentSizeChange
+
+  // Ensure layout is recalculated when container size changes
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const observer = new ResizeObserver(() => {
+      window.requestAnimationFrame(() => {
+        if (editorRef.current) {
+          editorRef.current.layout();
+        }
+      });
+    });
+    
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+
+    // Accurately adjust container height to fit Monaco's exact content size
+    const updateHeight = () => {
+      if (!isFullscreen && !height) {
+        // getContentHeight() provides pixel-perfect height required for all lines
+        const contentHeight = editor.getContentHeight();
+        const cappedHeight = Math.min(600, Math.max(80, contentHeight + 4)); // +4px buffer to completely avoid tiny scrollbars
+        setEditorHeight(`${cappedHeight}px`);
+      }
+    };
+
+    editor.onDidContentSizeChange(updateHeight);
+    updateHeight(); // Initial trigger
+
+    // Force layout initially to fix empty/blue space issues when rendering in hidden tabs
+    setTimeout(() => {
+      editor.layout();
+      updateHeight();
+    }, 100);
+    setTimeout(() => {
+      editor.layout();
+      updateHeight();
+    }, 500);
 
     // Configure editor options
     editor.updateOptions({
@@ -189,6 +248,7 @@ export default function MonacoCodeEditor({
       lineNumbers: "on",
       renderLineHighlight: "all",
       scrollBeyondLastLine: false,
+      padding: { top: 12, bottom: 12 },
       smoothScrolling: true,
       cursorBlinking: "smooth",
       cursorSmoothCaretAnimation: "on",
@@ -226,13 +286,10 @@ export default function MonacoCodeEditor({
       matchBrackets: "always",
       autoClosingBrackets: "always",
       autoClosingQuotes: "always",
-      padding: {
-        top: 16,
-        bottom: 16,
-      },
       scrollbar: {
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10,
+        alwaysConsumeMouseWheel: false,
       },
     });
 
@@ -263,11 +320,20 @@ export default function MonacoCodeEditor({
     } else {
       // Restore responsive height
       if (typeof window !== 'undefined') {
-        const responsiveHeight = window.innerWidth < 640 ? "300px" : window.innerWidth < 1024 ? "400px" : "500px";
+        const responsiveHeight = height || (window.innerWidth < 640 ? "300px" : window.innerWidth < 1024 ? "400px" : "500px");
         setEditorHeight(responsiveHeight);
       } else {
-        setEditorHeight("500px");
+        setEditorHeight(height || "500px");
       }
+    }
+  };
+
+  const handleLanguageChange = (newLang: string) => {
+    onLanguageChange(newLang);
+    // Auto-update template if editor is empty or currently matches any default template
+    const isCurrentCodeDefault = !value || Object.values(DEFAULT_CODE_TEMPLATES).includes(value) || value === '// Start coding...';
+    if (isCurrentCodeDefault) {
+      onChange(getDefaultCode(newLang));
     }
   };
 
@@ -302,16 +368,16 @@ export default function MonacoCodeEditor({
   const monacoLanguage = LANGUAGE_MAP[language] || "javascript";
 
   return (
-    <div className={`flex flex-col w-full ${isFullscreen ? "fixed inset-0 z-50 bg-background" : "min-h-[400px]"}`}>
-      {/* Toolbar */}
+    <div className={`flex flex-col w-full ${isFullscreen ? "fixed inset-0 z-[100] bg-background" : ""}`}>
+      {/* Top Row - Language and Run */}
       <div className="flex flex-col gap-2 sm:gap-3 p-2 sm:p-3 md:p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 border-b">
         {/* Top Row - Language and Run */}
         <div className="flex flex-col xs:flex-row flex-wrap items-stretch xs:items-center gap-2">
-          <Select value={language} onValueChange={onLanguageChange}>
+          <Select value={language} onValueChange={handleLanguageChange}>
             <SelectTrigger className="w-full xs:w-[140px] sm:w-[160px] md:w-[180px] focus:ring-purple-500 h-8 sm:h-9 md:h-10 text-xs sm:text-sm">
               <SelectValue placeholder="Language" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[110] max-h-[300px]">
               <SelectItem value="javascript">JavaScript</SelectItem>
               <SelectItem value="python">Python</SelectItem>
               <SelectItem value="java">Java</SelectItem>
@@ -361,7 +427,7 @@ export default function MonacoCodeEditor({
             <SelectTrigger className="w-[100px] xs:w-[120px] sm:w-[140px] md:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
               <SelectValue placeholder="Theme" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[110]">
               <SelectItem value="vs-dark">Dark</SelectItem>
               <SelectItem value="light">Light</SelectItem>
               <SelectItem value="dracula">Dracula</SelectItem>
@@ -478,31 +544,70 @@ export default function MonacoCodeEditor({
         </div>
       </div>
 
+      {children}
+
       {/* Editor */}
-      <div className="flex-1 border-b bg-slate-950" style={{ height: editorHeight, minHeight: editorHeight }}>
-        <Editor
-          height="100%"
+      <div 
+        ref={containerRef}
+        className={`border-b transition-colors duration-200 relative w-full ${isFullscreen ? "flex-1" : ""}`} 
+        style={{ 
+          height: editorHeight, 
+          minHeight: editorHeight,
+          backgroundColor: theme === 'light' ? '#fffffe' : theme === 'dracula' ? '#282A36' : theme === 'github-dark' ? '#0D1117' : '#1e1e1e'
+        }}
+      >
+        <div className="absolute inset-0">
+          <Editor
+            height="100%"
+            width="100%"
           language={monacoLanguage}
           value={editorValue}
           onChange={(value) => onChange(value || "")}
           theme={theme}
           onMount={handleEditorDidMount}
           loading={
-            <div className="flex items-center justify-center h-full bg-slate-950">
+            <div 
+              className="flex items-center justify-center h-full transition-colors duration-200"
+              style={{ backgroundColor: theme === 'light' ? '#fffffe' : theme === 'dracula' ? '#282A36' : theme === 'github-dark' ? '#0D1117' : '#1e1e1e' }}
+            >
               <div className="flex flex-col items-center gap-3">
                 <Icons.spinner className="h-8 w-8 animate-spin text-purple-600" />
-                <p className="text-sm text-slate-400">Loading editor...</p>
+                <p className={`text-sm ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Loading editor...</p>
               </div>
             </div>
           }
           options={{
             selectOnLineNumbers: true,
             roundedSelection: false,
-            readOnly: false,
+            readOnly: readOnly,
             automaticLayout: true,
+            scrollBeyondLastLine: false,
+            scrollbar: {
+              alwaysConsumeMouseWheel: false,
+            }
           }}
         />
       </div>
+    </div>
+
+      {/* Input Panel - Only show if onStdinChange is provided */}
+      {onStdinChange && (
+        <div className="flex flex-col border-t border-slate-800 bg-slate-900 text-slate-50">
+          <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-slate-800">
+            <Icons.terminal className="h-3 w-3 sm:h-4 sm:w-4 text-purple-400" />
+            <h3 className="font-semibold text-xs sm:text-sm">Standard Input (stdin)</h3>
+            <span className="text-[10px] sm:text-xs text-slate-400 font-normal ml-auto">Provide values for Scanner, cin, input()</span>
+          </div>
+          <div className="p-2 sm:p-3 md:p-4">
+            <Textarea 
+              value={stdin || ""}
+              onChange={(e) => onStdinChange(e.target.value)}
+              placeholder="Type your inputs here separated by spaces or newlines before running..."
+              className="min-h-[80px] font-mono text-xs sm:text-sm resize-y bg-slate-950 text-slate-200 border-slate-700 focus-visible:ring-purple-500/50 placeholder:text-slate-500"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Output Panel - Only show when there's output */}
       {output && (

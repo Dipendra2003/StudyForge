@@ -344,6 +344,16 @@ export class MemStorage implements IStorage {
       lastFailedLogin: null,
       accountLockedUntil: null,
       totalPoints: 0,
+      pendingEmail: null,
+      emailChangeToken: null,
+      emailChangeOtp: null,
+      emailChangeTokenExpiry: null,
+      backupEmail: null,
+      securityQuestion1: null,
+      securityAnswer1: null,
+      securityQuestion2: null,
+      securityAnswer2: null,
+      mediaRetentionDays: 30,
       createdAt: now,
       updatedAt: now,
     };
@@ -1718,7 +1728,7 @@ export class MySQLStorage implements IStorage {
         .where(eq(chatHistory.userId, userId))
         .orderBy(desc(chatHistory.lastUpdated));
       
-      return histories.map(h => ({ ...h, messages: [] })) as ChatHistory[];
+      return histories.map((h: any) => ({ ...h, messages: [] })) as ChatHistory[];
     } catch (error) {
       console.error(`Error fetching chat histories for user ${userId}:`, error);
       throw new Error('Failed to fetch chat histories');
@@ -2061,6 +2071,7 @@ export class MySQLStorage implements IStorage {
           averageScore: 0,
           totalQuestions: 0,
           totalCorrect: 0,
+          totalTimeSpent: 0,
           completionRate: 0,
           byCategory: {},
           byDifficulty: {},
@@ -2075,6 +2086,7 @@ export class MySQLStorage implements IStorage {
       const averageScore = Math.round(totalScore / totalAttempts);
       const totalQuestions = attempts.reduce((sum: number, a: any) => sum + (a.totalQuestions || 0), 0);
       const totalCorrect = attempts.reduce((sum: number, a: any) => sum + (a.correctAnswers || 0), 0);
+      const totalTimeSpent = attempts.reduce((sum: number, a: any) => sum + (a.timeSpent || 0), 0);
       const completionRate = attempts.filter((a: any) => a.completed).length / totalAttempts * 100;
 
       // Group by category
@@ -2143,6 +2155,7 @@ export class MySQLStorage implements IStorage {
         averageScore,
         totalQuestions,
         totalCorrect,
+        totalTimeSpent,
         completionRate: Math.round(completionRate),
         byCategory,
         byDifficulty,
