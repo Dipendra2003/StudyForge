@@ -24,8 +24,8 @@ export const securityHeaders = helmet({
     ? SECURITY_HEADERS.hsts 
     : false,
   
-  // Prevent clickjacking
-  frameguard: { action: 'deny' },
+  // Prevent clickjacking but allow same-origin iframes for document preview modals
+  frameguard: { action: 'sameorigin' },
   
   // Prevent MIME type sniffing
   noSniff: true,
@@ -61,7 +61,7 @@ export function additionalSecurityHeaders(req: Request, res: Response, next: Nex
   res.setHeader('X-Content-Type-Options', 'nosniff');
   
   // X-Frame-Options (redundant with Helmet but explicit)
-  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   
   // X-XSS-Protection (redundant with Helmet but explicit)
   res.setHeader('X-XSS-Protection', '1; mode=block');

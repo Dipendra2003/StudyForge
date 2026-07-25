@@ -10,6 +10,7 @@ interface User {
   emailVerified: boolean;
   isActive: boolean;
   createdAt: string;
+  mediaRetentionDays?: number;
 }
 
 interface AuthContextType {

@@ -96,10 +96,6 @@ export class JWTService {
         algorithms: ['HS256']
       }) as JWTPayload;
 
-      Logger.debug(LogCategory.SECURITY, 'Access token verified', {
-        userId: payload.userId,
-        role: payload.role
-      });
 
       return {
         userId: payload.userId,

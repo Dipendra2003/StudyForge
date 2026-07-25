@@ -110,6 +110,89 @@ export class CloudinaryService {
   }
 
   /**
+   * Upload an attachment (image or document) to Cloudinary
+   * @param buffer - File buffer
+   * @param mimeType - File mime type
+   * @param options - Upload options
+   * @returns Cloudinary URL
+   */
+  public async uploadAttachment(
+    buffer: Buffer,
+    mimeType: string,
+    options: {
+      folder?: string;
+      publicId?: string;
+      retries?: number;
+    } = {}
+  ): Promise<string> {
+    if (!this.isConfigured) {
+      throw new Error('Cloudinary is not configured');
+    }
+
+    const maxRetries = options.retries || 3;
+    let lastError: Error | null = null;
+    const isImage = mimeType.startsWith('image/');
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const folder = options.folder || process.env.CLOUDINARY_FOLDER || 'studyforge';
+        
+        // Convert buffer to data URI format that Cloudinary expects
+        const base64Data = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+        const uploadOptions: any = {
+          folder,
+          public_id: options.publicId,
+          resource_type: isImage ? 'image' : 'auto',
+          type: mimeType === 'application/pdf' ? 'authenticated' : 'upload',
+          timeout: 60000,
+        };
+
+        if (isImage) {
+          uploadOptions.transformation = [
+            { width: 1200, height: 1200, crop: 'limit' }, // Larger limit for attachments
+            { quality: 'auto' },
+            { fetch_format: 'auto' },
+          ];
+        } else if (mimeType === 'application/pdf') {
+          // Force synchronous thumbnail generation for PDFs during upload
+          // This prevents the frontend from getting a 404 when it immediately requests the preview
+          uploadOptions.eager = [
+            { format: 'jpg', type: 'authenticated' }
+          ];
+          uploadOptions.eager_async = false;
+        }
+
+        const result = await cloudinary.uploader.upload(base64Data, uploadOptions);
+
+        Logger.info(LogCategory.SYSTEM, 'Attachment uploaded to Cloudinary', {
+          publicId: result.public_id,
+          url: result.secure_url,
+          attempt,
+          bytes: result.bytes,
+          format: result.format,
+        });
+
+        return result.secure_url;
+      } catch (error: any) {
+        lastError = error;
+        Logger.warn(LogCategory.SYSTEM, `Cloudinary upload attempt ${attempt} failed`, {
+          error: error.message,
+          code: error.http_code,
+        });
+        
+        // If not the last attempt, wait before retrying (exponential backoff)
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
+      }
+    }
+
+    Logger.error(LogCategory.SYSTEM, 'Failed to upload attachment to Cloudinary after retries', lastError!);
+    throw new Error(`Failed to upload attachment to Cloudinary after ${maxRetries} attempts`);
+  }
+
+  /**
    * Delete image from Cloudinary with retry logic
    * @param publicId - Public ID of the image
    */
@@ -157,14 +240,22 @@ export class CloudinaryService {
 
     try {
       // Extract public ID from URL
-      // Example: https://res.cloudinary.com/demo/image/upload/v1234567890/folder/image.jpg
+      // Handles both 'upload' and 'authenticated' type URLs:
+      // https://res.cloudinary.com/demo/image/upload/v123/folder/image.jpg
+      // https://res.cloudinary.com/demo/image/authenticated/s--sig--/v123/folder/file.pdf
       const parts = url.split('/');
-      const uploadIndex = parts.indexOf('upload');
+      let typeIndex = parts.indexOf('upload');
+      if (typeIndex === -1) typeIndex = parts.indexOf('authenticated');
       
-      if (uploadIndex === -1) return null;
+      if (typeIndex === -1) return null;
       
-      // Get everything after 'upload/v123456789/'
-      const pathParts = parts.slice(uploadIndex + 2); // Skip 'upload' and version
+      // Skip type keyword, then skip version (v123...) and optional signature (s--...--)
+      let startIndex = typeIndex + 1;
+      while (startIndex < parts.length && (parts[startIndex].startsWith('v') && /^v\d+$/.test(parts[startIndex]) || parts[startIndex].startsWith('s--'))) {
+        startIndex++;
+      }
+      
+      const pathParts = parts.slice(startIndex);
       const publicIdWithExt = pathParts.join('/');
       
       // Remove file extension

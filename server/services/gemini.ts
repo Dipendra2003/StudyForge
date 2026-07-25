@@ -361,8 +361,8 @@ export class GeminiService {
       throw new Error('Prompt cannot be empty');
     }
 
-    if (prompt.length > 10000) {
-      throw new Error('Prompt exceeds maximum length of 10,000 characters');
+    if (prompt.length > 1000000) {
+      throw new Error('Prompt exceeds maximum length of 1,000,000 characters');
     }
 
     const temperature = options.temperature ?? this.defaultTemperature;
@@ -422,17 +422,27 @@ export class GeminiService {
    * Generate chat response with conversation history
    */
   async generateChatResponse(
-    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; inlineData?: any }>,
     options: GenerationOptions = {},
     userId?: number
   ): Promise<string> {
     // Convert messages to Gemini format
     const geminiMessages = messages
       .filter(msg => msg.role !== 'system')
-      .map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }],
-      }));
+      .map(msg => {
+        const parts: any[] = [{ text: msg.content }];
+        if (msg.inlineData && Array.isArray(msg.inlineData)) {
+          msg.inlineData.forEach((data: any) => {
+            parts.push({ inlineData: data });
+          });
+        } else if (msg.inlineData) {
+          parts.push({ inlineData: msg.inlineData });
+        }
+        return {
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts,
+        };
+      });
 
     // Add system message as context if present
     const systemMessage = messages.find(msg => msg.role === 'system');
@@ -444,8 +454,25 @@ export class GeminiService {
 
     // For single-turn conversations, use generateContent
     if (geminiMessages.length === 1) {
-      prompt += geminiMessages[0].parts[0].text;
-      return this.generateContent(prompt, options, userId);
+      if (geminiMessages[0].parts.length > 1) {
+        // Multi-part message (e.g. image)
+        const parts = [...geminiMessages[0].parts];
+        if (prompt) {
+          parts[0].text = prompt + parts[0].text;
+        }
+        const model = this.client.getGenerativeModel({
+          model: this.modelName,
+          generationConfig: {
+            temperature: options.temperature ?? this.defaultTemperature,
+            maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+          },
+        });
+        const result = await model.generateContent(parts);
+        return result.response.text();
+      } else {
+        prompt += geminiMessages[0].parts[0].text;
+        return this.generateContent(prompt, options, userId);
+      }
     }
 
     // For multi-turn conversations, use chat
@@ -473,7 +500,7 @@ export class GeminiService {
         });
 
         const lastMessage = geminiMessages[geminiMessages.length - 1];
-        const result = await chat.sendMessage(lastMessage.parts[0].text);
+        const result = await chat.sendMessage(lastMessage.parts);
         const text = result.response.text();
 
         if (!text) {
@@ -1593,6 +1620,93 @@ IMPORTANT:
       metadata,
     };
     console.log(JSON.stringify(logEntry));
+  }
+
+  /**
+   * Generate chat response as a stream
+   */
+  async *generateChatResponseStream(
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string; inlineData?: any }>,
+    options: GenerationOptions = {},
+    userId?: number
+  ): AsyncGenerator<string, void, unknown> {
+    // Convert messages to Gemini format
+    const geminiMessages = messages
+      .filter(msg => msg.role !== 'system')
+      .map(msg => {
+        const parts: any[] = [{ text: msg.content }];
+        if (msg.inlineData && Array.isArray(msg.inlineData)) {
+          msg.inlineData.forEach((data: any) => {
+            parts.push({ inlineData: data });
+          });
+        } else if (msg.inlineData) {
+          parts.push({ inlineData: msg.inlineData });
+        }
+        return {
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts,
+        };
+      });
+
+    // Add system message as context if present
+    const systemMessage = messages.find(msg => msg.role === 'system');
+    let prompt = '';
+
+    if (systemMessage) {
+      prompt = `${systemMessage.content}\n\n`;
+    }
+
+    // For single-turn conversations
+    if (geminiMessages.length === 1) {
+      const parts = [...geminiMessages[0].parts];
+      if (prompt) {
+        parts[0].text = prompt + parts[0].text;
+      }
+      const model = this.client.getGenerativeModel({
+        model: this.modelName,
+        generationConfig: {
+          temperature: options.temperature ?? this.defaultTemperature,
+          maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+        },
+      });
+      const resultStream = await model.generateContentStream(parts);
+      for await (const chunk of resultStream.stream) {
+        yield chunk.text();
+      }
+      return;
+    }
+
+    // For multi-turn conversations
+    let history = geminiMessages.slice(0, -1);
+    if (history.length > 0 && history[0].role === 'model') {
+      while (history.length > 0 && history[0].role === 'model') {
+        history = history.slice(1);
+      }
+    }
+    
+    // INJECT the dynamic system prompt (which contains the PDF text) into the first message
+    if (prompt) {
+      if (history.length > 0) {
+        history[0].parts[0].text = prompt + history[0].parts[0].text;
+      } else {
+        const lastMessage = geminiMessages[geminiMessages.length - 1];
+        lastMessage.parts[0].text = prompt + lastMessage.parts[0].text;
+      }
+    }
+    
+    const chat = this.model.startChat({
+      history,
+      generationConfig: {
+        temperature: options.temperature ?? this.defaultTemperature,
+        maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+      },
+    });
+
+    const lastMessage = geminiMessages[geminiMessages.length - 1];
+    const resultStream = await chat.sendMessageStream(lastMessage.parts);
+    for await (const chunk of resultStream.stream) {
+      yield chunk.text();
+    }
   }
 }
 

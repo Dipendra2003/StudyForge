@@ -35,6 +35,7 @@ import {
   ClipboardList,
   Settings,
   LayoutDashboard,
+  Image as ImageIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { icon: ClipboardList, label: "Quiz Mode", path: "/quiz-mode" },
     { icon: Code, label: "Code Generator", path: "/code-generator" },
     { icon: Calendar, label: "Study Planner", path: "/study-planner" },
+    { icon: ImageIcon, label: "Media Gallery", path: "/media" },
   ];
 
   // Handle logout

@@ -36,12 +36,17 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Extract JWT from cookie or Authorization header (fallback)
+    // Extract JWT from cookie, Authorization header, or query param
     let token = req.cookies?.accessToken;
     
     if (!token) {
       const authHeader = req.headers.authorization;
       token = jwtService.extractTokenFromHeader(authHeader);
+    }
+    
+    // Fallback for media streaming where headers can't be sent easily
+    if (!token && req.query.token && typeof req.query.token === 'string') {
+      token = req.query.token;
     }
 
     if (!token) {
@@ -109,11 +114,7 @@ export async function requireAuth(
       role: user.role || 'user',
     };
 
-    Logger.debug(LogCategory.SECURITY, 'Authentication successful', {
-      userId: user.id,
-      username: user.username,
-      path: req.path,
-    });
+
 
     next();
   } catch (error) {

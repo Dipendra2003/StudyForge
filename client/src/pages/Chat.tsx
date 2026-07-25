@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User as UserIcon, Sparkles, Copy, Check, Menu, X } from "lucide-react";
+import { Send, Loader2, Bot, User as UserIcon, Sparkles, Copy, Check, Menu, X, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiGet, apiPost, apiDelete, apiPatch } from "@/lib/api";
+import { apiGet, apiPost, apiPostFormData, apiDelete, apiPatch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -12,13 +12,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import MessageFormatter from "@/components/chat/MessageFormatter";
+import { Badge } from "@/components/ui/badge";
 import MessageActionBar from "@/components/chat/MessageActionBar";
+import { ImageLightbox } from "@/components/ui/image-lightbox";
+import MessageFormatter from "@/components/chat/MessageFormatter";
+import FilePreviewChips from "@/components/chat/FilePreviewChips";
+import AttachmentMenu from "@/components/chat/AttachmentMenu";
 import { useLocation } from "wouter";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  inlineData?: { data: string; mimeType: string; fileUrl?: string }[];
   timestamp?: Date;
 }
 
@@ -100,10 +111,15 @@ export default function Chat() {
   const [showQuickActions, setShowQuickActions] = useState(false); // Quick actions hidden by default
   const [editingChatId, setEditingChatId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [lightboxImage, setLightboxImage] = useState<{src: string, alt: string} | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Save active session ID to sessionStorage whenever it changes
   useEffect(() => {
@@ -142,7 +158,7 @@ export default function Chat() {
   });
 
   // Load a specific chat session
-  const loadChatSession = async (chatId: number) => {
+  const loadChatSession = async (chatId: number, showToast = true) => {
     try {
       const response = await apiGet(`/api/chat/history/${chatId}`);
       
@@ -160,16 +176,19 @@ export default function Chat() {
       // Ensure timestamps are Date objects
       const messagesWithDates = parsedMessages.map((msg: Message) => ({
         ...msg,
+        inlineData: msg.inlineData || undefined,
         timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
       }));
       
       setMessages(messagesWithDates);
       setSessionId(chatId.toString());
       
-      toast({
-        title: "Chat loaded",
-        description: "Previous conversation loaded successfully",
-      });
+      if (showToast) {
+        toast({
+          title: "Chat loaded",
+          description: "Previous conversation loaded successfully",
+        });
+      }
     } catch (error) {
       toast({
         title: "Failed to load chat",
@@ -300,76 +319,238 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Set up chat mutation
-  const chatMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const documentContext = sessionStorage.getItem('documentChatContext');
-      const response = await apiPost('/api/chat', { 
-        message,
-        sessionId: sessionId,
-        subject: documentContext ? 'Document Analysis' : 'General Study Help',
-        documentContext: documentContext || undefined
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    const pastedFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1 || items[i].type === "application/pdf") {
+        const file = items[i].getAsFile();
+        if (file) pastedFiles.push(file);
+      }
+    }
+    
+    if (pastedFiles.length > 0) {
+      e.preventDefault();
+      setFiles(prev => {
+        const newFiles = [...prev, ...pastedFiles];
+        return newFiles.slice(0, 10); // Max 10 files
       });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(
+      file => file.type.startsWith('image/') || file.type === 'application/pdf'
+    );
+    if (droppedFiles.length > 0) {
+      setFiles(prev => {
+        const newFiles = [...prev, ...droppedFiles];
+        return newFiles.slice(0, 10);
+      });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const handleSubmit = async (e?: React.FormEvent | string) => {
+    let currentInput = input.trim();
+    if (typeof e === 'string') {
+      currentInput = e.trim();
+    } else if (e) {
+      e.preventDefault();
+    }
+    
+    if ((!currentInput && files.length === 0) || isStreaming || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const currentFiles = [...files];
+    const inlineData: { data: string, mimeType: string, fileUrl?: string }[] = [];
+    
+    // Process files for instant preview in chat bubble
+    for (const file of currentFiles) {
+      if (file.type.startsWith('image/')) {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1] || '');
+          };
+          reader.readAsDataURL(file);
+        });
+        if (base64) {
+          inlineData.push({ data: base64, mimeType: file.type });
+        }
+      } else {
+        inlineData.push({ data: '', mimeType: file.type, fileUrl: URL.createObjectURL(file) }); // PDF placeholder
+      }
+    }
+
+    // Build smart message content
+    const hasPdf = currentFiles.some(f => f.type === 'application/pdf');
+    const pdfNames = currentFiles.filter(f => f.type === 'application/pdf').map(f => f.name);
+    let userMessageContent = currentInput;
+    if (!userMessageContent && currentFiles.length > 0) {
+      // Auto-generate a meaningful prompt when user only attaches files
+      if (hasPdf) {
+        userMessageContent = `Please analyze and explain this PDF: ${pdfNames.join(', ')}`;
+      } else {
+        userMessageContent = `What is this?`;
+      }
+    }
+    
+    const userMessage: Message = {
+      role: 'user',
+      content: userMessageContent,
+      ...(inlineData.length > 0 ? { inlineData } : {}),
+      timestamp: new Date()
+    };
+    
+    // Show a loading message while AI processes (especially for PDFs which take time)
+    const loadingText = hasPdf ? '📄 Analyzing your PDF document...' : '';
+    setMessages(prev => [...prev, userMessage, { role: 'assistant', content: loadingText, timestamp: new Date() }]);
+    setIsTyping(!hasPdf); // For PDFs, the loading text acts as the indicator
+    // isStreaming will be set to true once the network request succeeds and stream starts
+    
+    setInput("");
+    setFiles([]);
+    
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
+    try {
+      const documentContext = sessionStorage.getItem('documentChatContext');
+      const formData = new FormData();
+      formData.append('message', userMessageContent);
+      if (sessionId) formData.append('sessionId', sessionId);
+      formData.append('subject', documentContext ? 'Document Analysis' : 'General Study Help');
+      if (documentContext) formData.append('documentContext', documentContext);
       
+      currentFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
+      // Save to local IndexedDB (user request)
+      if (sessionId) {
+        try {
+          const { saveAttachmentLocally } = await import('@/lib/storage');
+          for (const file of currentFiles) {
+            await saveAttachmentLocally(sessionId, file);
+          }
+        } catch (e) {
+          console.error("Failed to save to indexedDB", e);
+        }
+      }
+      
+      const response = await apiPostFormData('/api/chat', formData, {
+        'Accept': 'text/event-stream',
+        'x-no-compression': 'true'
+      });
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send message');
+        throw new Error('Failed to send message');
       }
+
+      setIsTyping(false); // Hide typing indicator since streaming starts
+      setIsStreaming(true); // Now we are actually streaming text
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
       
-      return response.json();
-    },
-    onSuccess: (data) => {
-      // Store session ID for conversation continuity
-      if (data.chatHistory && !sessionId) {
-        setSessionId(data.chatHistory.id.toString());
+      if (!reader) throw new Error("No response stream");
+
+      let done = false;
+      let streamedResponse = "";
+      let buffer = "";
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          
+          // Keep the last, potentially incomplete chunk in the buffer
+          buffer = lines.pop() || "";
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.substring(6));
+                
+                if (data.error) {
+                  throw new Error(`STREAM_ERROR:${data.error}`);
+                }
+                
+                if (data.content) {
+                  streamedResponse += data.content;
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1] = {
+                      role: 'assistant',
+                      content: streamedResponse,
+                      timestamp: new Date()
+                    };
+                    return newMessages;
+                  });
+                }
+                
+                if (data.done) {
+                  let currentChatId = sessionId;
+                  if (data.chatHistory && !sessionId) {
+                    currentChatId = data.chatHistory.id.toString();
+                    setSessionId(currentChatId);
+                  }
+                  queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/attachments'] });
+                  refetchHistory();
+                  
+                  if (currentChatId) {
+                    // Silently reload chat history to replace local blob URLs with permanent Cloudinary URLs
+                    loadChatSession(parseInt(currentChatId), false);
+                  }
+                }
+              } catch (e: any) {
+                if (e.message && e.message.startsWith('STREAM_ERROR:')) {
+                  throw new Error(e.message.replace('STREAM_ERROR:', ''));
+                }
+                // Ignore parsing errors for incomplete chunks
+              }
+            }
+          }
+        }
+        scrollToBottom();
       }
-      
-      setMessages(prevMessages => [
-        ...prevMessages,
-        {
-          role: 'assistant',
-          content: data.response.content,
-          timestamp: new Date()
-        },
-      ]);
-      
-      // Invalidate and refetch chat history query to refresh
-      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
-      refetchHistory();
-    },
-    onError: (error: Error) => {
+    } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to get a response",
         variant: "destructive",
       });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!input.trim() || chatMutation.isPending) return;
-
-    // Add user message to the chat
-    const userMessage: Message = {
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date()
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setIsTyping(true);
-    
-    // Send to API
-    chatMutation.mutate(input);
-    
-    // Clear input
-    setInput("");
-    
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      // Remove the empty assistant message if it failed completely
+      setMessages(prev => {
+        if (prev[prev.length - 1].role === 'assistant' && prev[prev.length - 1].content === '') {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+    } finally {
+      setIsStreaming(false);
+      setIsTyping(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -383,12 +564,7 @@ export default function Chat() {
     });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
-  };
+
 
   // Strip Markdown formatting from text
   const stripMarkdown = (text: string): string => {
@@ -696,15 +872,7 @@ export default function Chat() {
                       variant="outline"
                       className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 hover:border-primary/50 transition-all"
                       onClick={() => {
-                        // Automatically send the message without setting input
-                        const userMessage: Message = {
-                          role: 'user',
-                          content: suggestion,
-                          timestamp: new Date()
-                        };
-                        setMessages(prev => [...prev, userMessage]);
-                        setIsTyping(true);
-                        chatMutation.mutate(suggestion);
+                        handleSubmit(suggestion);
                       }}
                     >
                       <Sparkles className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
@@ -716,7 +884,13 @@ export default function Chat() {
             )}
             
             <AnimatePresence initial={false}>
-              {messages.map((message, index) => (
+              {messages.map((message, index) => {
+                // Don't render empty assistant messages while waiting for stream to start
+                if (message.role === 'assistant' && !message.content && isTyping) {
+                  return null;
+                }
+                
+                return (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -766,6 +940,79 @@ export default function Chat() {
                         : "bg-gradient-to-br from-card to-card/80 border-border"
                     )}>
                       <div className="text-sm sm:text-base leading-relaxed max-w-full overflow-x-hidden">
+                        {message.inlineData && message.inlineData.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {message.inlineData.map((file, i) => (
+                              <div key={i} className="relative rounded overflow-hidden border bg-black/5 max-w-[200px] max-h-[200px]">
+                                {file.mimeType.startsWith('image/') ? (
+                                  <img 
+                                    src={`data:${file.mimeType};base64,${file.data}`} 
+                                    alt="Uploaded attachment" 
+                                    className="object-contain w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => setLightboxImage({ src: `data:${file.mimeType};base64,${file.data}`, alt: "Uploaded attachment" })}
+                                  />
+                                ) : file.fileUrl && !file.fileUrl.startsWith('blob:') ? (
+                                    <div 
+                                      className="relative w-[120px] h-[160px] group-hover:opacity-90 transition-opacity rounded overflow-hidden border bg-white cursor-pointer"
+                                      onClick={() => setPdfPreviewUrl(file.fileUrl!)}
+                                    >
+                                      <img 
+                                        src={`${file.fileUrl}${file.fileUrl.includes('?') ? '&' : '?'}preview=true`}
+                                        alt="PDF Document"
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          const img = e.currentTarget;
+                                          const retries = parseInt(img.dataset.retries || '0');
+                                          if (retries < 3) {
+                                            img.dataset.retries = (retries + 1).toString();
+                                            setTimeout(() => {
+                                              img.src = `${file.fileUrl}${file.fileUrl!.includes('?') ? '&' : '?'}preview=true&r=${retries + 1}`;
+                                            }, 2500); // Wait 2.5s for Cloudinary to generate the thumbnail
+                                          } else {
+                                            img.style.display = 'none';
+                                            const parent = img.parentElement;
+                                            if (parent && !parent.querySelector('.pdf-fallback')) {
+                                              const fallback = document.createElement('div');
+                                              fallback.className = 'pdf-fallback absolute inset-0 flex flex-col items-center justify-center bg-primary/10 text-primary';
+                                              fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text mb-2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="font-semibold text-xs text-center w-full truncate px-2">PDF Document</span>';
+                                              parent.appendChild(fallback);
+                                            }
+                                          }
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80 pointer-events-none">
+                                        <div className="absolute bottom-2 right-2 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded shadow flex items-center">
+                                          <FileText className="h-3 w-3 mr-1" /> PDF
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className={cn(
+                                      "flex flex-col items-center justify-center p-4 min-w-[120px] min-h-[80px] cursor-pointer",
+                                      message.role === 'user' 
+                                        ? "bg-white/20 text-white border-white/30 hover:bg-white/30 transition-colors" 
+                                        : "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors"
+                                    )}
+                                    onClick={() => {
+                                      if (file.fileUrl) {
+                                        setPdfPreviewUrl(file.fileUrl);
+                                      } else {
+                                        toast({
+                                          title: "Cannot open PDF",
+                                          description: "The PDF URL is not available. Please try viewing it in the Media Gallery.",
+                                          variant: "default"
+                                        });
+                                      }
+                                    }}>
+                                      <FileText className="h-8 w-8 mb-2" />
+                                      <span className="text-xs font-medium">PDF Document</span>
+                                      <span className="text-[10px] opacity-80 mt-1 max-w-[100px] truncate text-center" title="Document">Attachment</span>
+                                    </div>
+                                  )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {(() => {
                           const { cleanContent, action } = extractAction(message.content);
                           return (
@@ -835,11 +1082,12 @@ export default function Chat() {
                     )}
                   </div>
                 </motion.div>
-              ))}
+              );
+              })}
             </AnimatePresence>
 
             {/* Typing Indicator */}
-            {chatMutation.isPending && (
+            {(isTyping && !isStreaming) && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -940,15 +1188,7 @@ export default function Chat() {
                       size="sm"
                       className="h-6 text-xs hover:bg-primary/10 hover:border-primary/50 whitespace-nowrap flex-shrink-0"
                       onClick={() => {
-                        // Automatically send the message without setting input
-                        const userMessage: Message = {
-                          role: 'user',
-                          content: quick.action,
-                          timestamp: new Date()
-                        };
-                        setMessages(prev => [...prev, userMessage]);
-                        setIsTyping(true);
-                        chatMutation.mutate(quick.action);
+                        handleSubmit(quick.action);
                         setShowQuickActions(false);
                       }}
                     >
@@ -975,13 +1215,26 @@ export default function Chat() {
               </div>
             )}
             
-            <form onSubmit={handleSubmit} className="relative">
+            <form onSubmit={handleSubmit} className="relative" onDragOver={handleDragOver} onDrop={handleDrop}>
+              {/* File Preview */}
+              <FilePreviewChips files={files} onRemove={(index) => setFiles(prev => prev.filter((_, i) => i !== index))} />
+
               <div className="relative flex items-end gap-2 p-1.5 rounded-xl border border-border bg-background hover:border-primary/50 transition-colors focus-within:border-primary">
+                <AttachmentMenu 
+                  onSelectFiles={(selectedFiles) => {
+                    if (selectedFiles) {
+                      const newFiles = Array.from(selectedFiles);
+                      setFiles(prev => [...prev, ...newFiles].slice(0, 10));
+                    }
+                  }}
+                />
                 <Textarea
                   ref={textareaRef}
                   value={input}
+                  disabled={isSubmitting}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder="Ask any study question... (Shift + Enter for new line)"
                   className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[40px] max-h-[200px] text-sm"
                   rows={1}
@@ -996,9 +1249,9 @@ export default function Chat() {
                   type="submit" 
                   size="icon"
                   className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all flex-shrink-0"
-                  disabled={chatMutation.isPending || !input.trim()}
+                  disabled={isStreaming || isTyping || isSubmitting || (!input.trim() && files.length === 0)}
                 >
-                  {chatMutation.isPending ? (
+                  {isStreaming || isTyping || isSubmitting ? (
                     <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1397,6 +1650,44 @@ export default function Chat() {
           )}
         </AnimatePresence>
       </div>
+      {/* Full Screen Image Lightbox */}
+      {lightboxImage && (
+        <ImageLightbox
+          src={lightboxImage.src}
+          alt={lightboxImage.alt}
+          isOpen={!!lightboxImage}
+          onClose={() => setLightboxImage(null)}
+        />
+      )}
+
+      {/* PDF Viewer Modal */}
+      <Dialog open={!!pdfPreviewUrl} onOpenChange={(open) => !open && setPdfPreviewUrl(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 overflow-hidden bg-background/95 backdrop-blur-md flex flex-col">
+          <DialogHeader className="px-6 py-4 border-b flex flex-row items-center justify-between sticky top-0 bg-background z-10 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5 text-primary" />
+              <span className="truncate max-w-xl">Document Viewer</span>
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={() => setPdfPreviewUrl(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
+          <div className="w-full h-full flex-grow relative bg-black/5">
+            {pdfPreviewUrl && (
+              <iframe 
+                src={pdfPreviewUrl}
+                className="absolute inset-0 w-full h-full border-0"
+                title="Document Viewer"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

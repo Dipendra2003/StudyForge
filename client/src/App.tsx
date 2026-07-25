@@ -35,6 +35,7 @@ import Settings from "@/pages/Settings";
 import Help from "@/pages/Help";
 import Contact from "@/pages/Contact";
 import AuthDebug from "@/pages/AuthDebug";
+import MediaGallery from "@/pages/MediaGallery";
 
 // Admin Pages - Lazy loaded for performance optimization (Requirement 18.3)
 const AdminRoute = lazy(() => import("@/components/admin/AdminRoute"));
@@ -129,6 +130,7 @@ function Router() {
       <Route path="/quiz/shared/:linkId" component={SharedQuiz} />
       <PrivateRoute path="/profile" component={Profile} />
       <PrivateRoute path="/settings" component={Settings} />
+      <PrivateRoute path="/media" component={MediaGallery} />
       
       {/* Admin Routes - Wrapped in Suspense for lazy loading (Requirement 18.3) */}
       <Route path="/admin">

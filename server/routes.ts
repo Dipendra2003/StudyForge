@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db/index";
-import { quizAttempts, questionAttempts, questions, users, userPoints } from "@shared/schema";
+import { quizAttempts, questionAttempts, questions, users, userPoints, attachments } from "@shared/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { registerQuizRoutes } from "./routes/quiz.routes";
 import { registerLeaderboardRoutes } from "./routes/leaderboard.routes";
@@ -164,6 +164,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'unhealthy',
         error: 'Health check failed',
       });
+    }
+  });
+  
+  // ===== User Settings Endpoints =====
+  
+  app.patch('/api/users/me/media-retention', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const { retentionDays } = req.body;
+      const validDays = [0, 7, 15, 30];
+      
+      if (typeof retentionDays !== 'number' || !validDays.includes(retentionDays)) {
+        return res.status(400).json({ message: "Invalid retention days value" });
+      }
+
+      await db.update(users)
+        .set({ mediaRetentionDays: retentionDays })
+        .where(eq(users.id, req.user!.id));
+
+      res.status(200).json({ message: "Media retention setting updated successfully" });
+    } catch (error) {
+      Logger.error(LogCategory.SYSTEM, 'Error updating media retention setting', error as Error);
+      res.status(500).json({ message: "Failed to update settings" });
     }
   });
   
@@ -1157,7 +1179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           
           // Instantiate PDFParse class with options
-          const parser = new PDFParse({ data: file.buffer });
+          const parser = new PDFParse({ data: new Uint8Array(file.buffer) });
           const result = await parser.getText({
             pagerender: renderPage
           });
@@ -1781,16 +1803,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== AI Chat Endpoints =====
   
+  const chatUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: (_req, file, cb) => {
+      const allowedTypes = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'application/pdf'
+      ];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only images and PDFs are allowed.'));
+      }
+    }
+  });
+
   // Start or continue chat session
-  app.post('/api/chat', jwtAuth, async (req: Request, res: Response) => {
+  app.post('/api/chat', jwtAuth, chatUpload.array('files', 10), async (req: Request, res: Response) => {
     try {
-      const { message, sessionId, subject, documentContext } = req.body;
+      const { message, sessionId, subject } = req.body;
+      let { documentContext } = req.body;
       const userId = req.user?.id!;
+      const files = req.files as Express.Multer.File[];
+      const inlineData: { data: string; mimeType: string }[] = [];
+
+      if (files && files.length > 0) {
+        // Process files sequentially to avoid race conditions with documentContext
+        for (const file of files) {
+          let fileUrl = "";
+          
+          // Background upload to Cloudinary (if configured)
+          try {
+            if (cloudinaryService.isAvailable()) {
+              fileUrl = await cloudinaryService.uploadAttachment(
+                file.buffer, 
+                file.mimetype, 
+                { folder: 'studyforge/attachments' }
+              );
+              
+              // Save to database and get the inserted ID
+              const [result] = await db.insert(attachments).values({
+                userId,
+                filename: file.filename || file.originalname,
+                originalName: file.originalname,
+                fileUrl,
+                mimeType: file.mimetype,
+                size: file.size,
+                source: 'chat'
+              });
+              
+              // Use the proxy URL for the chat history inlineData so thumbnails work
+              if (result && result.insertId) {
+                fileUrl = `/api/media/${result.insertId}`;
+              }
+            }
+          } catch (err) {
+            console.error("Error uploading attachment to Cloudinary:", err);
+          }
+
+          // Process for Gemini context
+          if (file.mimetype === 'application/pdf') {
+            try {
+              console.log(`[PDF] Parsing PDF: ${file.originalname} (${file.buffer.length} bytes)`);
+              const pdfParseModule = await import('pdf-parse');
+              const PDFParse = pdfParseModule.PDFParse;
+              const parser = new PDFParse({ data: new Uint8Array(file.buffer) });
+              const pdfData = await parser.getText();
+              const extractedText = pdfData.text.trim();
+              await parser.destroy();
+              
+              console.log(`[PDF] Extracted ${extractedText.length} characters from ${file.originalname}`);
+              
+              if (extractedText) {
+                const prefix = `[UPLOADED PDF CONTENT: ${file.originalname}]:\n`;
+                documentContext = documentContext ? `${documentContext}\n\n${prefix}${extractedText}` : `${prefix}${extractedText}`;
+                console.log(`[PDF] documentContext updated, total length: ${documentContext.length}`);
+              } else {
+                console.warn(`[PDF] No text extracted from ${file.originalname}`);
+              }
+              
+              // Add a placeholder to inlineData so the frontend knows a PDF was attached
+              inlineData.push({
+                data: '',
+                mimeType: 'application/pdf',
+                fileUrl: fileUrl || undefined
+              } as any);
+            } catch (err) {
+              console.error("Error parsing PDF:", err);
+            }
+          } else if (file.mimetype.startsWith('image/')) {
+            inlineData.push({
+              data: file.buffer.toString('base64'),
+              mimeType: file.mimetype
+            });
+          }
+        }
+      }
       
       // Validate message format
       const validatedMessage = chatMessageSchema.parse({
         role: "user",
-        content: message
+        content: message,
+        ...(inlineData.length > 0 ? { inlineData } : {})
       });
       
       let chatHistory;
@@ -1847,10 +1962,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Prepare messages for Gemini (convert assistant to model)
-      const apiMessages = processedMessages.map((msg: ChatMessage) => ({
-        role: msg.role as "user" | "assistant" | "system",
-        content: msg.content
-      }));
+      const apiMessages = processedMessages.map((msg: ChatMessage) => {
+        let cleanInlineData = undefined;
+        if (msg.inlineData) {
+          // Filter out PDF placeholders so Gemini doesn't complain about empty documents
+          const filtered = msg.inlineData.filter((data: any) => data.mimeType !== 'application/pdf' && data.data !== '');
+          if (filtered.length > 0) {
+            cleanInlineData = filtered;
+          }
+        }
+        
+        return {
+          role: msg.role as "user" | "assistant" | "system",
+          content: msg.content,
+          ...(cleanInlineData ? { inlineData: cleanInlineData } : {})
+        };
+      });
       
       // Get user info for personalization
       const user = await storage.getUser(userId);
@@ -1859,7 +1986,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activePlans = userPlans.filter(p => p.status === 'active');
       
       // Add system message at the beginning for better context
-      if (apiMessages.length <= 1 || !apiMessages.some((msg: { role: string }) => msg.role === 'system')) {
+      // Always refresh the system message to include latest documentContext (e.g. newly uploaded PDFs)
+      const existingSystemIndex = apiMessages.findIndex((msg: { role: string }) => msg.role === 'system');
+      if (existingSystemIndex !== -1) {
+        // Remove existing system message - we'll create a fresh one with updated context
+        apiMessages.splice(existingSystemIndex, 1);
+      }
+      
+      {
         // Generate personalized greeting for first message
         const greetings = [
           `Hey ${userName}! 👋`,
@@ -1877,7 +2011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `User's Name: ${userName}\n` +
             `User's Total XP: ${user?.totalPoints || 0}\n` +
             `Active Study Plans: ${activePlans.length > 0 ? activePlans.map(p => p.title).join(', ') : 'None'}\n` +
-            (documentContext ? `\n--- DOCUMENT CONTEXT ---\nThe user is currently reviewing the following document text. Use this context to answer their questions:\n${documentContext}\n--- END DOCUMENT ---\n` : "") +
+            (documentContext ? `\n--- DOCUMENT CONTEXT ---\nThe user has uploaded or is reviewing the following document. Use this content to answer their questions about it:\n${documentContext}\n--- END DOCUMENT ---\n` : "") +
             "\n\nYour purpose is to help students learn effectively across ALL subjects and topics, including: " +
             "- Academic subjects (math, science, history, languages, etc.)" +
             "- Technology and computer science (including AI, machine learning, programming)" +
@@ -1941,8 +2075,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      let aiResponseContent: string;
+      let aiResponseContent = "";
       
+      const isStreaming = req.headers.accept === 'text/event-stream' || req.query.stream === 'true';
+
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        try {
+          const stream = geminiService.generateChatResponseStream(apiMessages, { maxOutputTokens: 8192 }, userId);
+          let chunkCount = 0;
+          for await (const chunk of stream) {
+            chunkCount++;
+            aiResponseContent += chunk;
+            res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+            // Force flush the chunk to bypass compression middleware buffering
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
+          }
+          console.log(`[STREAM_DEBUG] Successfully sent ${chunkCount} chunks. Total length: ${aiResponseContent.length}`);
+        } catch (error) {
+          console.error("Error generating AI stream response:", error);
+          const errorMsg = "I'm sorry, I encountered an error processing your request. Please try again.";
+          aiResponseContent += errorMsg;
+          res.write(`data: ${JSON.stringify({ content: errorMsg })}\n\n`);
+        }
+
+        // Add AI response to chat history
+        if (chatHistory) {
+          chatHistory = await storage.updateChatHistory(chatHistory.id, {
+            role: "assistant" as "user" | "assistant" | "system",
+            content: aiResponseContent,
+            timestamp: new Date()
+          });
+        }
+        
+        res.write(`data: ${JSON.stringify({ done: true, chatHistory })}\n\n`);
+        console.log(`[STREAM_DEBUG] Sent done signal. Response length: ${aiResponseContent.length}`);
+        return res.end();
+      }
+
+      // Existing non-streaming logic
       try {
         aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
       } catch (error) {
@@ -2050,6 +2227,228 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Chat updated successfully",
         chatHistory: updatedChat 
       });
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
+  // Proxy media route to obscure Cloudinary URLs from users
+  app.get('/api/media/:id', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const attachmentId = parseInt(req.params.id);
+      
+      if (isNaN(attachmentId)) {
+        return res.status(400).json({ message: "Invalid media ID" });
+      }
+
+      const [attachment] = await db.select().from(attachments).where(
+        and(
+          eq(attachments.id, attachmentId),
+          eq(attachments.userId, userId)
+        )
+      );
+
+      if (!attachment) {
+        return res.status(404).json({ message: "Media not found" });
+      }
+
+      // If it's a remote URL, proxy it via https
+      if (attachment.fileUrl.startsWith('https://')) {
+        const https = await import('https');
+        const { v2: cloudinary } = await import('cloudinary');
+        let targetUrl = attachment.fileUrl;
+        
+        // Generate proper Cloudinary URL based on request type
+        const publicId = cloudinaryService.extractPublicId(attachment.fileUrl);
+        if (publicId) {
+          const isPdf = attachment.mimeType === 'application/pdf';
+          const isPreview = req.query.preview === 'true';
+          // Auto-detect resource_type from the stored URL (handles both old 'raw' and new 'image' uploads)
+          const isRawUpload = attachment.fileUrl.includes('/raw/');
+          const pdfResourceType = isRawUpload ? 'raw' : 'image';
+          
+          if (isPdf && isPreview) {
+            if (isRawUpload) {
+              // 'raw' type PDFs can't generate JPG thumbnails - return a placeholder
+              res.setHeader('Content-Type', 'image/svg+xml');
+              res.status(200).send(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect fill="#f3f4f6" width="200" height="200"/><text x="100" y="90" text-anchor="middle" fill="#6b7280" font-family="sans-serif" font-size="14">PDF</text><text x="100" y="115" text-anchor="middle" fill="#9ca3af" font-family="sans-serif" font-size="11">Document</text></svg>`);
+              return;
+            }
+            targetUrl = cloudinary.url(publicId, {
+              secure: true,
+              sign_url: true,
+              type: 'authenticated',
+              resource_type: 'image',
+              format: 'jpg'
+            });
+            console.log(`[PROXY] Generated PDF Thumbnail URL: ${targetUrl} for publicId: ${publicId}`);
+          } else if (isPdf && !isPreview) {
+            // For full PDF download: use Cloudinary's private download API which bypasses CDN restrictions
+            try {
+              targetUrl = cloudinary.utils.private_download_url(publicId, 'pdf', {
+                resource_type: pdfResourceType,
+                type: 'authenticated',
+                expires_at: Math.floor(Date.now() / 1000) + 300 // 5 min expiry
+              });
+            } catch (downloadErr) {
+              console.error('[PROXY] Failed to generate private download URL:', downloadErr);
+              // Fallback to signed URL
+              targetUrl = cloudinary.url(publicId, {
+                secure: true,
+                sign_url: true,
+                type: 'authenticated',
+                resource_type: pdfResourceType,
+                format: 'pdf'
+              });
+            }
+          } else {
+            // For non-PDF files (images etc): standard signed URL
+            targetUrl = cloudinary.url(publicId, {
+              secure: true,
+              sign_url: true,
+              type: 'upload',
+              resource_type: 'image'
+            });
+          }
+        }
+        
+        // Pass Range header for PDF viewer byte-range requests
+        const options: any = { 
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Connection': 'keep-alive'
+          } 
+        };
+        if (req.headers.range) {
+          options.headers['Range'] = req.headers.range;
+        }
+
+        https.get(targetUrl, options, (stream) => {
+          console.log(`[PROXY] Cloudinary returned status ${stream.statusCode} for ${targetUrl}`);
+          
+          // If Cloudinary returned an error, handle redirects or pass through
+          if (stream.statusCode === 301 || stream.statusCode === 302) {
+            const redirectUrl = stream.headers.location;
+            if (redirectUrl) {
+              // Follow the redirect (private_download_url returns a redirect)
+              https.get(redirectUrl, options, (redirectStream) => {
+                if (redirectStream.headers['content-length']) res.setHeader('Content-Length', redirectStream.headers['content-length']);
+                if (redirectStream.headers['accept-ranges']) res.setHeader('Accept-Ranges', redirectStream.headers['accept-ranges']);
+                
+                const isPdf = attachment.mimeType === 'application/pdf';
+                const isPreview = req.query.preview === 'true';
+                if (isPreview && isPdf) {
+                  res.setHeader('Content-Type', 'image/jpeg');
+                } else {
+                  res.setHeader('Content-Type', attachment.mimeType);
+                }
+                res.setHeader('Content-Disposition', `inline; filename="${attachment.originalName}"`);
+                res.status(redirectStream.statusCode || 200);
+                redirectStream.pipe(res);
+              }).on('error', (err) => {
+                console.error('[PROXY] Redirect error:', err);
+                if (!res.headersSent) res.status(500).json({ message: "Failed to load media" });
+              });
+              return;
+            }
+          }
+
+          // Pass back necessary headers for Chrome's native PDF viewer
+          if (stream.headers['content-length']) res.setHeader('Content-Length', stream.headers['content-length']);
+          if (stream.headers['accept-ranges']) res.setHeader('Accept-Ranges', stream.headers['accept-ranges']);
+          if (stream.headers['content-range']) res.setHeader('Content-Range', stream.headers['content-range']);
+          if (stream.headers['content-encoding']) res.setHeader('Content-Encoding', stream.headers['content-encoding']);
+          
+          const isPdf = attachment.mimeType === 'application/pdf';
+          const isPreview = req.query.preview === 'true';
+          if (isPreview && isPdf) {
+            res.setHeader('Content-Type', 'image/jpeg');
+          } else {
+            res.setHeader('Content-Type', attachment.mimeType);
+          }
+          
+          res.setHeader('Content-Disposition', `inline; filename="${attachment.originalName}"`);
+          res.status(stream.statusCode || 200);
+
+          // Handle proxy errors safely
+          stream.on('error', (err) => {
+            console.error('[PROXY] Error streaming media from Cloudinary:', err);
+            if (!res.headersSent) res.status(500).end();
+          });
+          
+          stream.pipe(res);
+        }).on('error', (err) => {
+          console.error('HTTPS Get Error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ message: "Failed to load media" });
+          }
+        });
+      } else {
+        // Fallback for local files if any
+        return res.redirect(attachment.fileUrl);
+      }
+    } catch (error) {
+      console.error("Media proxy error:", error);
+      return res.status(500).json({ message: "Failed to load media" });
+    }
+  });
+
+  // Get all user attachments (Media Gallery)
+  app.get('/api/attachments', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const userAttachments = await db.select().from(attachments).where(eq(attachments.userId, userId)).orderBy(sql`${attachments.createdAt} DESC`);
+      
+      // Obscure Cloudinary URLs by pointing to our internal proxy route
+      const obscuredAttachments = userAttachments.map((att: any) => ({
+        ...att,
+        fileUrl: `/api/media/${att.id}`
+      }));
+      
+      return res.status(200).json(obscuredAttachments);
+    } catch (error) {
+      return handleApiError(error, res);
+    }
+  });
+
+  // Delete an attachment
+  app.delete('/api/attachments/:id', jwtAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id!;
+      const attachmentId = parseInt(req.params.id);
+      
+      if (isNaN(attachmentId)) {
+        return res.status(400).json({ message: "Invalid attachment ID" });
+      }
+
+      const attachmentRows = await db.select().from(attachments).where(eq(attachments.id, attachmentId));
+      if (attachmentRows.length === 0) {
+        return res.status(404).json({ message: "Attachment not found" });
+      }
+
+      const attachment = attachmentRows[0];
+      if (attachment.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Delete from Cloudinary if configured
+      if (cloudinaryService.isAvailable()) {
+        try {
+          const publicId = cloudinaryService.extractPublicId(attachment.fileUrl);
+          if (publicId) {
+            await cloudinaryService.deleteImage(publicId);
+          }
+        } catch (err) {
+          console.error("Error deleting from Cloudinary:", err);
+          // Proceed with DB deletion even if Cloudinary fails
+        }
+      }
+
+      await db.delete(attachments).where(eq(attachments.id, attachmentId));
+      
+      return res.status(200).json({ message: "Attachment deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }

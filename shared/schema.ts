@@ -49,6 +49,9 @@ export const users = mysqlTable("users", {
   // Gamification fields
   totalPoints: int("total_points").default(0).notNull(),
   
+  // Storage settings
+  mediaRetentionDays: int("media_retention_days").default(0), // 0 means never delete
+  
   createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
 }, (table) => {
@@ -133,6 +136,25 @@ export const documents = mysqlTable("documents", {
     userIdIdx: index("doc_user_id_idx").on(table.userId),
     titleIdx: index("doc_title_idx").on(table.title), // For search by title
     statusIdx: index("doc_status_idx").on(table.status), // For quick filtering by status
+  }
+});
+
+// Attachments (global media gallery for user)
+export const attachments = mysqlTable("attachments", {
+  id: int().autoincrement().primaryKey(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  filename: varchar("filename", { length: 255 }).notNull(),
+  originalName: varchar("original_name", { length: 255 }).notNull(),
+  fileUrl: text("file_url").notNull(),
+  mimeType: varchar("mime_type", { length: 100 }).notNull(),
+  size: int("size").notNull(),
+  source: varchar("source", { length: 50 }).notNull().default("chat"), // 'chat', 'document', etc.
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("attachment_user_id_idx").on(table.userId),
+    sourceIdx: index("attachment_source_idx").on(table.source),
+    createdAtIdx: index("attachment_created_at_idx").on(table.createdAt),
   }
 });
 
@@ -800,6 +822,16 @@ export const insertSummarySchema = createInsertSchema(summaries, {
   summary: z.string(),
 });
 
+export const insertAttachmentSchema = createInsertSchema(attachments, {
+  userId: z.number(),
+  filename: z.string(),
+  originalName: z.string(),
+  fileUrl: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  source: z.string().optional(),
+});
+
 export const insertCachedResponseSchema = createInsertSchema(cachedResponses, {
   query: z.string(),
   response: z.string(),
@@ -840,6 +872,11 @@ export const insertContactMessageSchema = createInsertSchema(contactMessages, {
 export const chatMessageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
   content: z.string(),
+  inlineData: z.array(z.object({
+    data: z.string(),
+    mimeType: z.string(),
+    fileUrl: z.string().optional(),
+  })).optional(),
   timestamp: z.date().optional().default(() => new Date()),
 });
 
@@ -1015,6 +1052,9 @@ export type ChatHistory = typeof chatHistory.$inferSelect;
 
 export type InsertSummary = z.infer<typeof insertSummarySchema>;
 export type Summary = typeof summaries.$inferSelect;
+
+export type InsertAttachment = z.infer<typeof insertAttachmentSchema>;
+export type Attachment = typeof attachments.$inferSelect;
 
 export type InsertCachedResponse = z.infer<typeof insertCachedResponseSchema>;
 export type CachedResponse = typeof cachedResponses.$inferSelect;

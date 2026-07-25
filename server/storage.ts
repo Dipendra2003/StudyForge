@@ -1705,11 +1705,20 @@ export class MySQLStorage implements IStorage {
   async getChatHistoriesByUserId(userId: number): Promise<ChatHistory[]> {
     try {
       const histories = await db
-        .select()
+        .select({
+          id: chatHistory.id,
+          userId: chatHistory.userId,
+          sessionId: chatHistory.sessionId,
+          subject: chatHistory.subject,
+          lastUpdated: chatHistory.lastUpdated,
+          createdAt: chatHistory.createdAt,
+          updatedAt: chatHistory.updatedAt,
+        })
         .from(chatHistory)
         .where(eq(chatHistory.userId, userId))
         .orderBy(desc(chatHistory.lastUpdated));
-      return histories;
+      
+      return histories.map(h => ({ ...h, messages: [] })) as ChatHistory[];
     } catch (error) {
       console.error(`Error fetching chat histories for user ${userId}:`, error);
       throw new Error('Failed to fetch chat histories');

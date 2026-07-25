@@ -82,9 +82,9 @@ export const SECURITY_HEADERS = {
       imgSrc: ["'self'", 'data:', 'https:'],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", 'data:'],
-      objectSrc: ["'none'"],
+      objectSrc: ["'self'"], // Required for browser native PDF viewer plugins
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      frameSrc: ["'self'"],
     },
   },
   
@@ -96,7 +96,7 @@ export const SECURITY_HEADERS = {
   },
   
   // Other security headers
-  frameguard: { action: 'deny' }, // Prevent clickjacking
+  frameguard: { action: 'sameorigin' }, // Prevent clickjacking but allow same-origin
   noSniff: true, // Prevent MIME type sniffing
   xssFilter: true, // Enable XSS filter
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },

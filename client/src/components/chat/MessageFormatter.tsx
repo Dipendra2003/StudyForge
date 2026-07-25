@@ -219,9 +219,26 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
         const marginLeft = indent > 0 ? `${indent * 8}px` : '0px';
         
         elements.push(
-          <div key={key++} className="flex gap-2 my-1" style={{ marginLeft }}>
-            <span className="text-muted-foreground mt-1.5">•</span>
-            <span className="flex-1">{formatInlineText(content)}</span>
+          <div key={key++} className="flex gap-2.5 my-1.5 items-start" style={{ marginLeft }}>
+            <span className="text-primary mt-[0.35rem] text-[0.6rem]">•</span>
+            <span className="flex-1 leading-relaxed">{formatInlineText(content)}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Numbered lists (1. item, 2. item, etc.)
+      const numberedListMatch = line.trim().match(/^(\d+\.)\s(.*)/);
+      if (numberedListMatch) {
+        const indent = line.search(/\S/);
+        const numberPrefix = numberedListMatch[1];
+        const content = numberedListMatch[2].trim();
+        const marginLeft = indent > 0 ? `${indent * 8}px` : '0px';
+        
+        elements.push(
+          <div key={key++} className="flex gap-2.5 my-1.5 items-start" style={{ marginLeft }}>
+            <span className="text-foreground font-semibold min-w-[1.2rem] text-right mt-0.5">{numberPrefix}</span>
+            <span className="flex-1 leading-relaxed">{formatInlineText(content)}</span>
           </div>
         );
         continue;
