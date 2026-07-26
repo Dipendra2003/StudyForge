@@ -1,4 +1,4 @@
-import { mysqlTable, text, int, boolean, timestamp, json, varchar, index, primaryKey, unique, foreignKey } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, int, boolean, timestamp, json, varchar, index, primaryKey, unique, foreignKey, uniqueIndex } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -406,6 +406,7 @@ export const achievements = mysqlTable("achievements", {
   return {
     userIdIdx: index("ach_user_id_idx").on(table.userId),
     badgeIdx: index("ach_badge_idx").on(table.badge), // For leaderboards by achievement
+    uniqueUserBadge: uniqueIndex("ach_user_badge_uidx").on(table.userId, table.badge),
   }
 });
 

@@ -192,6 +192,27 @@ const detectLanguage = (code: string): string | null => {
   return null;
 };
 
+const MarkdownText = ({ text, className = "" }: { text: string; className?: string }) => {
+  if (!text) return null;
+  
+  let html = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+    
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/`(.*?)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[0.9em] font-mono">$1</code>');
+  html = html.replace(/\n/g, '<br />');
+
+  return (
+    <div 
+      className={className} 
+      dangerouslySetInnerHTML={{ __html: html }} 
+    />
+  );
+};
+
 export default function CodeGenerator() {
   const { toast } = useToast();
   // Persist active tab across page refreshes
@@ -207,6 +228,7 @@ export default function CodeGenerator() {
     }
     return "";
   });
+  const [codeStdin, setCodeStdin] = useState<string>("");
   const [codeOutput, setCodeOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState("");
@@ -566,10 +588,17 @@ export default function CodeGenerator() {
         data: {
           code: editableCode,
           language: latestSnippet.language,
+          stdin: codeStdin,
         },
       });
 
-      setCodeOutput(response.output || "Code executed successfully with no output");
+      let finalOutput = response.output || "Code executed successfully with no output";
+      
+      if (!codeStdin.trim() && (finalOutput.includes("NoSuchElementException") || finalOutput.includes("EOFError"))) {
+        finalOutput = "💡 Oops! Your code crashed because it was expecting an input, but the 'Standard Input (stdin)' box is empty.\n👉 Please type your input in the box above and click Run Code again.\n\n" + "-".repeat(40) + "\n\n" + finalOutput;
+      }
+      
+      setCodeOutput(finalOutput);
     } catch (error: any) {
       let errorMessage = error.response?.output || error.message || "Failed to execute code";
       if (errorMessage.includes("Daily limit reached")) {
@@ -909,7 +938,7 @@ export default function CodeGenerator() {
                           <Icons.help className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 mt-0.5 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-sm sm:text-base mb-1 sm:mb-2">Problem Statement</h3>
-                            <p className="text-xs sm:text-sm leading-relaxed break-words">{latestSnippet.problem}</p>
+                            <MarkdownText text={latestSnippet.problem} className="text-xs sm:text-sm leading-relaxed break-words" />
                           </div>
                         </div>
                       </div>
@@ -949,6 +978,8 @@ export default function CodeGenerator() {
                             isRunning={isRunning}
                             output={codeOutput}
                             onClearOutput={() => setCodeOutput("")}
+                            stdin={codeStdin}
+                            onStdinChange={/Scanner|cin|input\s*\(|scanf|readline/i.test(editableCode) ? setCodeStdin : undefined}
                             onDownload={() => downloadCode(editableCode, latestSnippet.language, latestSnippet.title || 'code')}
                             onAnalyze={() => analyzeComplexity(editableCode)}
                           >
@@ -960,7 +991,7 @@ export default function CodeGenerator() {
                                     <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
                                     <div>
                                       <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
-                                      <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
+                                      <MarkdownText text={codeComplexity} className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400" />
                                     </div>
                                   </div>
                                   <Button
@@ -1007,7 +1038,7 @@ export default function CodeGenerator() {
                           <Icons.help className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                           <div className="flex-1">
                             <h3 className="font-semibold text-base mb-2">Code Explanation</h3>
-                            <p className="text-sm leading-relaxed">{latestSnippet.explanation}</p>
+                            <MarkdownText text={latestSnippet.explanation} className="text-sm leading-relaxed" />
                           </div>
                         </div>
                       </div>
@@ -1092,7 +1123,7 @@ export default function CodeGenerator() {
                           <Icons.zap className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
                           <div>
                             <h3 className="font-semibold text-base mb-1">Time Complexity Analysis</h3>
-                            <p className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400">{codeComplexity}</p>
+                            <MarkdownText text={codeComplexity} className="text-sm font-mono font-semibold text-yellow-700 dark:text-yellow-400" />
                           </div>
                         </div>
                         <Button

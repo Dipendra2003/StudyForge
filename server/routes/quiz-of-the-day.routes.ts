@@ -134,14 +134,17 @@ export function registerQuizOfTheDayRoutes(router: Router): void {
         accuracy,
       });
 
-      // Check for special Quiz of the Day achievement
-      const newAchievements = [];
-      
-      // Award special badge for completing Quiz of the Day
-      const qotdBadge = await achievementService.unlockAchievement(userId, 'quiz_marathon');
-      if (qotdBadge) {
-        newAchievements.push(qotdBadge);
-      }
+      // Check and award all applicable badges based on quiz results
+      const newAchievements = await achievementService.checkAndAwardBadges(userId, {
+        score,
+        totalQuestions,
+        correctAnswers,
+        incorrectAnswers: incorrectAnswers || (totalQuestions - correctAnswers),
+        timeSpent,
+        accuracy,
+        category,
+        difficulty,
+      });
 
       Logger.info(LogCategory.API, 'Quiz of the Day completed successfully', {
         userId,

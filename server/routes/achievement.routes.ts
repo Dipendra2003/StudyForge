@@ -14,6 +14,7 @@ const achievementService = new AchievementService();
  * Provides endpoints for:
  * - Retrieving user achievements
  * - Getting achievement details
+ * - Getting badge progress toward locked badges
  */
 
 export function registerAchievementRoutes(router: Router): void {
@@ -48,6 +49,41 @@ export function registerAchievementRoutes(router: Router): void {
       });
     } catch (error) {
       Logger.error(LogCategory.API, 'Error fetching user achievements', error as Error);
+      return handleApiError(error, res);
+    }
+  });
+
+  /**
+   * Get badge progress for current user
+   * GET /api/achievements/progress
+   * 
+   * Returns progress data for all badge types showing how close the user
+   * is to earning each badge.
+   */
+  router.get('/api/achievements/progress', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User not authenticated',
+          },
+        });
+      }
+      
+      Logger.info(LogCategory.API, 'Fetching badge progress', { userId });
+      
+      const progress = await achievementService.getBadgeProgress(userId);
+      
+      return res.status(200).json({
+        success: true,
+        progress,
+      });
+    } catch (error) {
+      Logger.error(LogCategory.API, 'Error fetching badge progress', error as Error);
       return handleApiError(error, res);
     }
   });

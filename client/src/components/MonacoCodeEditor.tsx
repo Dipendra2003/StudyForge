@@ -304,11 +304,48 @@ export default function MonacoCodeEditor({
   };
 
   const formatCode = () => {
-    if (editorRef.current) {
+    if (!editorRef.current) return;
+    
+    const supportedLangs = ['javascript', 'typescript', 'json', 'html', 'css'];
+    
+    if (supportedLangs.includes(monacoLanguage)) {
       editorRef.current.getAction("editor.action.formatDocument")?.run();
       toast({
         title: "Code formatted",
         description: "Your code has been formatted",
+      });
+    } else {
+      // Basic fallback indentation formatter for C-style languages (Java, C++, C#, Rust, etc)
+      const val = editorRef.current.getValue();
+      let formatted = "";
+      let indentLevel = 0;
+      const lines = val.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        
+        if (line.length === 0) {
+          formatted += '\n';
+          continue;
+        }
+        
+        // Decrease indent for lines starting with closing brace
+        if (line.startsWith('}')) {
+          indentLevel = Math.max(0, indentLevel - 1);
+        }
+        
+        formatted += '    '.repeat(indentLevel) + line + '\n';
+        
+        // Increase indent for lines ending with opening brace
+        if (line.endsWith('{')) {
+          indentLevel++;
+        }
+      }
+      
+      editorRef.current.setValue(formatted.trimEnd());
+      toast({
+        title: "Code formatted",
+        description: "Applied basic indentation formatting",
       });
     }
   };
@@ -395,29 +432,7 @@ export default function MonacoCodeEditor({
             </SelectContent>
           </Select>
 
-          <Button
-            size="default"
-            className="gap-1 sm:gap-2 bg-green-600 hover:bg-green-700 h-8 sm:h-9 md:h-10 text-xs sm:text-sm w-full xs:w-auto px-3 sm:px-4"
-            onClick={onRun}
-            disabled={isRunning}
-          >
-            {isRunning ? (
-              <>
-                <Icons.spinner className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                <span className="hidden xs:inline">Running...</span>
-                <span className="xs:hidden">Run...</span>
-              </>
-            ) : (
-              <>
-                <Icons.play className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>Run Code</span>
-              </>
-            )}
-          </Button>
 
-          <Badge variant="secondary" className="hidden sm:flex ml-auto text-xs">
-            Ctrl+Enter to Run
-          </Badge>
         </div>
 
         {/* Bottom Row - Editor Controls */}
@@ -608,6 +623,31 @@ export default function MonacoCodeEditor({
           </div>
         </div>
       )}
+
+      {/* Run Code Action Bar */}
+      <div className="flex flex-wrap items-center justify-between px-2 sm:px-3 md:px-4 py-2 sm:py-3 border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm shadow-inner relative z-10">
+        <Badge variant="secondary" className="hidden sm:flex text-xs bg-slate-800/80 text-slate-300 border-slate-700">
+          Ctrl+Enter to Run
+        </Badge>
+        <Button
+          size="default"
+          className="gap-1 sm:gap-2 bg-green-600 hover:bg-green-500 text-white h-8 sm:h-10 text-xs sm:text-sm ml-auto px-4 sm:px-8 font-bold shadow-lg shadow-green-900/40 rounded-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+          onClick={onRun}
+          disabled={isRunning}
+        >
+          {isRunning ? (
+            <>
+              <Icons.spinner className="h-4 w-4 animate-spin" />
+              <span>Running...</span>
+            </>
+          ) : (
+            <>
+              <Icons.play className="h-4 w-4 fill-current" />
+              <span>Run Code</span>
+            </>
+          )}
+        </Button>
+      </div>
 
       {/* Output Panel - Only show when there's output */}
       {output && (
