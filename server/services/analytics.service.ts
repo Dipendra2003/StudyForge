@@ -59,7 +59,6 @@ export interface QuizAttemptDTO {
   accuracy: number;
   timeSpent: number;
   hintsUsed?: number;
-  voiceModeEnabled?: boolean;
   questionsData?: any;
   completed: boolean;
 }

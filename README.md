@@ -74,8 +74,6 @@
 ### 🎨 User Experience
 - **Dark/Light Theme** - Customizable appearance
 - **Keyboard Shortcuts** - Efficient navigation for power users
-- **Text-to-Speech** - Audio support for flashcards and quizzes
-- **Voice Control** - Hands-free quiz navigation
 - **Export Options** - Download flashcards as PDF or DOCX
 - **Share Quizzes** - Collaborate with friends via shareable links
 

@@ -44,7 +44,6 @@ export interface QuizConfig {
   timedMode: boolean;
   timeLimit?: number; // seconds
   questionTypes: QuestionType[];
-  voiceMode: boolean;
   sessionId?: string; // Optional session ID for tracking hints and progress
   topic?: string; // Optional specific topic for AI generation
   aiMode?: boolean; // Whether to use AI generation instead of database questions
@@ -82,7 +81,6 @@ export default function QuizConfigurationPanel({
     timedMode: false,
     timeLimit: 300, // 5 minutes default
     questionTypes: ['mcq'],
-    voiceMode: false,
     topic: '',
     aiMode: true,
   });
@@ -396,30 +394,6 @@ export default function QuizConfigurationPanel({
           )}
         </motion.div>
 
-        {/* Voice Mode */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.8, duration: 0.4 }}
-          className="flex items-center justify-between"
-        >
-          <div className="space-y-0.5">
-            <Label htmlFor="voiceMode" className="flex items-center gap-2">
-              <Mic className="h-4 w-4" />
-              Voice Mode
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Enable voice input and text-to-speech
-            </p>
-          </div>
-          <Switch
-            id="voiceMode"
-            checked={config.voiceMode}
-            onCheckedChange={(checked) => updateConfig('voiceMode', checked)}
-            disabled={disabled}
-          />
-        </motion.div>
-
         {/* AI Mode */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -491,7 +465,6 @@ export default function QuizConfigurationPanel({
             <span className="text-muted-foreground">Mode:</span>
             <span className="font-medium">
               {config.timedMode ? 'Timed' : 'Untimed'}
-              {config.voiceMode && ' • Voice'}
             </span>
           </div>
         </motion.div>

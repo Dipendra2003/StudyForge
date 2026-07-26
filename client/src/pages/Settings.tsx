@@ -41,42 +41,12 @@ export default function Settings() {
     username: "",
   });
   
-  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(true);
   const [deletePassword, setDeletePassword] = useState("");
   const [showDeletePassword, setShowDeletePassword] = useState(false);
 
   useEffect(() => {
     fetchSettings();
-    checkVoiceSupport();
-    loadVoicePreference();
   }, []);
-
-  const checkVoiceSupport = () => {
-    // Check for Web Speech API support
-    const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
-    const speechSynthesisSupported = 'speechSynthesis' in window;
-    setVoiceSupported(speechRecognitionSupported && speechSynthesisSupported);
-  };
-
-  const loadVoicePreference = () => {
-    const savedPreference = localStorage.getItem('voiceModeEnabled');
-    if (savedPreference !== null) {
-      setVoiceModeEnabled(savedPreference === 'true');
-    }
-  };
-
-  const handleVoiceModeToggle = (enabled: boolean) => {
-    setVoiceModeEnabled(enabled);
-    localStorage.setItem('voiceModeEnabled', enabled.toString());
-    
-    toast({
-      title: enabled ? "Voice Mode Enabled" : "Voice Mode Disabled",
-      description: enabled 
-        ? "Voice input and text-to-speech are now active for quizzes."
-        : "Voice features have been disabled.",
-    });
-  };
 
   const fetchSettings = async () => {
     try {
@@ -357,82 +327,7 @@ export default function Settings() {
           </Card>
         </motion.div>
 
-        {/* Voice Mode Settings */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mic className="h-5 w-5" />
-                Voice Mode
-              </CardTitle>
-              <CardDescription>Enable voice input and text-to-speech for quizzes</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="voice-mode" className="text-base font-medium">
-                      Voice Mode
-                    </Label>
-                    {voiceModeEnabled && (
-                      <Badge className="bg-green-500">
-                        <Volume2 className="h-3 w-3 mr-1" />
-                        Active
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    When enabled, you can use voice input to answer questions and hear questions read aloud
-                  </p>
-                </div>
-                <Switch
-                  id="voice-mode"
-                  checked={voiceModeEnabled}
-                  onCheckedChange={handleVoiceModeToggle}
-                  disabled={!voiceSupported}
-                />
-              </div>
 
-              {!voiceSupported && (
-                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-yellow-600 dark:text-yellow-500 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-yellow-800 dark:text-yellow-400">Browser Not Supported</h4>
-                      <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                        Voice mode requires a modern browser with Web Speech API support. 
-                        Please use the latest version of Chrome, Edge, or Safari to enable voice features.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {voiceSupported && (
-                <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-blue-600 dark:text-blue-500 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-blue-800 dark:text-blue-400">Voice Features</h4>
-                      <ul className="text-sm text-blue-700 dark:text-blue-300 mt-2 space-y-1 list-disc list-inside">
-                        <li>Voice input: Answer questions by speaking</li>
-                        <li>Text-to-speech: Hear questions and explanations read aloud</li>
-                        <li>Hands-free quiz experience</li>
-                      </ul>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-                        Note: Microphone permission will be requested when you start a quiz with voice mode enabled.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
 
         {/* Danger Zone */}
         <motion.div

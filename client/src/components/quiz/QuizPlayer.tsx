@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from "framer-motion";
 import {
   Card,
@@ -51,10 +52,8 @@ import { HintPanel } from "./HintPanel";
 import { useHintTracking } from "@/hooks/useHintTracking";
 import { MotivationalFeedback } from "./MotivationalFeedback";
 import { generateMotivation, apiPost } from "@/lib/api";
-import { useTTSReader } from "./TTSReader";
 import { getRandomMotivationalQuote } from "@/lib/motivationalQuotes";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { VoiceController } from "./VoiceController";
 
 export interface QuizResults {
   score: number;
@@ -121,6 +120,7 @@ export default function QuizPlayer({
   const [isAnswerCorrect, setIsAnswerCorrect] = useState(false);
   const [motivationalMessage, setMotivationalMessage] = useState<string>("");
   const [showMotivation, setShowMotivation] = useState(false);
+  const { toast } = useToast();
   const [motivationType, setMotivationType] = useState<'success' | 'support' | 'periodic'>('success');
   const [currentStreak, setCurrentStreak] = useState(0);
   
@@ -142,19 +142,11 @@ export default function QuizPlayer({
     getQuestionsWithHints 
   } = useHintTracking();
 
-  // Text-to-speech
-  const ttsReader = useTTSReader();
-
-  // Mobile detection
-  const isMobile = useIsMobile();
-
   // Swipe gesture state
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
-
-  // Voice input state
-  const [voiceTranscript, setVoiceTranscript] = useState<string>("");
-  const [showVoiceConfirmation, setShowVoiceConfirmation] = useState(false);
+  
+  const isMobile = useIsMobile();
 
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
@@ -190,24 +182,13 @@ export default function QuizPlayer({
     setQuestionStartTime(Date.now());
   }, [currentQuestionIndex]); // Only reset when question index changes
 
-  // Handle voice mode for reading questions - separate effect
+  // Handle question changes and periodic encouragement
   useEffect(() => {
-    // Read question aloud if voice mode is enabled
-    if (config.voiceMode && currentQuestion && ttsReader.isSupported) {
-      // Stop any ongoing speech (audio interruption on navigation - Requirement 16.5)
-      ttsReader.stop();
-      
-      // Read the new question with options (Requirements 16.1, 16.2)
-      setTimeout(() => {
-        ttsReader.readQuestion(currentQuestion);
-      }, 300); // Small delay for smooth transition
-    }
-
     // Show periodic encouragement every 5 questions (but not on first question)
     if (currentQuestionIndex > 0 && currentQuestionIndex % 5 === 0) {
       fetchPeriodicEncouragement();
     }
-  }, [currentQuestionIndex, config.voiceMode]);
+  }, [currentQuestionIndex]);
 
   // Fetch periodic encouragement
   const fetchPeriodicEncouragement = async () => {
@@ -222,11 +203,6 @@ export default function QuizPlayer({
       setMotivationalMessage(motivation);
       setMotivationType('periodic');
       setShowMotivation(true);
-
-      // Read periodic encouragement aloud if voice mode is enabled (Requirement 14.4)
-      if (config.voiceMode && ttsReader.isSupported) {
-        ttsReader.readMotivation(motivation);
-      }
 
       // Hide after 5 seconds
       setTimeout(() => setShowMotivation(false), 5000);
@@ -247,115 +223,6 @@ export default function QuizPlayer({
     if (!config.timedMode || !config.timeLimit) return null;
     return Math.max(0, config.timeLimit - timeSpent);
   };
-
-  /**
-   * Handle voice input for answer submission
-   * Requirements: 15.2, 15.3
-   * Maps voice transcript to appropriate answer format based on question type
-   */
-  const handleVoiceInput = useCallback((transcript: string) => {
-    if (hasSubmitted) return;
-
-    const cleanTranscript = transcript.trim().toLowerCase();
-    setVoiceTranscript(transcript);
-    setShowVoiceConfirmation(true);
-
-    // Map voice input based on question type
-    if (currentQuestion.type === 'mcq' && isMCQData(currentQuestion.questionData)) {
-      const data = currentQuestion.questionData as MCQData;
-      
-      // Try to match transcript to option text or letter (a, b, c, d)
-      const matchedOption = data.options.find(opt => {
-        const optionText = opt.text.toLowerCase();
-        const optionLetter = opt.id.toLowerCase();
-        
-        // Match by letter (e.g., "a", "option a", "answer a")
-        if (cleanTranscript.includes(optionLetter) && cleanTranscript.length <= 10) {
-          return true;
-        }
-        
-        // Match by option text (fuzzy match - contains key words)
-        const transcriptWords = cleanTranscript.split(' ');
-        const optionWords = optionText.split(' ');
-        const matchCount = transcriptWords.filter(word => 
-          optionWords.some(optWord => optWord.includes(word) || word.includes(optWord))
-        ).length;
-        
-        return matchCount >= Math.min(2, optionWords.length);
-      });
-
-      if (matchedOption) {
-        setCurrentAnswer(matchedOption.id);
-        currentAnswerRef.current = matchedOption.id;
-      }
-    } else if (currentQuestion.type === 'true-false') {
-      // Match "true" or "false" in transcript
-      if (cleanTranscript.includes('true') || cleanTranscript.includes('yes')) {
-        setCurrentAnswer('true');
-        currentAnswerRef.current = 'true';
-      } else if (cleanTranscript.includes('false') || cleanTranscript.includes('no')) {
-        setCurrentAnswer('false');
-        currentAnswerRef.current = 'false';
-      }
-    } else if (currentQuestion.type === 'fill-blank' && isFillBlankData(currentQuestion.questionData)) {
-      const data = currentQuestion.questionData as FillBlankData;
-      
-      // For fill-in-blank, use transcript directly as answer
-      // If multiple blanks, split by common separators
-      if (data.blanks.length === 1) {
-        const answer = [transcript];
-        setCurrentAnswer(answer);
-        currentAnswerRef.current = answer;
-      } else {
-        // Try to split by "and", "comma", or "next"
-        const answers = transcript
-          .split(/\s+and\s+|\s*,\s*|\s+next\s+/i)
-          .map(ans => ans.trim())
-          .slice(0, data.blanks.length);
-        
-        setCurrentAnswer(answers);
-        currentAnswerRef.current = answers;
-      }
-    } else if (currentQuestion.type === 'rearrange' && isRearrangeData(currentQuestion.questionData)) {
-      const data = currentQuestion.questionData as RearrangeData;
-      
-      // For rearrange, expect numbers like "1, 2, 3, 4" or "first second third fourth"
-      // Try to parse numbers from transcript
-      const numberWords: Record<string, number> = {
-        'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
-        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5
-      };
-      
-      const words = cleanTranscript.split(/[\s,]+/);
-      const order: number[] = [];
-      
-      for (const word of words) {
-        // Try to parse as number
-        const num = parseInt(word);
-        if (!isNaN(num) && num >= 1 && num <= data.items.length) {
-          order.push(num - 1); // Convert to 0-indexed
-        } else if (numberWords[word] && numberWords[word] <= data.items.length) {
-          order.push(numberWords[word] - 1); // Convert to 0-indexed
-        }
-      }
-      
-      if (order.length === data.items.length) {
-        setCurrentAnswer(order);
-        currentAnswerRef.current = order;
-      }
-    }
-
-    // Hide confirmation after 3 seconds
-    setTimeout(() => setShowVoiceConfirmation(false), 3000);
-  }, [currentQuestion, hasSubmitted]);
-
-  /**
-   * Handle voice input end
-   * Requirement: 15.5
-   */
-  const handleVoiceSpeechEnd = useCallback(() => {
-    // Voice input session ended
-  }, []);
 
   // Check if answer is correct
   const checkAnswer = useCallback((
@@ -400,11 +267,16 @@ export default function QuizPlayer({
   }, []);
 
   // Submit answer to backend for validation
-  const submitAnswerToBackend = async (questionId: number, userAnswer: string | string[] | Record<string, string> | number[]): Promise<{ isCorrect: boolean; correctAnswer: any }> => {
+  const submitAnswerToBackend = async (
+    questionId: number, 
+    userAnswer?: string | string[] | Record<string, string> | number[],
+    transcript?: string
+  ): Promise<{ isCorrect: boolean; correctAnswer: any; mappedAnswer?: any }> => {
     try {
       const response = await apiPost('/api/quiz/validate-answer', {
         questionId,
         userAnswer,
+        transcript
       });
 
       if (!response.ok) {
@@ -415,12 +287,15 @@ export default function QuizPlayer({
       return {
         isCorrect: data.isCorrect,
         correctAnswer: data.correctAnswer,
+        mappedAnswer: data.mappedAnswer,
       };
     } catch (error) {
       // Fallback to client-side validation if backend fails
+      const fallbackIsCorrect = userAnswer !== undefined ? checkAnswer(currentQuestion, userAnswer) : false;
       return {
-        isCorrect: checkAnswer(currentQuestion, userAnswer),
+        isCorrect: fallbackIsCorrect,
         correctAnswer: currentQuestion.correctAnswer, // Fallback only
+        mappedAnswer: userAnswer,
       };
     }
   };
@@ -512,13 +387,6 @@ export default function QuizPlayer({
 
     setHasSubmitted(true);
 
-    // Read explanation aloud if voice mode is enabled (Requirement 16.3)
-    if (config.voiceMode && currentQuestion.explanation && ttsReader.isSupported) {
-      setTimeout(() => {
-        ttsReader.readExplanation(currentQuestion.explanation);
-      }, 1000); // Delay to let feedback animation complete
-    }
-
     // Generate motivational feedback
     fetchMotivationalFeedback(isCorrect);
   };
@@ -541,13 +409,6 @@ export default function QuizPlayer({
       setMotivationType(isCorrect ? 'success' : 'support');
       setShowMotivation(true);
 
-      // Read motivational message aloud if voice mode is enabled (Requirement 14.4)
-      if (config.voiceMode && ttsReader.isSupported) {
-        setTimeout(() => {
-          ttsReader.readMotivation(motivation);
-        }, 500);
-      }
-
       // Hide motivation after 5 seconds
       setTimeout(() => setShowMotivation(false), 5000);
     } catch (error) {
@@ -560,14 +421,8 @@ export default function QuizPlayer({
       setMotivationType(isCorrect ? 'success' : 'support');
       setShowMotivation(true);
 
-      // Read fallback message aloud if voice mode is enabled
-      if (config.voiceMode && ttsReader.isSupported) {
-        setTimeout(() => {
-          ttsReader.readMotivation(fallbackMessage);
-        }, 500);
-      }
-
-      setTimeout(() => setShowMotivation(false), 5000);
+      // Hide after a delay
+      setTimeout(() => setShowMotivation(false), 3000);
     }
   };
 
@@ -1610,106 +1465,6 @@ export default function QuizPlayer({
             visible={showMotivation}
             type={motivationType}
           />
-
-          {/* TTS Audio Controls - Requirement 16.4 */}
-          {config.voiceMode && ttsReader.isSpeaking && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg"
-            >
-              <div className="flex items-center gap-2">
-                <Volume2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  {ttsReader.isPaused ? 'Audio Paused' : 'Reading Aloud...'}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={ttsReader.isPaused ? ttsReader.resume : ttsReader.pause}
-                  className="h-8"
-                >
-                  {ttsReader.isPaused ? (
-                    <>
-                      <Play className="h-3 w-3 mr-1" />
-                      Resume
-                    </>
-                  ) : (
-                    <>
-                      <Pause className="h-3 w-3 mr-1" />
-                      Pause
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={ttsReader.skip}
-                  className="h-8"
-                >
-                  <SkipForward className="h-3 w-3 mr-1" />
-                  Skip
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={ttsReader.stop}
-                  className="h-8"
-                >
-                  <VolumeX className="h-3 w-3 mr-1" />
-                  Stop
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Voice Input Controller - Requirements 15.1, 15.2, 15.3, 15.4, 15.5 */}
-          {config.voiceMode && !hasSubmitted && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4"
-            >
-              <VoiceController
-                enabled={config.voiceMode}
-                onVoiceInput={handleVoiceInput}
-                onSpeechEnd={handleVoiceSpeechEnd}
-                showTTSControls={false}
-              />
-              
-              {/* Voice Transcript Confirmation - Requirement 15.3 */}
-              <AnimatePresence>
-                {showVoiceConfirmation && voiceTranscript && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg"
-                  >
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                          Voice input received:
-                        </p>
-                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                          "{voiceTranscript}"
-                        </p>
-                        {currentAnswer && (
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                            ✓ Answer set. Click Submit when ready.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
         </CardContent>
 
         <CardFooter className="flex flex-col md:flex-row justify-between items-center gap-3 md:gap-0 px-4 md:px-6 py-4 mt-auto border-t bg-card/50 backdrop-blur-sm sticky bottom-0 z-20">

@@ -16,11 +16,7 @@ const features = [
     title: "MCQ Generation",
     description: "Generate practice quizzes with multiple-choice questions to test your knowledge and improve retention."
   },
-  {
-    icon: "microphone-alt",
-    title: "Voice Interaction",
-    description: "Speak your questions and get audio responses for a hands-free learning experience while multitasking."
-  },
+
   {
     icon: "code",
     title: "Code Generation",

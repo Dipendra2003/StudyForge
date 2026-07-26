@@ -111,7 +111,6 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
         questionTypes: quiz.questionTypes,
         questionCount: quiz.questionCount,
         timedMode: false,
-        voiceMode: false,
         aiMode: true, // Enable AI mode by default for saved quizzes
       });
     }

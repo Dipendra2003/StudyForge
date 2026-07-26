@@ -40,7 +40,7 @@ export function registerQuizRoutes(router: Router): void {
         });
       }
 
-      if (!questionId || userAnswer === undefined || userAnswer === null) {
+      if (!questionId || userAnswer === undefined) {
         return res.status(400).json({
           success: false,
           error: {
@@ -74,6 +74,7 @@ export function registerQuizRoutes(router: Router): void {
       // Validate the answer based on question type
       let isCorrect = false;
       const correctAnswer = question.correctAnswer;
+      let mappedAnswer: any = userAnswer;
 
       // MCQ - compare option IDs
       if (question.type === 'mcq') {
@@ -81,7 +82,7 @@ export function registerQuizRoutes(router: Router): void {
       }
       // True/False - compare boolean strings
       else if (question.type === 'true-false') {
-        isCorrect = userAnswer.toString().toLowerCase() === correctAnswer.toString().toLowerCase();
+        isCorrect = String(userAnswer).toLowerCase() === String(correctAnswer).toLowerCase();
       }
       // Fill in the blank - compare arrays
       else if (question.type === 'fill-blank' && Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
@@ -119,6 +120,7 @@ export function registerQuizRoutes(router: Router): void {
         success: true,
         isCorrect,
         correctAnswer, // Only sent after user submits their answer
+        mappedAnswer,  // Returns what the backend interpreted (useful for voice transcripts)
       });
     } catch (error) {
       Logger.error(LogCategory.API, 'Error validating answer', error as Error);
@@ -376,7 +378,6 @@ export function registerQuizRoutes(router: Router): void {
    * - difficulty: 'easy' | 'medium' | 'hard' - Quiz difficulty
    * - questionsData?: any - Question details
    * - hintsUsed?: number - Number of hints used
-   * - voiceModeEnabled?: boolean - Whether voice mode was enabled
    * 
    * Returns quiz results with newly earned achievements
    */
@@ -405,7 +406,6 @@ export function registerQuizRoutes(router: Router): void {
         difficulty,
         questionsData,
         hintsUsed,
-        voiceModeEnabled,
       } = req.body;
 
       // Validate required fields
@@ -447,7 +447,6 @@ export function registerQuizRoutes(router: Router): void {
         accuracy,
         timeSpent,
         hintsUsed,
-        voiceModeEnabled,
         questionsData,
         completed: true,
       });

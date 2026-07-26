@@ -129,15 +129,6 @@ export default function About() {
                     <span className="text-primary font-bold">5</span>
                   </div>
                   <div>
-                    <h4 className="font-semibold mb-1">Voice & Accessibility</h4>
-                    <p className="text-sm text-gray-600">Text-to-speech, voice control, and keyboard shortcuts for enhanced accessibility</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span className="text-primary font-bold">6</span>
-                  </div>
-                  <div>
                     <h4 className="font-semibold mb-1">Export & Share</h4>
                     <p className="text-sm text-gray-600">Export flashcards as PDF/DOCX and share quizzes with friends</p>
                   </div>

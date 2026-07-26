@@ -278,7 +278,6 @@ export const quizSessions = mysqlTable("quiz_sessions", {
   timedMode: boolean("timed_mode").default(false),
   timeLimit: int("time_limit"), // In seconds
   timeSpent: int("time_spent").default(0), // In seconds
-  voiceModeEnabled: boolean("voice_mode_enabled").default(false),
   hintsUsed: int("hints_used").default(0),
   completed: boolean("completed").default(false),
   startedAt: timestamp("started_at").defaultNow().notNull(),
@@ -764,7 +763,6 @@ export const insertQuizSessionSchema = createInsertSchema(quizSessions, {
   questionsData: z.any(), // Array of question data
   timedMode: z.boolean().optional(),
   timeLimit: z.number().optional(),
-  voiceModeEnabled: z.boolean().optional(),
 });
 
 export const insertUserQuizStatsSchema = createInsertSchema(userQuizStats, {

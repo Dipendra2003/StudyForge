@@ -115,7 +115,7 @@ export default function OnboardingCharacter({
   const randomTips = [
     "You can change your preferences later in the settings!",
     "Jadoo works best when you use it regularly!",
-    "Try using voice commands for a hands-free experience!",
+    "Try exporting your quizzes to share with friends!",
     "You can generate flashcards automatically from your notes!",
     "Dark mode can reduce eye strain during night study sessions!",
   ];

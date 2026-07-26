@@ -40,7 +40,7 @@ export default function TestimonialCarousel() {
     {
       name: "Emma Rodriguez",
       role: "High School Student",
-      message: "As a student with dyslexia, I struggled with traditional studying methods. Jadoo's voice interaction and summarization tools have made learning accessible and enjoyable for me.",
+      message: "As a student with dyslexia, I struggled with traditional studying methods. Jadoo's AI summarization and quiz generation tools have made learning accessible and enjoyable for me.",
       rating: 5,
       image: "https://randomuser.me/api/portraits/women/90.jpg"
     }

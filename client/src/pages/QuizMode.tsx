@@ -15,7 +15,7 @@
  * - Performance analytics and progress tracking - Req 8
  * - Achievement badges and gamification - Req 9
  * - AI-powered hints and explanations - Req 10-14
- * - Voice mode with TTS and voice input - Req 15-17
+
  * - Quiz of the Day feature - Req 22
  * - Shareable quiz links - Req 23
  * - Save and favorite quizzes - Req 24
@@ -305,7 +305,6 @@ export default function QuizMode() {
         questionCount: count,
         questionTypes: ['mcq'], // QOTD uses MCQ only
         timedMode: false,
-        voiceMode: false,
         aiMode: true,
         sessionId,
       };
@@ -334,7 +333,6 @@ export default function QuizMode() {
         questionCount: 10,
         questionTypes: ['mcq'], // Default to MCQ for AI generated
         timedMode: false,
-        voiceMode: false,
         aiMode: true,
         topic: queryTopic,
         sessionId,

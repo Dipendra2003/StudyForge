@@ -224,8 +224,8 @@ export default function SharedQuiz() {
           difficulty: sharedQuiz.difficulty as "easy" | "medium" | "hard",
           questionCount: sharedQuiz.totalQuestions,
           timedMode: false,
-          questionTypes: [],
-          voiceMode: false,
+          questionTypes: ["mcq"],
+          sessionId: `shared-${linkId}`,
         }}
         onComplete={handleQuizComplete}
         onHintRequest={async () => "Hints are not available for shared quizzes"}
