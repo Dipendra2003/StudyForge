@@ -127,7 +127,7 @@ export default function DocumentSummarization() {
           title: "⚠️ Empty Summary Generated",
           description: "The AI returned an empty summary. Please try again with different text or summary type.",
           variant: "destructive",
-          duration: 8000,
+          duration: 3000,
         });
         return;
       }
@@ -137,7 +137,7 @@ export default function DocumentSummarization() {
       toast({
         title: "✅ Summary created successfully!",
         description: `Generated ${data.summary.summary.length} characters with ${data.summary.keyPoints?.length || 0} key points.`,
-        duration: 5000,
+        duration: 3000,
       });
     },
     onError: (error: any) => {
@@ -158,35 +158,35 @@ export default function DocumentSummarization() {
           title: "⚠️ Daily Limit Reached",
           description: "You've used all 50 free AI summaries for today. The limit resets in 24 hours. Try again tomorrow!",
           variant: "destructive",
-          duration: 10000,
+          duration: 3000,
         });
       } else if (errorMessage.includes('too long') || errorMessage.includes('maximum length')) {
         toast({
           title: "Text Too Long",
           description: "Your document exceeds the maximum length. Please reduce the text and try again.",
           variant: "destructive",
-          duration: 6000,
+          duration: 3000,
         });
       } else if (errorMessage.includes('too short') || errorMessage.includes('at least')) {
         toast({
           title: "Text Too Short",
           description: "Please provide at least 50 characters of text to generate a meaningful summary.",
           variant: "destructive",
-          duration: 6000,
+          duration: 3000,
         });
       } else if (errorMessage.includes('empty') || errorMessage.includes('no response')) {
         toast({
           title: "Empty Response",
           description: "The AI service returned an empty response. Please try again or use a different summary type.",
           variant: "destructive",
-          duration: 6000,
+          duration: 3000,
         });
       } else {
         toast({
           title: errorTitle,
           description: error?.response?.data?.error || error?.message || "There was an error summarizing your document. Please try again.",
           variant: "destructive",
-          duration: 6000,
+          duration: 3000,
         });
       }
     },

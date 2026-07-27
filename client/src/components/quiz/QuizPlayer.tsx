@@ -148,6 +148,92 @@ export default function QuizPlayer({
   
   const isMobile = useIsMobile();
 
+  // --- Auto-Save & Resume Logic ---
+  const storageKey = `quiz-progress-${config.sessionId || `${questions[0]?.id}-${questions.length}`}`;
+  
+  // Load state on mount
+  useEffect(() => {
+    try {
+      const savedStateStr = localStorage.getItem(storageKey);
+      if (savedStateStr) {
+        const savedState = JSON.parse(savedStateStr);
+        // Only load if questions match to avoid loading irrelevant state
+        if (savedState && savedState.questionsLength === questions.length) {
+          const loadedIndex = savedState.currentQuestionIndex || 0;
+          const loadedAnswers = savedState.answers || {};
+          
+          setCurrentQuestionIndex(loadedIndex);
+          setAnswers(loadedAnswers);
+          setTimeSpent(savedState.timeSpent || 0);
+          setScore(savedState.score || 0);
+          setCorrectCount(savedState.correctCount || 0);
+          setIncorrectCount(savedState.incorrectCount || 0);
+          setSkippedQuestions(new Set(savedState.skippedQuestions || []));
+          setIsReviewingSkipped(savedState.isReviewingSkipped || false);
+          setRevealedCorrectAnswers(savedState.revealedCorrectAnswers || {});
+          
+          // Also explicitly restore the answer state for the currently displayed question
+          const currentQuestionId = questions[loadedIndex]?.id;
+          if (currentQuestionId && loadedAnswers[currentQuestionId]) {
+            const attempt = loadedAnswers[currentQuestionId];
+            setCurrentAnswer(attempt.userAnswer);
+            if (currentAnswerRef) {
+              currentAnswerRef.current = attempt.userAnswer;
+            }
+            setHasSubmitted(true);
+            setIsAnswerCorrect(attempt.isCorrect);
+          }
+          
+          if (Object.keys(loadedAnswers).length > 0 || loadedIndex > 0) {
+            toast({
+              title: "Quiz Resumed",
+              description: "We've restored your progress from where you left off.",
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load quiz progress", e);
+    }
+  }, [storageKey, questions.length, toast]);
+
+  // Save state on change
+  useEffect(() => {
+    // Only save if we have meaningful progress
+    if (timeSpent > 0 || Object.keys(answers).length > 0 || skippedQuestions.size > 0) {
+      try {
+        const stateToSave = {
+          questionsLength: questions.length,
+          currentQuestionIndex,
+          answers,
+          timeSpent,
+          score,
+          correctCount,
+          incorrectCount,
+          skippedQuestions: Array.from(skippedQuestions),
+          isReviewingSkipped,
+          revealedCorrectAnswers
+        };
+        localStorage.setItem(storageKey, JSON.stringify(stateToSave));
+      } catch (e) {
+        console.error("Failed to save quiz progress", e);
+      }
+    }
+  }, [
+    storageKey, 
+    questions.length, 
+    currentQuestionIndex, 
+    answers, 
+    timeSpent, 
+    score, 
+    correctCount, 
+    incorrectCount, 
+    skippedQuestions, 
+    isReviewingSkipped, 
+    revealedCorrectAnswers
+  ]);
+  // --- End Auto-Save & Resume Logic ---
+
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
   const answeredCount = Object.keys(answers).length;
@@ -172,15 +258,28 @@ export default function QuizPlayer({
     return () => clearInterval(timer);
   }, [config.timedMode, config.timeLimit]);
 
-  // Reset answer state when question changes - ONLY when currentQuestionIndex changes
+  // Reset or restore answer state when question changes
   useEffect(() => {
-    setCurrentAnswer(null);
-    currentAnswerRef.current = null;
-    setHasSubmitted(false);
-    setShowFeedbackAnimation(false);
+    // If we have a saved answer for this question (e.g., from loaded state after refresh)
+    const savedAttempt = answers[currentQuestion.id];
+    
+    if (savedAttempt) {
+      setCurrentAnswer(savedAttempt.userAnswer);
+      currentAnswerRef.current = savedAttempt.userAnswer;
+      setHasSubmitted(true);
+      setIsAnswerCorrect(savedAttempt.isCorrect);
+      setShowFeedbackAnimation(false);
+    } else {
+      setCurrentAnswer(null);
+      currentAnswerRef.current = null;
+      setHasSubmitted(false);
+      setIsAnswerCorrect(false);
+      setShowFeedbackAnimation(false);
+      setQuestionStartTime(Date.now());
+    }
     setShowMotivation(false); // Hide motivation when moving to next question
-    setQuestionStartTime(Date.now());
-  }, [currentQuestionIndex]); // Only reset when question index changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestionIndex, currentQuestion.id]);
 
   // Handle question changes and periodic encouragement
   useEffect(() => {
@@ -269,14 +368,12 @@ export default function QuizPlayer({
   // Submit answer to backend for validation
   const submitAnswerToBackend = async (
     questionId: number, 
-    userAnswer?: string | string[] | Record<string, string> | number[],
-    transcript?: string
-  ): Promise<{ isCorrect: boolean; correctAnswer: any; mappedAnswer?: any }> => {
+    userAnswer?: string | string[] | Record<string, string> | number[]
+  ): Promise<{ isCorrect: boolean; correctAnswer: any }> => {
     try {
       const response = await apiPost('/api/quiz/validate-answer', {
         questionId,
-        userAnswer,
-        transcript
+        userAnswer
       });
 
       if (!response.ok) {
@@ -286,16 +383,14 @@ export default function QuizPlayer({
       const data = await response.json();
       return {
         isCorrect: data.isCorrect,
-        correctAnswer: data.correctAnswer,
-        mappedAnswer: data.mappedAnswer,
+        correctAnswer: data.correctAnswer
       };
     } catch (error) {
       // Fallback to client-side validation if backend fails
       const fallbackIsCorrect = userAnswer !== undefined ? checkAnswer(currentQuestion, userAnswer) : false;
       return {
         isCorrect: fallbackIsCorrect,
-        correctAnswer: currentQuestion.correctAnswer, // Fallback only
-        mappedAnswer: userAnswer,
+        correctAnswer: currentQuestion.correctAnswer // Fallback only
       };
     }
   };
@@ -605,6 +700,13 @@ export default function QuizPlayer({
       userAnswers,
       questionAttempts: answers,
     };
+
+    // Clear saved progress on completion
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (e) {
+      console.error("Failed to clear quiz progress", e);
+    }
 
     onComplete(results);
   };

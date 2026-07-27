@@ -20,15 +20,7 @@
       "idx": 2,
       "version": "5",
       "when": 1763457320617,
-      "tag": "0002_fluffy_frog_thor",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1785067530104,
-      "tag": "0003_old_korvac",
-      "breakpoints": true
+      "tag": "0002_fluffy_frog_thor"
     }
   ]
 }

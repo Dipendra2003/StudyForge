@@ -80,9 +80,25 @@ export default function Chat() {
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
   
-  // Persist active session ID across page refreshes
+  // Persist active session ID across page refreshes with 30 minute timeout
   const [sessionId, setSessionId] = useState<string | null>(() => {
-    return sessionStorage.getItem('activeChatSessionId');
+    const savedSessionId = sessionStorage.getItem('activeChatSessionId');
+    const lastActivity = sessionStorage.getItem('activeChatLastActivity');
+    
+    if (savedSessionId && lastActivity) {
+      const lastActivityTime = parseInt(lastActivity, 10);
+      const currentTime = Date.now();
+      const thirtyMinutesInMillis = 30 * 60 * 1000; // 30 minutes
+      
+      // If inactive for more than 30 minutes, clear session
+      if (currentTime - lastActivityTime > thirtyMinutesInMillis) {
+        sessionStorage.removeItem('activeChatSessionId');
+        sessionStorage.removeItem('activeChatLastActivity');
+        return null;
+      }
+      return savedSessionId;
+    }
+    return savedSessionId;
   });
   
   // Generate personalized initial greeting
@@ -121,14 +137,16 @@ export default function Chat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Save active session ID to sessionStorage whenever it changes
+  // Save active session ID and update last activity to sessionStorage whenever it changes
   useEffect(() => {
     if (sessionId) {
       sessionStorage.setItem('activeChatSessionId', sessionId);
+      sessionStorage.setItem('activeChatLastActivity', Date.now().toString());
     } else {
       sessionStorage.removeItem('activeChatSessionId');
+      sessionStorage.removeItem('activeChatLastActivity');
     }
-  }, [sessionId]);
+  }, [sessionId, messages]);
 
   // Load active conversation on mount if sessionId exists
   useEffect(() => {
@@ -885,11 +903,7 @@ export default function Chat() {
             
             <AnimatePresence initial={false}>
               {messages.map((message, index) => {
-                // Don't render empty assistant messages while waiting for stream to start
-                if (message.role === 'assistant' && !message.content && isTyping) {
-                  return null;
-                }
-                
+
                 return (
                 <motion.div
                   key={index}
@@ -1015,6 +1029,18 @@ export default function Chat() {
                         )}
                         {(() => {
                           const { cleanContent, action } = extractAction(message.content);
+                          
+                          // Show animated dots for empty assistant messages (e.g. waiting for stream)
+                          if (message.role === 'assistant' && !cleanContent) {
+                            return (
+                              <div className="flex items-center space-x-1.5 h-6 px-2">
+                                <motion.div className="w-2 h-2 bg-current rounded-full opacity-70" animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0 }} />
+                                <motion.div className="w-2 h-2 bg-current rounded-full opacity-70" animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} />
+                                <motion.div className="w-2 h-2 bg-current rounded-full opacity-70" animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} />
+                              </div>
+                            );
+                          }
+                          
                           return (
                             <>
                               {message.role === 'assistant' ? (
@@ -1086,39 +1112,7 @@ export default function Chat() {
               })}
             </AnimatePresence>
 
-            {/* Typing Indicator */}
-            {(isTyping && !isStreaming) && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex gap-3 mb-6"
-              >
-                <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border-2 border-primary/50">
-                  <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/60">
-                    <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                  </AvatarFallback>
-                </Avatar>
-                <Card className="p-4 bg-gradient-to-br from-card to-card/80">
-                  <div className="flex gap-1.5">
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
-                      className="w-2 h-2 bg-primary rounded-full"
-                    />
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                      className="w-2 h-2 bg-primary rounded-full"
-                    />
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                      className="w-2 h-2 bg-primary rounded-full"
-                    />
-                  </div>
-                </Card>
-              </motion.div>
-            )}
+
 
             <div ref={messagesEndRef} />
           </div>

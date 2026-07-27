@@ -883,12 +883,14 @@ export const codeGenerationSchema = z.object({
     "kotlin",
     "c#",
     "r",
-    "sql"
+    "sql",
+    "auto"
   ]),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
   context: z.string().optional(),
   tags: z.array(z.string()).optional(),
   category: z.string().optional(),
+  refinePrompt: z.string().optional(),
 });
 
 // ===== AUTHENTICATION REQUEST/RESPONSE SCHEMAS =====

@@ -74,7 +74,7 @@ export function registerQuizRoutes(router: Router): void {
       // Validate the answer based on question type
       let isCorrect = false;
       const correctAnswer = question.correctAnswer;
-      let mappedAnswer: any = userAnswer;
+
 
       // MCQ - compare option IDs
       if (question.type === 'mcq') {
@@ -120,7 +120,6 @@ export function registerQuizRoutes(router: Router): void {
         success: true,
         isCorrect,
         correctAnswer, // Only sent after user submits their answer
-        mappedAnswer,  // Returns what the backend interpreted (useful for voice transcripts)
       });
     } catch (error) {
       Logger.error(LogCategory.API, 'Error validating answer', error as Error);

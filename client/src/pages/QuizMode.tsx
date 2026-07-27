@@ -78,14 +78,24 @@ export default function QuizMode() {
     return sessionStorage.getItem('quizModeActiveTab') || "take-quiz";
   });
   
+  // Load active quiz session from localStorage on mount if it exists
+  const activeSession = (() => {
+    try {
+      const stored = localStorage.getItem('active-quiz-metadata');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })();
+  
   // Quiz lifecycle state
-  const [isQuizStarted, setIsQuizStarted] = useState(false);
+  const [isQuizStarted, setIsQuizStarted] = useState(activeSession ? true : false);
   const [showResults, setShowResults] = useState(false);
   const [showReviewMode, setShowReviewMode] = useState(false);
   
   // Quiz data state
-  const [quizConfig, setQuizConfig] = useState<QuizConfig | null>(null);
-  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
+  const [quizConfig, setQuizConfig] = useState<QuizConfig | null>(activeSession ? activeSession.quizConfig : null);
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>(activeSession ? activeSession.quizQuestions : []);
   const [quizResults, setQuizResults] = useState<QuizResults | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, any>>({});
   const [questionAttempts, setQuestionAttempts] = useState<Record<number, any>>({});
@@ -96,7 +106,7 @@ export default function QuizMode() {
   
   // Session tracking - unique ID for hint tracking and progress (Req 13.2)
   const [sessionId] = useState<string>(() => 
-    `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+    activeSession ? activeSession.sessionId : `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
   );
   
   // QOTD tracking
@@ -278,6 +288,17 @@ export default function QuizMode() {
       setShowResults(false);
       setQuizResults(null);
       
+      // Save active session to localStorage to survive page refreshes
+      try {
+        localStorage.setItem('active-quiz-metadata', JSON.stringify({
+          quizConfig: { ...config, sessionId },
+          quizQuestions: shuffledQuestions,
+          sessionId
+        }));
+      } catch (e) {
+        console.error("Failed to save active quiz session", e);
+      }
+      
       toast({
         title: "Quiz Started!",
         description: `Get ready for ${shuffledQuestions.length} questions. Good luck!`,
@@ -406,6 +427,13 @@ export default function QuizMode() {
     setIsQuizStarted(false);
     setShowReviewMode(false);
     
+    // Clear active session from localStorage
+    try {
+      localStorage.removeItem('active-quiz-metadata');
+    } catch (e) {
+      console.error("Failed to clear active quiz session", e);
+    }
+    
     // Requirement 8.6 & 19.2: Save quiz attempt to database
     if (quizConfig) {
       try {
@@ -477,7 +505,7 @@ export default function QuizMode() {
               toast({
                 title: "🎁 Quiz of the Day Bonus!",
                 description: `You earned ${qotdResponse.bonusPoints} bonus points!`,
-                duration: 5000,
+                duration: 3000,
               });
               
               // Update results with bonus points
@@ -564,6 +592,16 @@ export default function QuizMode() {
       setQuizQuestions([]);
       setUserAnswers({});
       setQuestionAttempts({});
+      
+      // Clear active session from localStorage
+      try {
+        localStorage.removeItem('active-quiz-metadata');
+        if (quizConfig.sessionId) {
+          localStorage.removeItem(`quiz-progress-${quizConfig.sessionId}`);
+        }
+      } catch (e) {
+        console.error("Failed to clear active quiz session", e);
+      }
       
       toast({
         title: "Ready for a new quiz!",

@@ -146,13 +146,15 @@ const codeGenerationSchema = z.object({
     "kotlin",
     "c#",
     "r",
-    "sql"
+    "sql",
+    "auto"
   ]),
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
   context: z.string().optional(),
   tags: z.array(z.string()).optional(),
   generateMultiple: z.boolean().optional(),
   optimizeCode: z.boolean().optional(),
+  refinePrompt: z.string().optional(),
 });
 
 type CodeGenerationFormValues = z.infer<typeof codeGenerationSchema>;
@@ -324,7 +326,7 @@ export default function CodeGenerator() {
     resolver: zodResolver(codeGenerationSchema),
     defaultValues: {
       problem: "",
-      language: "javascript",
+      language: "auto",
       difficulty: "medium",
       context: "",
     },
@@ -333,16 +335,18 @@ export default function CodeGenerator() {
   const handleRefine = () => {
     if (!refinePrompt.trim() || !editableCode) return;
     
-    // We append the refinement to the original problem or just use it as the new problem with context
-    const currentProblem = form.getValues("problem");
-    const newProblem = `Original request: ${currentProblem}\n\nRefinement: ${refinePrompt}`;
-    
-    form.setValue("problem", newProblem);
     form.setValue("context", editableCode);
     
-    // Trigger generation
-    const values = form.getValues();
-    onSubmit(values);
+    // Trigger generation with refinement sent separately, keeping the problem clean
+    const values = {
+      ...form.getValues(),
+      refinePrompt: refinePrompt
+    };
+    
+    // Call generateCode directly with the modified values
+    if (!values.problem.trim()) return;
+    generateCode(values);
+    
     setRefinePrompt("");
   };
 
@@ -392,6 +396,8 @@ export default function CodeGenerator() {
         description: "Your code solution is ready!",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/code-snippets"] });
+      // Clear the prompt after successful generation like a chatbot
+      form.setValue('problem', '');
       // Stay on generator tab to show the result in the right panel
     },
     onError: (error) => {
@@ -608,7 +614,7 @@ export default function CodeGenerator() {
           variant: "destructive",
           title: "Daily Limit Reached",
           description: errorMessage,
-          duration: 4000,
+          duration: 3000,
         });
       } else {
         setCodeOutput(`Error: ${errorMessage}`);
@@ -616,7 +622,7 @@ export default function CodeGenerator() {
           variant: "destructive",
           title: "Execution failed",
           description: errorMessage,
-          duration: 4000,
+          duration: 3000,
         });
       }
     } finally {
@@ -679,7 +685,7 @@ export default function CodeGenerator() {
           variant: "destructive",
           title: "Daily Limit Reached",
           description: errorMessage,
-          duration: 4000,
+          duration: 3000,
         });
       } else {
         setPlaygroundOutput(`Error: ${errorMessage}`);
@@ -687,7 +693,7 @@ export default function CodeGenerator() {
           variant: "destructive",
           title: "Execution failed",
           description: errorMessage,
-          duration: 4000,
+          duration: 3000,
         });
       }
     } finally {
@@ -735,9 +741,9 @@ export default function CodeGenerator() {
           </TabsList>
           
           <TabsContent value="generator" className="mt-4 sm:mt-6 md:mt-8">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8">
               {/* Code Generation Form - Left Panel */}
-              <Card className="lg:col-span-2 border-2 shadow-lg overflow-hidden group">
+              <Card className="lg:col-span-5 xl:col-span-4 border-2 shadow-lg overflow-hidden group flex flex-col">
                 <div className="h-1.5 w-full bg-gradient-to-r from-purple-500 to-blue-500"></div>
                 <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6 bg-gradient-to-b from-purple-50/50 to-transparent dark:from-purple-900/10">
                   <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">
@@ -758,7 +764,20 @@ export default function CodeGenerator() {
                         name="problem"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm sm:text-base font-semibold">Programming Problem</FormLabel>
+                            <div className="flex justify-between items-center pb-1">
+                              <FormLabel className="text-sm sm:text-base font-semibold">Programming Problem</FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                onClick={() => form.setValue('problem', '')}
+                                title="Clear current problem"
+                              >
+                                <Icons.trash className="h-3 w-3 mr-1" />
+                                Clear
+                              </Button>
+                            </div>
                             <FormControl>
                               <Textarea
                                 placeholder="e.g., Create a function that reverses a string..."
@@ -771,70 +790,7 @@ export default function CodeGenerator() {
                         )}
                       />
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                        <FormField
-                          control={form.control}
-                          name="language"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm sm:text-base font-semibold text-slate-700 dark:text-slate-300">Language</FormLabel>
-                              <Select
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger className="focus:ring-purple-500 h-10 bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-slate-800 transition-colors">
-                                    <SelectValue placeholder="Select language" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="javascript">JavaScript</SelectItem>
-                                  <SelectItem value="python">Python</SelectItem>
-                                  <SelectItem value="java">Java</SelectItem>
-                                  <SelectItem value="c++">C++</SelectItem>
-                                  <SelectItem value="typescript">TypeScript</SelectItem>
-                                  <SelectItem value="go">Go</SelectItem>
-                                  <SelectItem value="rust">Rust</SelectItem>
-                                  <SelectItem value="ruby">Ruby</SelectItem>
-                                  <SelectItem value="php">PHP</SelectItem>
-                                  <SelectItem value="swift">Swift</SelectItem>
-                                  <SelectItem value="kotlin">Kotlin</SelectItem>
-                                  <SelectItem value="c#">C#</SelectItem>
-                                  <SelectItem value="r">R</SelectItem>
-                                  <SelectItem value="sql">SQL</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        
-                        <FormField
-                          control={form.control}
-                          name="difficulty"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-sm sm:text-base font-semibold text-slate-700 dark:text-slate-300">Difficulty</FormLabel>
-                              <Select
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger className="focus:ring-purple-500 h-10 bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-slate-800 transition-colors">
-                                    <SelectValue placeholder="Select difficulty" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="easy">Easy</SelectItem>
-                                  <SelectItem value="medium">Medium</SelectItem>
-                                  <SelectItem value="hard">Hard</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+
                       
                       <FormField
                         control={form.control}
@@ -907,7 +863,7 @@ export default function CodeGenerator() {
               </Card>
               
               {/* Results Preview - Right Panel */}
-              <Card className="lg:col-span-3 border-2 shadow-lg overflow-hidden flex flex-col h-full">
+              <Card className="lg:col-span-7 xl:col-span-8 border-2 shadow-lg overflow-hidden flex flex-col h-full min-h-[500px] lg:min-h-0">
                 <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500"></div>
                 <CardHeader className="space-y-1 pb-3 sm:pb-4 px-4 sm:px-6 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-900/10">
                   <CardTitle className="text-lg sm:text-xl md:text-2xl flex items-center gap-2">

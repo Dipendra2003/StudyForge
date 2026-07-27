@@ -1774,14 +1774,6 @@
           "autoincrement": false,
           "default": 0
         },
-        "voice_mode_enabled": {
-          "name": "voice_mode_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
         "hints_used": {
           "name": "hints_used",
           "type": "int",

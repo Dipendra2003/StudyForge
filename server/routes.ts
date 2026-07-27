@@ -4898,11 +4898,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
       
+      let promptToSend = codeData.problem;
+      if (codeData.refinePrompt) {
+        promptToSend = `Original request: ${codeData.problem}\n\nRefinement: ${codeData.refinePrompt}`;
+      }
+      
       // Generate code using the Gemini service
       let codeResponse;
       try {
         codeResponse = await geminiService.generateCode(
-          codeData.problem,
+          promptToSend,
           codeData.language,
           codeData.context,
           userId
@@ -4911,7 +4916,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating code:", error);
         codeResponse = {
           code: `// Error generating code for ${codeData.language}\n// Please try again later`,
-          explanation: "There was an error generating the code. Please try a different problem or language."
+          explanation: "There was an error generating the code. Please try a different problem or language.",
+          language: codeData.language !== 'auto' ? codeData.language : 'javascript'
         };
       }
       
@@ -4930,7 +4936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title: `Solution for: ${codeData.problem.substring(0, 30)}...`,
         problem: codeData.problem,
         code: codeResponse.code,
-        language: codeData.language,
+        language: codeResponse.language,
         explanation: codeResponse.explanation,
         tags: codeData.tags || autoTags
       };

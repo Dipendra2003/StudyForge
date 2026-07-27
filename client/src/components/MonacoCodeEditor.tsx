@@ -352,16 +352,12 @@ export default function MonacoCodeEditor({
 
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
-    if (!isFullscreen) {
-      setEditorHeight("calc(100vh - 200px)");
-    } else {
-      // Restore responsive height
-      if (typeof window !== 'undefined') {
-        const responsiveHeight = height || (window.innerWidth < 640 ? "300px" : window.innerWidth < 1024 ? "400px" : "500px");
-        setEditorHeight(responsiveHeight);
-      } else {
-        setEditorHeight(height || "500px");
-      }
+    if (isFullscreen && height !== "100%" && typeof window !== 'undefined') {
+      // Restore responsive height when exiting fullscreen
+      const responsiveHeight = height || (window.innerWidth < 640 ? "300px" : window.innerWidth < 1024 ? "400px" : "500px");
+      setEditorHeight(responsiveHeight);
+    } else if (isFullscreen && height === "100%") {
+      setEditorHeight("100%");
     }
   };
 
@@ -403,18 +399,17 @@ export default function MonacoCodeEditor({
   };
 
   const monacoLanguage = LANGUAGE_MAP[language] || "javascript";
+  const isLightTheme = theme === 'light';
 
   return (
-    <div className={`flex flex-col w-full ${isFullscreen ? "fixed inset-0 z-[100] bg-background" : ""}`}>
-      {/* Top Row - Language and Run */}
-      <div className="flex flex-col gap-2 sm:gap-3 p-2 sm:p-3 md:p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 border-b">
-        {/* Top Row - Language and Run */}
-        <div className="flex flex-col xs:flex-row flex-wrap items-stretch xs:items-center gap-2">
-          <Select value={language} onValueChange={handleLanguageChange}>
-            <SelectTrigger className="w-full xs:w-[140px] sm:w-[160px] md:w-[180px] focus:ring-purple-500 h-8 sm:h-9 md:h-10 text-xs sm:text-sm">
-              <SelectValue placeholder="Language" />
-            </SelectTrigger>
-            <SelectContent className="z-[110] max-h-[300px]">
+    <div className={`flex flex-col w-full ${isFullscreen ? "fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl" : "h-full"}`}>
+      {/* Unified Glassmorphic Toolbar */}
+      <div className="flex items-center gap-2 px-2 sm:px-4 py-2 sm:py-2.5 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none flex-nowrap shrink-0 z-10 shadow-sm transition-all">
+        <Select value={language} onValueChange={handleLanguageChange}>
+          <SelectTrigger className="w-[120px] sm:w-[140px] shrink-0 h-8 sm:h-9 text-xs font-medium glass-button rounded-full border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors">
+            <SelectValue placeholder="Language" />
+          </SelectTrigger>
+          <SelectContent className="z-[110] glass-panel rounded-xl shadow-2xl border-primary/20">
               <SelectItem value="javascript">JavaScript</SelectItem>
               <SelectItem value="python">Python</SelectItem>
               <SelectItem value="java">Java</SelectItem>
@@ -430,133 +425,111 @@ export default function MonacoCodeEditor({
               <SelectItem value="r">R</SelectItem>
               <SelectItem value="sql">SQL</SelectItem>
             </SelectContent>
-          </Select>
+        </Select>
 
+        <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 shrink-0 mx-1 hidden sm:block"></div>
 
-        </div>
+        <Select value={theme} onValueChange={(value) => handleThemeChange(value as ThemeType)}>
+          <SelectTrigger className="w-[100px] sm:w-[110px] shrink-0 h-8 sm:h-9 text-xs glass-button rounded-full">
+            <SelectValue placeholder="Theme" />
+          </SelectTrigger>
+          <SelectContent className="z-[110] glass-panel rounded-xl border-slate-200 dark:border-slate-800">
+            <SelectItem value="vs-dark">Dark</SelectItem>
+            <SelectItem value="light">Light</SelectItem>
+            <SelectItem value="dracula">Dracula</SelectItem>
+            <SelectItem value="github-dark">GitHub</SelectItem>
+          </SelectContent>
+        </Select>
 
-        {/* Bottom Row - Editor Controls */}
-        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-          {/* Theme Selector */}
-          <Select value={theme} onValueChange={(value) => handleThemeChange(value as ThemeType)}>
-            <SelectTrigger className="w-[100px] xs:w-[120px] sm:w-[140px] md:w-[160px] h-7 sm:h-8 text-xs sm:text-sm">
-              <SelectValue placeholder="Theme" />
-            </SelectTrigger>
-            <SelectContent className="z-[110]">
-              <SelectItem value="vs-dark">Dark</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="dracula">Dracula</SelectItem>
-              <SelectItem value="github-dark">GitHub</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Font Size Controls */}
-          <div className="flex items-center gap-0.5 sm:gap-1 border rounded-md">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={decreaseFontSize}
-              className="h-7 sm:h-8 px-1.5 sm:px-2"
-            >
-              <Icons.minus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            </Button>
-            <span className="text-[10px] xs:text-xs px-1 sm:px-2 border-x">{fontSize}px</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={increaseFontSize}
-              className="h-7 sm:h-8 px-1.5 sm:px-2"
-            >
-              <Icons.plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            </Button>
-          </div>
-
-          {/* Editor Options */}
-          <Button
-            variant={showMinimap ? "default" : "outline"}
-            size="sm"
-            onClick={toggleMinimap}
-            className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
-          >
-            <Icons.map className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden xs:inline">Map</span>
+        <div className="flex items-center gap-0.5 shrink-0 bg-slate-100/80 dark:bg-slate-800/80 rounded-full px-1 border border-slate-200 dark:border-slate-700 h-8 sm:h-9">
+          <Button variant="ghost" size="icon" onClick={decreaseFontSize} className="h-6 w-6 sm:h-7 sm:w-7 rounded-full hover:bg-black/5 dark:hover:bg-white/10 shrink-0 text-slate-600 dark:text-slate-400">
+            <Icons.minus className="h-3 w-3" />
           </Button>
-
-          <Button
-            variant={wordWrap === "on" ? "default" : "outline"}
-            size="sm"
-            onClick={toggleWordWrap}
-            className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
-          >
-            <Icons.wrap className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden xs:inline">Wrap</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={formatCode}
-            className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
-          >
-            <Icons.wand className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-            <span className="hidden sm:inline">Format</span>
-          </Button>
-
-          {showTemplates && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={showTemplates}
-              className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
-            >
-              <Icons.bookOpen className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-              <span className="hidden md:inline">Templates</span>
-            </Button>
-          )}
-
-          {onAnalyze && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onAnalyze}
-              className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
-            >
-              <Icons.zap className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-              <span className="hidden md:inline">Analyze</span>
-            </Button>
-          )}
-
-          {onDownload && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDownload}
-              className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
-            >
-              <Icons.arrowRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 rotate-90" />
-              <span className="hidden lg:inline">Download</span>
-            </Button>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleFullscreen}
-            className="gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs ml-auto"
-          >
-            {isFullscreen ? (
-              <>
-                <Icons.minimize className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                <span className="hidden xs:inline">Exit</span>
-              </>
-            ) : (
-              <>
-                <Icons.maximize className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                <span className="hidden xs:inline">Full</span>
-              </>
-            )}
+          <span className="text-[11px] font-medium w-8 text-center text-slate-700 dark:text-slate-300">{fontSize}px</span>
+          <Button variant="ghost" size="icon" onClick={increaseFontSize} className="h-6 w-6 sm:h-7 sm:w-7 rounded-full hover:bg-black/5 dark:hover:bg-white/10 shrink-0 text-slate-600 dark:text-slate-400">
+            <Icons.plus className="h-3 w-3" />
           </Button>
         </div>
+
+        <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 shrink-0 mx-1"></div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleMinimap}
+          className={`gap-1.5 h-8 sm:h-9 px-3 rounded-full text-xs font-medium shrink-0 transition-all ${showMinimap ? 'bg-primary/15 text-primary shadow-sm ring-1 ring-primary/30' : 'glass-button text-slate-600 dark:text-slate-400'}`}
+        >
+          <Icons.map className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">Map</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleWordWrap}
+          className={`gap-1.5 h-8 sm:h-9 px-3 rounded-full text-xs font-medium shrink-0 transition-all ${wordWrap === "on" ? 'bg-primary/15 text-primary shadow-sm ring-1 ring-primary/30' : 'glass-button text-slate-600 dark:text-slate-400'}`}
+        >
+          <Icons.wrap className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">Wrap</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={formatCode}
+          className="gap-1.5 h-8 sm:h-9 px-3 rounded-full text-xs font-medium shrink-0 glass-button text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+        >
+          <Icons.wand className="h-3.5 w-3.5" />
+          <span className="hidden md:inline">Format</span>
+        </Button>
+
+        {showTemplates && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={showTemplates}
+            className="gap-1.5 h-8 sm:h-9 px-3 rounded-full text-xs font-medium shrink-0 glass-button text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            <Icons.bookOpen className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">Templates</span>
+          </Button>
+        )}
+
+        {onAnalyze && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAnalyze}
+            className="gap-1.5 h-8 sm:h-9 px-3 rounded-full text-xs font-medium shrink-0 glass-button text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors ring-1 ring-purple-200 dark:ring-purple-800/50"
+          >
+            <Icons.zap className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">Analyze</span>
+          </Button>
+        )}
+
+        {onDownload && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDownload}
+            className="gap-1.5 h-8 sm:h-9 px-3 rounded-full text-xs font-medium shrink-0 glass-button text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            <Icons.arrowRight className="h-3.5 w-3.5 rotate-90" />
+            <span className="hidden xl:inline">Download</span>
+          </Button>
+        )}
+
+        <div className="flex-1 min-w-[10px]"></div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleFullscreen}
+          className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full shrink-0 transition-all ${isFullscreen ? 'bg-red-500/10 text-red-600 hover:bg-red-500/20 ring-1 ring-red-500/30' : 'glass-button bg-primary/10 text-primary hover:bg-primary/20 ring-1 ring-primary/30'}`}
+          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+        >
+          {isFullscreen ? <Icons.minimize className="h-4 w-4" /> : <Icons.maximize className="h-4 w-4" />}
+        </Button>
       </div>
 
       {children}
@@ -564,10 +537,10 @@ export default function MonacoCodeEditor({
       {/* Editor */}
       <div 
         ref={containerRef}
-        className={`border-b transition-colors duration-200 relative w-full ${isFullscreen ? "flex-1" : ""}`} 
+        className={`border-b transition-colors duration-200 relative w-full ${(isFullscreen || height === "100%") ? "flex-1 min-h-0" : ""}`} 
         style={{ 
-          height: editorHeight, 
-          minHeight: editorHeight,
+          height: (isFullscreen || height === "100%") ? undefined : editorHeight, 
+          minHeight: (isFullscreen || height === "100%") ? undefined : editorHeight,
           backgroundColor: theme === 'light' ? '#fffffe' : theme === 'dracula' ? '#282A36' : theme === 'github-dark' ? '#0D1117' : '#1e1e1e'
         }}
       >
@@ -607,43 +580,50 @@ export default function MonacoCodeEditor({
 
       {/* Input Panel - Only show if onStdinChange is provided */}
       {onStdinChange && (
-        <div className="flex flex-col border-t border-slate-800 bg-slate-900 text-slate-50">
-          <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-slate-800">
-            <Icons.terminal className="h-3 w-3 sm:h-4 sm:w-4 text-purple-400" />
-            <h3 className="font-semibold text-xs sm:text-sm">Standard Input (stdin)</h3>
-            <span className="text-[10px] sm:text-xs text-slate-400 font-normal ml-auto">Provide values for Scanner, cin, input()</span>
+        <div className={`flex flex-col backdrop-blur-md border-t shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.1)] z-20 transition-all duration-300 ${isLightTheme ? 'bg-white/95 text-slate-800 border-slate-200' : 'bg-slate-900/95 text-slate-50 border-slate-700/50'}`}>
+          <div className={`flex items-center gap-2 px-3 sm:px-4 py-2 border-b ${isLightTheme ? 'border-slate-200 bg-slate-50/50' : 'border-slate-800/80 bg-slate-950/50'}`}>
+            <div className={`flex items-center justify-center h-6 w-6 rounded-md border shadow-inner ${isLightTheme ? 'bg-purple-100 text-purple-600 border-purple-200' : 'bg-purple-500/20 text-purple-400 border-purple-500/30'}`}>
+              <Icons.terminal className="h-3.5 w-3.5" />
+            </div>
+            <h3 className={`font-semibold text-xs sm:text-sm tracking-wide ${isLightTheme ? 'text-slate-700' : 'text-slate-200'}`}>Standard Input (stdin)</h3>
+            <span className={`text-[10px] sm:text-xs font-medium ml-auto px-2 py-0.5 rounded-full border ${isLightTheme ? 'bg-slate-100 text-slate-500 border-slate-200' : 'text-slate-500 bg-slate-800/50 border-slate-700/50'}`}>Provide values for Scanner, cin, input()</span>
           </div>
-          <div className="p-2 sm:p-3 md:p-4">
+          <div className={`p-2 sm:p-3 ${isLightTheme ? 'bg-slate-50/80' : 'bg-slate-900/80'}`}>
             <Textarea 
               value={stdin || ""}
               onChange={(e) => onStdinChange(e.target.value)}
               placeholder="Type your inputs here separated by spaces or newlines before running..."
-              className="min-h-[80px] font-mono text-xs sm:text-sm resize-y bg-slate-950 text-slate-200 border-slate-700 focus-visible:ring-purple-500/50 placeholder:text-slate-500"
+              className={`min-h-[70px] font-mono text-xs sm:text-sm resize-y focus-visible:ring-purple-500/50 focus-visible:border-purple-500/50 rounded-lg shadow-inner transition-colors ${isLightTheme ? 'bg-white text-slate-800 border-slate-200 placeholder:text-slate-400' : 'bg-black/40 text-slate-200 border-slate-700/50 placeholder:text-slate-600'}`}
             />
           </div>
         </div>
       )}
 
       {/* Run Code Action Bar */}
-      <div className="flex flex-wrap items-center justify-between px-2 sm:px-3 md:px-4 py-2 sm:py-3 border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm shadow-inner relative z-10">
-        <Badge variant="secondary" className="hidden sm:flex text-xs bg-slate-800/80 text-slate-300 border-slate-700">
-          Ctrl+Enter to Run
-        </Badge>
+      <div className={`flex flex-wrap items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-t backdrop-blur-xl shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)] relative z-20 ${isLightTheme ? 'border-slate-200 bg-white/80' : 'border-slate-700/50 bg-slate-900/80'}`}>
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center justify-center h-8 w-8 rounded-full border shadow-inner ${isLightTheme ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-800/80 border-slate-700 text-slate-400'}`}>
+            <Icons.code className="h-4 w-4" />
+          </div>
+          <Badge variant="outline" className={`hidden sm:flex text-[10px] font-medium tracking-wider uppercase py-1 ${isLightTheme ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-slate-950/50 text-slate-400 border-slate-700/50'}`}>
+            Ctrl+Enter to Run
+          </Badge>
+        </div>
         <Button
           size="default"
-          className="gap-1 sm:gap-2 bg-green-600 hover:bg-green-500 text-white h-8 sm:h-10 text-xs sm:text-sm ml-auto px-4 sm:px-8 font-bold shadow-lg shadow-green-900/40 rounded-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white h-9 sm:h-10 text-xs sm:text-sm ml-auto px-6 sm:px-8 font-bold shadow-lg shadow-green-900/40 rounded-full transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] ring-1 ring-emerald-400/30"
           onClick={onRun}
           disabled={isRunning}
         >
           {isRunning ? (
             <>
               <Icons.spinner className="h-4 w-4 animate-spin" />
-              <span>Running...</span>
+              <span className="tracking-wide">Executing...</span>
             </>
           ) : (
             <>
-              <Icons.play className="h-4 w-4 fill-current" />
-              <span>Run Code</span>
+              <Icons.play className="h-4 w-4 fill-current drop-shadow-md" />
+              <span className="tracking-wide text-shadow-sm">Run Code</span>
             </>
           )}
         </Button>
@@ -651,24 +631,26 @@ export default function MonacoCodeEditor({
 
       {/* Output Panel - Only show when there's output */}
       {output && (
-        <div className="flex flex-col bg-slate-950 text-slate-50 border-t">
-          <div className="flex items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-slate-800">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <Icons.code className="h-3 w-3 sm:h-4 sm:w-4 text-green-400" />
-              <h3 className="font-semibold text-xs sm:text-sm">Console Output</h3>
+        <div className={`flex flex-col border-t z-20 relative shadow-inner ${isLightTheme ? 'bg-slate-50 text-slate-800 border-slate-200' : 'bg-black/90 text-slate-50 border-slate-800'}`}>
+          <div className={`flex items-center justify-between px-3 sm:px-4 py-2 border-b backdrop-blur-sm ${isLightTheme ? 'border-slate-200 bg-white/80' : 'border-slate-800/80 bg-slate-950/80'}`}>
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center justify-center h-6 w-6 rounded-md border shadow-inner ${isLightTheme ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
+                <Icons.check className="h-3.5 w-3.5" />
+              </div>
+              <h3 className={`font-semibold text-xs sm:text-sm tracking-wide ${isLightTheme ? 'text-emerald-700' : 'text-emerald-100'}`}>Execution Result</h3>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={onClearOutput}
-              className="gap-1 sm:gap-2 text-slate-400 hover:text-slate-50 h-6 sm:h-8 px-1.5 sm:px-2"
+              className={`gap-1.5 h-7 px-2.5 rounded-md transition-colors hover:bg-red-500/10 hover:text-red-500 ${isLightTheme ? 'text-slate-500' : 'text-slate-400'}`}
             >
-              <Icons.trash className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-              <span className="hidden xs:inline text-xs">Clear</span>
+              <Icons.trash className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline text-xs font-medium">Clear</span>
             </Button>
           </div>
-          <div className="p-2 sm:p-3 md:p-4 overflow-auto" style={{ minHeight: "120px", maxHeight: "250px" }}>
-            <pre className="text-xs sm:text-sm text-green-400 font-mono whitespace-pre-wrap break-words">
+          <div className={`p-3 sm:p-4 overflow-auto bg-gradient-to-b ${isLightTheme ? 'from-slate-100 to-white' : 'from-black/50 to-black/20'}`} style={{ minHeight: "120px", maxHeight: "30vh" }}>
+            <pre className={`text-xs sm:text-[13px] font-mono whitespace-pre-wrap break-words leading-relaxed ${isLightTheme ? 'text-emerald-700 selection:bg-emerald-200 selection:text-emerald-900' : 'text-emerald-400 selection:bg-emerald-900/50 selection:text-emerald-200'}`}>
               <code>{output}</code>
             </pre>
           </div>

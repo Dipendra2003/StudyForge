@@ -30,7 +30,7 @@ export const successFeedback = {
   // Quiz operations
   quizCompleted: (score: number, total: number) => showSuccessToast(
     `You scored ${score} out of ${total}!`,
-    { title: 'Quiz Complete', duration: 5000 }
+    { title: 'Quiz Complete', duration: 3000 }
   ),
   quizGenerated: () => showSuccessToast('Quiz questions generated successfully', {
     title: 'AI Generation Complete'
@@ -58,11 +58,11 @@ export const successFeedback = {
   logoutSuccess: () => showSuccessToast('You have been logged out', { title: 'Logout Successful' }),
   registrationSuccess: () => showSuccessToast('Account created successfully', { 
     title: 'Welcome to Jadoo!',
-    duration: 5000
+    duration: 3000
   }),
   passwordResetSent: () => showSuccessToast('Password reset link sent to your email', {
     title: 'Check Your Email',
-    duration: 5000
+    duration: 3000
   }),
   passwordResetSuccess: () => showSuccessToast('Password reset successfully', {
     title: 'Password Updated'

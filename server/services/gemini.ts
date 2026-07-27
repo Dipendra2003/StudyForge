@@ -18,6 +18,7 @@ export interface GenerationOptions {
   maxOutputTokens?: number;
   topP?: number;
   topK?: number;
+  responseMimeType?: string;
 }
 
 /**
@@ -385,6 +386,7 @@ export class GeminiService {
             maxOutputTokens,
             topP: options.topP,
             topK: options.topK,
+            responseMimeType: options.responseMimeType,
           },
         });
 
@@ -1386,7 +1388,7 @@ Provide only the JSON object without any additional text or markdown formatting.
     context?: string,
     userId?: number
   ): Promise<CodeData> {
-    const prompt = `Generate a ${language} code solution for the following problem:
+    const prompt = `Generate a ${language === 'auto' ? 'suitable' : language} code solution for the following problem:
 
 Problem: ${problem}${context ? `\n\nAdditional context: ${context}` : ''}
 
@@ -1394,7 +1396,7 @@ Return the response in the following JSON format:
 {
   "code": "Your code here",
   "explanation": "Explanation of the solution",
-  "language": "${language}",
+  "language": "${language === 'auto' ? 'the detected language (e.g. javascript, python, java, etc)' : language}",
   "complexity": "Time and space complexity analysis"
 }
 
@@ -1402,7 +1404,11 @@ Provide only the JSON object without any additional text or markdown formatting.
 
     const response = await this.generateContent(
       prompt,
-      { temperature: 0.5, maxOutputTokens: 1500 },
+      { 
+        temperature: 0.5, 
+        maxOutputTokens: 4000,
+        responseMimeType: "application/json"
+      },
       userId
     );
 
@@ -1419,7 +1425,7 @@ Provide only the JSON object without any additional text or markdown formatting.
         return {
           code: data.code,
           explanation: data.explanation,
-          language,
+          language: data.language && data.language !== 'auto' ? data.language.toLowerCase() : language !== 'auto' ? language : 'javascript',
           complexity: data.complexity,
         };
       }
