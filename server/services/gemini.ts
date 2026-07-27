@@ -297,6 +297,7 @@ export class GeminiService {
   private cacheManager: CacheManager;
   private retryHandler: RetryHandler;
   private readonly modelName: string = 'gemini-3.1-flash-lite-preview';
+  private readonly fallbackModelName: string = 'gemini-2.5-flash';
   private readonly supportsSystemInstruction: boolean = true; // Gemini models support system instructions
   private readonly defaultTemperature: number = 0.7;
   private readonly defaultMaxTokens: number = 4096; // Increased for comprehensive technical answers
@@ -379,25 +380,52 @@ export class GeminiService {
     const startTime = Date.now();
     const response = await this.retryHandler.executeWithRetry(
       async () => {
-        const model = this.client.getGenerativeModel({
-          model: this.modelName,
-          generationConfig: {
-            temperature,
-            maxOutputTokens,
-            topP: options.topP,
-            topK: options.topK,
-            responseMimeType: options.responseMimeType,
-          },
-        });
+        try {
+          const model = this.client.getGenerativeModel({
+            model: this.modelName,
+            generationConfig: {
+              temperature,
+              maxOutputTokens,
+              topP: options.topP,
+              topK: options.topK,
+              responseMimeType: options.responseMimeType,
+            },
+          });
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+          const result = await model.generateContent(prompt);
+          const text = result.response.text();
 
-        if (!text) {
-          throw new Error('No response generated from AI');
+          if (!text) {
+            throw new Error('No response generated from AI');
+          }
+
+          return text;
+        } catch (error: any) {
+          if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
+            console.warn(`[GEMINI] Primary model failed with 503 in generateContent. Falling back to ${this.fallbackModelName}`);
+            const fallbackModel = this.client.getGenerativeModel({
+              model: this.fallbackModelName,
+              generationConfig: {
+                temperature,
+                maxOutputTokens,
+                topP: options.topP,
+                topK: options.topK,
+                responseMimeType: options.responseMimeType,
+              },
+            });
+
+            const result = await fallbackModel.generateContent(prompt);
+            const text = result.response.text();
+
+            if (!text) {
+              throw new Error('No response generated from AI');
+            }
+
+            return text;
+          } else {
+            throw error;
+          }
         }
-
-        return text;
       },
       3,
       1000,
@@ -462,15 +490,40 @@ export class GeminiService {
         if (prompt) {
           parts[0].text = prompt + parts[0].text;
         }
-        const model = this.client.getGenerativeModel({
-          model: this.modelName,
-          generationConfig: {
-            temperature: options.temperature ?? this.defaultTemperature,
-            maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+        
+        return await this.retryHandler.executeWithRetry(
+          async () => {
+            try {
+              const model = this.client.getGenerativeModel({
+                model: this.modelName,
+                generationConfig: {
+                  temperature: options.temperature ?? this.defaultTemperature,
+                  maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+                },
+              });
+              const result = await model.generateContent(parts);
+              return result.response.text();
+            } catch (error: any) {
+              if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
+                console.warn(`[GEMINI] Primary model failed with 503 in generateChatResponse. Falling back to ${this.fallbackModelName}`);
+                const fallbackModel = this.client.getGenerativeModel({
+                  model: this.fallbackModelName,
+                  generationConfig: {
+                    temperature: options.temperature ?? this.defaultTemperature,
+                    maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+                  },
+                });
+                const result = await fallbackModel.generateContent(parts);
+                return result.response.text();
+              } else {
+                throw error;
+              }
+            }
           },
-        });
-        const result = await model.generateContent(parts);
-        return result.response.text();
+          3,
+          1000,
+          userId
+        );
       } else {
         prompt += geminiMessages[0].parts[0].text;
         return this.generateContent(prompt, options, userId);
@@ -493,17 +546,37 @@ export class GeminiService {
           }
         }
         
-        const chat = this.model.startChat({
-          history,
-          generationConfig: {
-            temperature: options.temperature ?? this.defaultTemperature,
-            maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
-          },
-        });
+        let text;
+        try {
+          const chat = this.model.startChat({
+            history,
+            generationConfig: {
+              temperature: options.temperature ?? this.defaultTemperature,
+              maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+            },
+          });
 
-        const lastMessage = geminiMessages[geminiMessages.length - 1];
-        const result = await chat.sendMessage(lastMessage.parts);
-        const text = result.response.text();
+          const lastMessage = geminiMessages[geminiMessages.length - 1];
+          const result = await chat.sendMessage(lastMessage.parts);
+          text = result.response.text();
+        } catch (error: any) {
+          if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
+            console.warn(`[GEMINI] Primary model failed with 503 in multi-turn generateChatResponse. Falling back to ${this.fallbackModelName}`);
+            const fallbackModel = this.client.getGenerativeModel({
+              model: this.fallbackModelName,
+              generationConfig: {
+                temperature: options.temperature ?? this.defaultTemperature,
+                maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+              },
+            });
+            const chat = fallbackModel.startChat({ history });
+            const lastMessage = geminiMessages[geminiMessages.length - 1];
+            const result = await chat.sendMessage(lastMessage.parts);
+            text = result.response.text();
+          } else {
+            throw error;
+          }
+        }
 
         if (!text) {
           throw new Error('No response generated from AI');
@@ -1388,19 +1461,26 @@ Provide only the JSON object without any additional text or markdown formatting.
     context?: string,
     userId?: number
   ): Promise<CodeData> {
-    const prompt = `Generate a ${language === 'auto' ? 'suitable' : language} code solution for the following problem:
+    const prompt = `You are an expert, senior software engineer. Generate a production-ready ${language === 'auto' ? 'suitable' : language} code solution for the following problem.
 
 Problem: ${problem}${context ? `\n\nAdditional context: ${context}` : ''}
 
-Return the response in the following JSON format:
+Guidelines for the code:
+1. Write clean, readable, and highly optimized code.
+2. Include brief, helpful comments within the code itself explaining complex logic.
+3. Handle common edge cases where applicable.
+4. If the language supports it, use modern language features (e.g. ES6+ for JS/TS, Python 3.10+ features).
+5. Ensure the code is self-contained and immediately runnable.
+
+Return the response strictly in the following JSON format:
 {
-  "code": "Your code here",
-  "explanation": "Explanation of the solution",
-  "language": "${language === 'auto' ? 'the detected language (e.g. javascript, python, java, etc)' : language}",
-  "complexity": "Time and space complexity analysis"
+  "code": "Your runnable code here",
+  "explanation": "A clear, concise explanation of how the solution works and why this approach was chosen",
+  "language": "${language === 'auto' ? 'the detected language name (e.g. javascript, python, java)' : language}",
+  "complexity": "Time Complexity: O(...), Space Complexity: O(...)"
 }
 
-Provide only the JSON object without any additional text or markdown formatting.`;
+IMPORTANT: Provide ONLY the JSON object. Do not wrap the response in markdown code blocks (\`\`\`json) or add any extra text.`;
 
     const response = await this.generateContent(
       prompt,
@@ -1675,7 +1755,24 @@ IMPORTANT:
           maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
         },
       });
-      const resultStream = await model.generateContentStream(parts);
+      let resultStream;
+      try {
+        resultStream = await model.generateContentStream(parts);
+      } catch (error: any) {
+        if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
+          console.warn(`[GEMINI] Primary model failed with 503. Falling back to ${this.fallbackModelName}`);
+          const fallbackModel = this.client.getGenerativeModel({
+            model: this.fallbackModelName,
+            generationConfig: {
+              temperature: options.temperature ?? this.defaultTemperature,
+              maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+            },
+          });
+          resultStream = await fallbackModel.generateContentStream(parts);
+        } else {
+          throw error;
+        }
+      }
       for await (const chunk of resultStream.stream) {
         yield chunk.text();
       }
@@ -1700,16 +1797,36 @@ IMPORTANT:
       }
     }
     
-    const chat = this.model.startChat({
-      history,
-      generationConfig: {
-        temperature: options.temperature ?? this.defaultTemperature,
-        maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
-      },
-    });
+    let resultStream;
+    try {
+      const chat = this.model.startChat({
+        history,
+        generationConfig: {
+          temperature: options.temperature ?? this.defaultTemperature,
+          maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+        },
+      });
 
-    const lastMessage = geminiMessages[geminiMessages.length - 1];
-    const resultStream = await chat.sendMessageStream(lastMessage.parts);
+      const lastMessage = geminiMessages[geminiMessages.length - 1];
+      resultStream = await chat.sendMessageStream(lastMessage.parts);
+    } catch (error: any) {
+      if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
+        console.warn(`[GEMINI] Primary model failed with 503. Falling back to ${this.fallbackModelName}`);
+        const fallbackModel = this.client.getGenerativeModel({
+          model: this.fallbackModelName,
+          generationConfig: {
+            temperature: options.temperature ?? this.defaultTemperature,
+            maxOutputTokens: options.maxOutputTokens ?? this.defaultMaxTokens,
+          },
+        });
+        const chat = fallbackModel.startChat({ history });
+        const lastMessage = geminiMessages[geminiMessages.length - 1];
+        resultStream = await chat.sendMessageStream(lastMessage.parts);
+      } else {
+        throw error;
+      }
+    }
+    
     for await (const chunk of resultStream.stream) {
       yield chunk.text();
     }

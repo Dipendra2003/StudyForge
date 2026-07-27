@@ -78,7 +78,7 @@ export default function About() {
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-primary mb-2">Database</h4>
-                  <p className="text-sm text-gray-600">MySQL with optimized queries and indexing</p>
+                  <p className="text-sm text-gray-600">PostgreSQL with optimized queries and indexing</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-primary mb-2">AI & ML</h4>

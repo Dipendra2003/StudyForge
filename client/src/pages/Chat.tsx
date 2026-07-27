@@ -805,10 +805,13 @@ export default function Chat() {
                   </div>
                 )}
                 
-                {/* AI Powered Badge */}
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-primary">AI Powered</span>
+                {/* AI Badge */}
+                <div 
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20"
+                  title="AI Powered Assistant"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-bold text-primary">AI</span>
                 </div>
                 
                 {/* Clear Chat Button */}

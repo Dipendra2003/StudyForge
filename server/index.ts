@@ -107,12 +107,12 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
     await initializeDatabases();
     log('Database connections initialized successfully', 'database');
     
-    // Initialize storage layer with MySQL
+    // Initialize storage layer with PostgreSQL
     initializeStorage();
     
     // Setup cron jobs
     setupCronJobs();
-    log('Storage layer initialized with MySQL', 'database');
+    log('Storage layer initialized with PostgreSQL', 'database');
     
     // Initialize email service
     const { EmailService } = await import('./services/email.service');

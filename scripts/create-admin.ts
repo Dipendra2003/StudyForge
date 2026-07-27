@@ -8,7 +8,7 @@
  * with direct database access.
  */
 
-import mysql from 'mysql2/promise';
+import postgres from 'postgres';
 import bcrypt from 'bcrypt';
 import readline from 'readline';
 import dotenv from 'dotenv';
@@ -46,29 +46,17 @@ async function createAdminUser() {
   console.log('\n🔐 StudyForge Admin User Creation Script\n');
   console.log('This script will create a new admin user or promote an existing user to admin.\n');
 
-  let connection;
+  let connection: any;
 
   try {
-    // Get MySQL credentials from environment
-    const mysqlHost = process.env.MYSQL_HOST;
-    const mysqlPort = process.env.MYSQL_PORT;
-    const mysqlUsername = process.env.MYSQL_USERNAME;
-    const mysqlPassword = process.env.MYSQL_PASSWORD;
-    const mysqlDatabase = process.env.MYSQL_DATABASE;
-
-    if (!mysqlHost || !mysqlPort || !mysqlUsername || !mysqlPassword || !mysqlDatabase) {
-      throw new Error('MySQL credentials missing. Please set MYSQL_HOST, MYSQL_PORT, MYSQL_USERNAME, MYSQL_PASSWORD, and MYSQL_DATABASE in .env file');
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('PostgreSQL credentials missing. Please set DATABASE_URL in .env file');
     }
 
     // Create database connection
     console.log('📡 Connecting to database...\n');
-    connection = await mysql.createConnection({
-      host: mysqlHost,
-      port: parseInt(mysqlPort),
-      user: mysqlUsername,
-      password: mysqlPassword,
-      database: mysqlDatabase
-    });
+    connection = postgres(databaseUrl);
 
     console.log('✅ Connected to database\n');
 

@@ -1104,8 +1104,8 @@ export class MemStorage implements IStorage {
   }
 }
 
-// MySQL Storage implementation using Drizzle ORM
-export class MySQLStorage implements IStorage {
+// PostgreSQL Storage implementation using Drizzle ORM
+export class DatabaseStorage implements IStorage {
   constructor() {
     // Constructor - db instance is imported from db/index.ts
   }
@@ -1219,7 +1219,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       // Fetch the created user
       return await this.getUser(toNumberId(user.id)) as User;
@@ -1268,7 +1268,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getDocumentById(toNumberId(document.id)) as Document;
     } catch (error) {
@@ -1363,7 +1363,7 @@ export class MySQLStorage implements IStorage {
           ...insertFlashcard,
           createdAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getFlashcardById(toNumberId(flashcard.id)) as Flashcard;
     } catch (error) {
@@ -1471,7 +1471,7 @@ export class MySQLStorage implements IStorage {
             : insertMcq.correctOption,
           createdAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getMcqById(toNumberId(mcq.id)) as Mcq;
     } catch (error) {
@@ -1591,7 +1591,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getCodeSnippetById(toNumberId(snippet.id)) as CodeSnippet;
     } catch (error) {
@@ -1689,7 +1689,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getChatHistoryById(toNumberId(history.id)) as ChatHistory;
     } catch (error) {
@@ -1740,8 +1740,17 @@ export class MySQLStorage implements IStorage {
       const history = await this.getChatHistoryById(id);
       if (!history) return undefined;
 
-      const messages = Array.isArray(history.messages)
-        ? [...history.messages, message]
+      let parsedMessages = history.messages;
+      if (typeof history.messages === 'string') {
+        try {
+          parsedMessages = JSON.parse(history.messages);
+        } catch (e) {
+          parsedMessages = [];
+        }
+      }
+
+      const messages = Array.isArray(parsedMessages)
+        ? [...parsedMessages, message]
         : [message];
       const now = new Date();
 
@@ -1800,7 +1809,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getStudyPlanById(toNumberId(plan.id)) as StudyPlan;
     } catch (error) {
@@ -1911,7 +1920,7 @@ export class MySQLStorage implements IStorage {
             updatedAt: now,
             ...statsData,
           })
-          .$returningId();
+          .returning();
         
         return await this.getUserStats(userId);
       }
@@ -1944,7 +1953,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getSummaryById(toNumberId(summary.id)) as Summary;
     } catch (error) {
@@ -2036,7 +2045,7 @@ export class MySQLStorage implements IStorage {
           ...attemptData,
           createdAt: now,
         })
-        .$returningId();
+        .returning();
       
       return { id: toNumberId(attempt.id), ...attemptData, createdAt: now };
     } catch (error) {
@@ -2179,7 +2188,7 @@ export class MySQLStorage implements IStorage {
           ...feedbackData,
           createdAt: now,
         })
-        .$returningId();
+        .returning();
       
       return { id: toNumberId(newFeedback.id), ...feedbackData, createdAt: now };
     } catch (error) {
@@ -2215,7 +2224,7 @@ export class MySQLStorage implements IStorage {
           createdAt: now,
           updatedAt: now,
         })
-        .$returningId();
+        .returning();
       
       return await this.getDeckById(toNumberId(deck.id));
     } catch (error) {
@@ -2393,7 +2402,7 @@ export class MySQLStorage implements IStorage {
   // Refresh token methods
   async createRefreshToken(insertRefreshToken: InsertRefreshToken): Promise<RefreshToken> {
     try {
-      const [result] = await db
+      const [refreshToken] = await db
         .insert(refreshTokens)
         .values({
           userId: insertRefreshToken.userId,
@@ -2401,13 +2410,8 @@ export class MySQLStorage implements IStorage {
           expiresAt: insertRefreshToken.expiresAt,
           userAgent: insertRefreshToken.userAgent || null,
           ipAddress: insertRefreshToken.ipAddress || null,
-        });
-      
-      const [refreshToken] = await db
-        .select()
-        .from(refreshTokens)
-        .where(eq(refreshTokens.id, toNumberId(result.insertId)))
-        .limit(1);
+        })
+        .returning();
       
       return refreshToken;
     } catch (error) {
@@ -2457,7 +2461,7 @@ export class MySQLStorage implements IStorage {
   // Email log methods
   async createEmailLog(insertEmailLog: InsertEmailLog): Promise<EmailLog> {
     try {
-      const [result] = await db
+      const [emailLog] = await db
         .insert(emailLogs)
         .values({
           userId: insertEmailLog.userId || null,
@@ -2466,13 +2470,8 @@ export class MySQLStorage implements IStorage {
           subject: insertEmailLog.subject,
           status: insertEmailLog.status,
           errorMessage: insertEmailLog.errorMessage || null,
-        });
-      
-      const [emailLog] = await db
-        .select()
-        .from(emailLogs)
-        .where(eq(emailLogs.id, toNumberId(result.insertId)))
-        .limit(1);
+        })
+        .returning();
       
       return emailLog;
     } catch (error) {
@@ -2506,7 +2505,7 @@ export class MySQLStorage implements IStorage {
   // Security audit log methods
   async createSecurityAuditLog(insertAuditLog: InsertSecurityAuditLog): Promise<SecurityAuditLog> {
     try {
-      const [result] = await db
+      const [auditLog] = await db
         .insert(securityAuditLogs)
         .values({
           userId: insertAuditLog.userId || null,
@@ -2515,13 +2514,8 @@ export class MySQLStorage implements IStorage {
           ipAddress: insertAuditLog.ipAddress || null,
           userAgent: insertAuditLog.userAgent || null,
           details: insertAuditLog.details || null,
-        });
-      
-      const [auditLog] = await db
-        .select()
-        .from(securityAuditLogs)
-        .where(eq(securityAuditLogs.id, toNumberId(result.insertId)))
-        .limit(1);
+        })
+        .returning();
       
       return auditLog;
     } catch (error) {
@@ -2552,7 +2546,7 @@ export class MySQLStorage implements IStorage {
   // Saved quiz methods
   async saveQuiz(userId: number, quizData: any): Promise<any> {
     try {
-      const [result] = await db
+      const [savedQuiz] = await db
         .insert(savedQuizzes)
         .values({
           userId,
@@ -2562,13 +2556,8 @@ export class MySQLStorage implements IStorage {
           questionCount: quizData.questionCount,
           title: quizData.title || null,
           description: quizData.description || null,
-        });
-      
-      const [savedQuiz] = await db
-        .select()
-        .from(savedQuizzes)
-        .where(eq(savedQuizzes.id, toNumberId(result.insertId)))
-        .limit(1);
+        })
+        .returning();
       
       return savedQuiz;
     } catch (error) {
@@ -2605,7 +2594,7 @@ export class MySQLStorage implements IStorage {
   // Favorite quiz methods
   async favoriteQuiz(userId: number, quizData: any): Promise<any> {
     try {
-      const [result] = await db
+      const [favoriteQuiz] = await db
         .insert(favoriteQuizzes)
         .values({
           userId,
@@ -2615,13 +2604,8 @@ export class MySQLStorage implements IStorage {
           questionCount: quizData.questionCount,
           title: quizData.title || null,
           description: quizData.description || null,
-        });
-      
-      const [favoriteQuiz] = await db
-        .select()
-        .from(favoriteQuizzes)
-        .where(eq(favoriteQuizzes.id, toNumberId(result.insertId)))
-        .limit(1);
+        })
+        .returning();
       
       return favoriteQuiz;
     } catch (error) {
@@ -2677,11 +2661,11 @@ export class MySQLStorage implements IStorage {
   }
 }
 
-// Export MySQLStorage instance (will be initialized after database connection)
+// Export DatabaseStorage instance (will be initialized after database connection)
 export let storage: IStorage = new MemStorage();
 
-// Function to initialize MySQL storage after database connection is established
+// Function to initialize PostgreSQL storage after database connection is established
 export function initializeStorage() {
-  storage = new MySQLStorage();
-  console.log('MySQLStorage initialized');
+  storage = new DatabaseStorage();
+  console.log('DatabaseStorage initialized');
 }

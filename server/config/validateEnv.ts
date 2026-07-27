@@ -22,27 +22,27 @@ export function validateEnvironmentVariables(): EnvValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Check for DATABASE_URL or individual MySQL credentials
+  // Check for DATABASE_URL or individual PostgreSQL credentials
   const hasDatabaseUrl = !!process.env.DATABASE_URL;
   const hasMysqlCredentials = 
-    !!process.env.MYSQL_HOST &&
-    !!process.env.MYSQL_PORT &&
-    !!process.env.MYSQL_USERNAME &&
-    !!process.env.MYSQL_PASSWORD &&
-    !!process.env.MYSQL_DATABASE;
+    !!process.env.DATABASE_URL &&
+    !!process.env.DATABASE_URL &&
+    !!process.env.DATABASE_URL &&
+    !!process.env.DATABASE_URL &&
+    !!process.env.DATABASE_URL;
 
   if (!hasDatabaseUrl && !hasMysqlCredentials) {
     errors.push(
       'Database configuration is missing. Please provide either:\n' +
       '  - DATABASE_URL (connection string), OR\n' +
-      '  - All MySQL credentials (MYSQL_HOST, MYSQL_PORT, MYSQL_USERNAME, MYSQL_PASSWORD, MYSQL_DATABASE)'
+      '  - All PostgreSQL credentials (DATABASE_URL, DATABASE_URL, DATABASE_URL, DATABASE_URL, DATABASE_URL)'
     );
     
-    if (!process.env.MYSQL_HOST) missingVars.push('MYSQL_HOST');
-    if (!process.env.MYSQL_PORT) missingVars.push('MYSQL_PORT');
-    if (!process.env.MYSQL_USERNAME) missingVars.push('MYSQL_USERNAME');
-    if (!process.env.MYSQL_PASSWORD) missingVars.push('MYSQL_PASSWORD');
-    if (!process.env.MYSQL_DATABASE) missingVars.push('MYSQL_DATABASE');
+    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
+    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
+    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
+    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
+    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
   }
 
   // Check for JWT_SECRET (Required for authentication)
@@ -139,8 +139,8 @@ export function logEnvironmentConfig(): void {
   if (process.env.DATABASE_URL) {
     console.log('  - Database: Connected via DATABASE_URL');
   } else {
-    console.log(`  - Database: MySQL at ${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT}`);
-    console.log(`  - Database Name: ${process.env.MYSQL_DATABASE}`);
+    console.log(`  - Database: PostgreSQL at ${process.env.DATABASE_URL}:${process.env.DATABASE_URL}`);
+    console.log(`  - Database Name: ${process.env.DATABASE_URL}`);
   }
   
   // JWT config

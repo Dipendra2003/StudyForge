@@ -1,12 +1,12 @@
-import { mysqlTable, text, int, boolean, timestamp, json, varchar, index, primaryKey, unique, foreignKey, uniqueIndex } from "drizzle-orm/mysql-core";
+import { pgTable, text, integer, boolean, timestamp, json, varchar, index, primaryKey, unique, foreignKey, uniqueIndex, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// ===== STRUCTURED DATA TABLES (MySQL) =====
+// ===== STRUCTURED DATA TABLES (PostgreSQL) =====
 
 // User Management
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   username: varchar("username", { length: 50 }).notNull().unique(), // Using varchar with length for better indexing
   password: text("password").notNull(),
   email: varchar("email", { length: 100 }).notNull().unique(), // Using varchar with length for better indexing
@@ -29,7 +29,7 @@ export const users = mysqlTable("users", {
   resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'date' }),
   
   // Security tracking fields
-  failedLoginAttempts: int("failed_login_attempts").default(0),
+  failedLoginAttempts: integer("failed_login_attempts").default(0),
   lastFailedLogin: timestamp("last_failed_login", { mode: 'date' }),
   accountLockedUntil: timestamp("account_locked_until", { mode: 'date' }),
   
@@ -47,10 +47,10 @@ export const users = mysqlTable("users", {
   securityAnswer2: text("security_answer_2"),
   
   // Gamification fields
-  totalPoints: int("total_points").default(0).notNull(),
+  totalPoints: integer("total_points").default(0).notNull(),
   
   // Storage settings
-  mediaRetentionDays: int("media_retention_days").default(0), // 0 means never delete
+  mediaRetentionDays: integer("media_retention_days").default(0), // 0 means never delete
   
   createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
@@ -64,9 +64,9 @@ export const users = mysqlTable("users", {
 });
 
 // Refresh tokens for JWT authentication
-export const refreshTokens = mysqlTable("refresh_tokens", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { mode: 'date' }).notNull(),
   createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
@@ -83,9 +83,9 @@ export const refreshTokens = mysqlTable("refresh_tokens", {
 });
 
 // Email logs for tracking email sending attempts
-export const emailLogs = mysqlTable("email_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("user_id").references(() => users.id, { onDelete: 'set null' }),
+export const emailLogs = pgTable("email_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
   emailType: varchar("email_type", { length: 50 }).notNull(), // verification, reset, notification
   recipient: varchar("recipient", { length: 100 }).notNull(),
   subject: varchar("subject", { length: 255 }).notNull(),
@@ -101,9 +101,9 @@ export const emailLogs = mysqlTable("email_logs", {
 });
 
 // Security audit logs for tracking authentication events
-export const securityAuditLogs = mysqlTable("security_audit_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("user_id").references(() => users.id, { onDelete: 'set null' }),
+export const securityAuditLogs = pgTable("security_audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
   action: varchar("action", { length: 50 }).notNull(), // login, logout, register, verify, reset, etc.
   status: varchar("status", { length: 20 }).notNull(), // success, failure
   ipAddress: varchar("ip_address", { length: 45 }),
@@ -119,9 +119,9 @@ export const securityAuditLogs = mysqlTable("security_audit_logs", {
 });
 
 // Study Sessions and Notes
-export const documents = mysqlTable("documents", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content"),
   fileUrl: text("file_url"),
@@ -140,14 +140,14 @@ export const documents = mysqlTable("documents", {
 });
 
 // Attachments (global media gallery for user)
-export const attachments = mysqlTable("attachments", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const attachments = pgTable("attachments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   filename: varchar("filename", { length: 255 }).notNull(),
   originalName: varchar("original_name", { length: 255 }).notNull(),
   fileUrl: text("file_url").notNull(),
   mimeType: varchar("mime_type", { length: 100 }).notNull(),
-  size: int("size").notNull(),
+  size: integer("size").notNull(),
   source: varchar("source", { length: 50 }).notNull().default("chat"), // 'chat', 'document', etc.
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {
@@ -159,19 +159,19 @@ export const attachments = mysqlTable("attachments", {
 });
 
 // Flashcards created from documents
-export const flashcards = mysqlTable("flashcards", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: int("document_id").references(() => documents.id, { onDelete: 'set null' }),
+export const flashcards = pgTable("flashcards", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
   questionImage: text("question_image"), // Image for question side
   answerImage: text("answer_image"), // Image for answer side
-  tags: json("tags"), // Stored as JSON array in MySQL
+  tags: json("tags"), // Stored as JSON array in PostgreSQL
   category: varchar("category", { length: 255 }), // Category for organization
   difficulty: varchar("difficulty", { length: 10 }).default("medium"),
-  repetitionInterval: int("repetition_interval").default(1), // For spaced repetition
-  easeFactor: int("ease_factor").default(250), // For SM-2 algorithm (times 100)
+  repetitionInterval: integer("repetition_interval").default(1), // For spaced repetition
+  easeFactor: integer("ease_factor").default(250), // For SM-2 algorithm (times 100)
   lastReviewed: timestamp("last_reviewed"),
   nextReviewDate: timestamp("next_review_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -185,9 +185,9 @@ export const flashcards = mysqlTable("flashcards", {
 });
 
 // Flashcard decks for organizing flashcards
-export const flashcardDecks = mysqlTable("flashcard_decks", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const flashcardDecks = pgTable("flashcard_decks", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   isPublic: boolean("is_public").default(false),
@@ -200,10 +200,10 @@ export const flashcardDecks = mysqlTable("flashcard_decks", {
 });
 
 // Junction table for many-to-many relationship between decks and flashcards
-export const deckFlashcards = mysqlTable("deck_flashcards", {
-  deckId: int("deck_id").notNull().references(() => flashcardDecks.id, { onDelete: 'cascade' }),
-  flashcardId: int("flashcard_id").notNull().references(() => flashcards.id, { onDelete: 'cascade' }),
-  position: int("position").default(0), // For ordering cards within a deck
+export const deckFlashcards = pgTable("deck_flashcards", {
+  deckId: integer("deck_id").notNull().references(() => flashcardDecks.id, { onDelete: 'cascade' }),
+  flashcardId: integer("flashcard_id").notNull().references(() => flashcards.id, { onDelete: 'cascade' }),
+  position: integer("position").default(0), // For ordering cards within a deck
   addedAt: timestamp("added_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -214,13 +214,13 @@ export const deckFlashcards = mysqlTable("deck_flashcards", {
 });
 
 // MCQs for quizzes
-export const mcqs = mysqlTable("mcqs", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: int("document_id").references(() => documents.id, { onDelete: 'set null' }),
+export const mcqs = pgTable("mcqs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: 'set null' }),
   question: text("question").notNull(),
-  options: json("options").notNull(), // Stored as JSON array in MySQL
-  correctOption: int("correct_option").notNull(),
+  options: json("options").notNull(), // Stored as JSON array in PostgreSQL
+  correctOption: integer("correct_option").notNull(),
   explanation: text("explanation"),
   difficulty: varchar("difficulty", { length: 10 }).notNull().default("medium"),
   category: varchar("category", { length: 255 }),
@@ -236,9 +236,9 @@ export const mcqs = mysqlTable("mcqs", {
 });
 
 // Questions table for AI-Powered Quiz System (supports multiple question types)
-export const questions = mysqlTable("questions", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const questions = pgTable("questions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   type: varchar("type", { length: 20 }).notNull(), // mcq, true-false, fill-blank, matching, rearrange
   question: text("question").notNull(),
   questionData: json("question_data").notNull(), // Type-specific data (options, pairs, items, etc.)
@@ -249,8 +249,8 @@ export const questions = mysqlTable("questions", {
   tags: json("tags"), // Array of tags
   hints: json("hints"), // Array of hints
   isPublic: boolean("is_public").default(false),
-  usageCount: int("usage_count").default(0),
-  averageScore: int("average_score").default(0), // Score * 100 for precision
+  usageCount: integer("usage_count").default(0),
+  averageScore: integer("average_score").default(0), // Score * 100 for precision
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => {
@@ -264,21 +264,21 @@ export const questions = mysqlTable("questions", {
 });
 
 // Quiz sessions for tracking active quizzes
-export const quizSessions = mysqlTable("quiz_sessions", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const quizSessions = pgTable("quiz_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   sessionId: varchar("session_id", { length: 100 }).notNull().unique(),
   category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
-  totalQuestions: int("total_questions").notNull(),
-  currentQuestionIndex: int("current_question_index").default(0),
+  totalQuestions: integer("total_questions").notNull(),
+  currentQuestionIndex: integer("current_question_index").default(0),
   questionsData: json("questions_data").notNull(), // Array of question IDs and metadata
   answersData: json("answers_data"), // Array of user answers
   timedMode: boolean("timed_mode").default(false),
-  timeLimit: int("time_limit"), // In seconds
-  timeSpent: int("time_spent").default(0), // In seconds
-  hintsUsed: int("hints_used").default(0),
+  timeLimit: integer("time_limit"), // In seconds
+  timeSpent: integer("time_spent").default(0), // In seconds
+  hintsUsed: integer("hints_used").default(0),
   completed: boolean("completed").default(false),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
@@ -295,18 +295,18 @@ export const quizSessions = mysqlTable("quiz_sessions", {
 });
 
 // User quiz statistics for performance tracking
-export const userQuizStats = mysqlTable("user_quiz_stats", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
-  totalAttempts: int("total_attempts").default(0),
-  totalQuestions: int("total_questions").default(0),
-  correctAnswers: int("correct_answers").default(0),
-  incorrectAnswers: int("incorrect_answers").default(0),
-  averageScore: int("average_score").default(0), // Score * 100 for precision
-  averageAccuracy: int("average_accuracy").default(0), // Accuracy * 100 for precision
-  totalTimeSpent: int("total_time_spent").default(0), // In seconds
-  currentStreak: int("current_streak").default(0),
-  longestStreak: int("longest_streak").default(0),
+export const userQuizStats = pgTable("user_quiz_stats", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  totalAttempts: integer("total_attempts").default(0),
+  totalQuestions: integer("total_questions").default(0),
+  correctAnswers: integer("correct_answers").default(0),
+  incorrectAnswers: integer("incorrect_answers").default(0),
+  averageScore: integer("average_score").default(0), // Score * 100 for precision
+  averageAccuracy: integer("average_accuracy").default(0), // Accuracy * 100 for precision
+  totalTimeSpent: integer("total_time_spent").default(0), // In seconds
+  currentStreak: integer("current_streak").default(0),
+  longestStreak: integer("longest_streak").default(0),
   lastQuizDate: timestamp("last_quiz_date"),
   categoryStats: json("category_stats"), // Object with category-specific stats
   difficultyStats: json("difficulty_stats"), // Object with difficulty-specific stats
@@ -318,13 +318,13 @@ export const userQuizStats = mysqlTable("user_quiz_stats", {
 });
 
 // User's quiz sessions and attempts
-export const quizAttempts = mysqlTable("quiz_attempts", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  score: int("score").notNull(),
-  totalQuestions: int("total_questions").notNull(),
-  correctAnswers: int("correct_answers").notNull(),
-  timeSpent: int("time_spent"), // In seconds
+export const quizAttempts = pgTable("quiz_attempts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  score: integer("score").notNull(),
+  totalQuestions: integer("total_questions").notNull(),
+  correctAnswers: integer("correct_answers").notNull(),
+  timeSpent: integer("time_spent"), // In seconds
   questionsData: json("questions_data"), // Contains question IDs and user answers
   category: varchar("category", { length: 255 }),
   difficulty: varchar("difficulty", { length: 10 }),
@@ -338,13 +338,13 @@ export const quizAttempts = mysqlTable("quiz_attempts", {
 });
 
 // Individual question attempts within a quiz
-export const questionAttempts = mysqlTable("question_attempts", {
-  id: int().autoincrement().primaryKey(),
-  quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
-  questionId: int("question_id").notNull(), // MCQ or other question ID
+export const questionAttempts = pgTable("question_attempts", {
+  id: serial("id").primaryKey(),
+  quizAttemptId: integer("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  questionId: integer("question_id").notNull(), // MCQ or other question ID
   userAnswer: text("user_answer"), // User's selected answer (can be string, number, or JSON)
   isCorrect: boolean("is_correct").notNull(),
-  timeSpent: int("time_spent"), // Time spent on this question in seconds
+  timeSpent: integer("time_spent"), // Time spent on this question in seconds
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -354,15 +354,15 @@ export const questionAttempts = mysqlTable("question_attempts", {
 });
 
 // Study planning
-export const studyPlans = mysqlTable("study_plans", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const studyPlans = pgTable("study_plans", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   scheduleData: json("schedule_data"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
-  completedPercentage: int("completed_percentage").default(0),
+  completedPercentage: integer("completed_percentage").default(0),
   status: varchar("status", { length: 20 }).default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -375,11 +375,11 @@ export const studyPlans = mysqlTable("study_plans", {
 });
 
 // Study sessions tracking
-export const studySessions = mysqlTable("study_sessions", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  studyPlanId: int("study_plan_id").references(() => studyPlans.id, { onDelete: 'set null' }),
-  duration: int("duration").notNull(), // Duration in minutes
+export const studySessions = pgTable("study_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  studyPlanId: integer("study_plan_id").references(() => studyPlans.id, { onDelete: 'set null' }),
+  duration: integer("duration").notNull(), // Duration in minutes
   subject: varchar("subject", { length: 100 }),
   notes: text("notes"),
   startTime: timestamp("start_time").notNull(),
@@ -394,12 +394,12 @@ export const studySessions = mysqlTable("study_sessions", {
 });
 
 // User badges and achievements
-export const achievements = mysqlTable("achievements", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const achievements = pgTable("achievements", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   badge: varchar("badge", { length: 50 }).notNull(),
   description: text("description"),
-  level: int("level").default(1), // For leveled achievements
+  level: integer("level").default(1), // For leveled achievements
   earnedAt: timestamp("earned_at", { mode: 'string' }).defaultNow().notNull(),
 }, (table) => {
   return {
@@ -410,23 +410,23 @@ export const achievements = mysqlTable("achievements", {
 });
 
 // User statistics and progress tracking
-export const userStats = mysqlTable("user_stats", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
-  totalStudyTime: int("total_study_time").default(0), // In minutes
-  quizzesCompleted: int("quizzes_completed").default(0),
-  averageScore: int("average_score").default(0), // Score * 100 for precision
-  documentsUploaded: int("documents_uploaded").default(0),
-  flashcardsCreated: int("flashcards_created").default(0),
-  flashcardsReviewed: int("flashcards_reviewed").default(0),
-  correctFlashcards: int("correct_flashcards").default(0),
-  incorrectFlashcards: int("incorrect_flashcards").default(0),
-  codeSnippetsGenerated: int("code_snippets_generated").default(0),
-  questionsAsked: int("questions_asked").default(0),
-  streakDays: int("streak_days").default(0),
-  longestStreak: int("longest_streak").default(0),
-  xpPoints: int("xp_points").default(0), // For gamification
-  level: int("level").default(1), // User level based on XP
+export const userStats = pgTable("user_stats", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  totalStudyTime: integer("total_study_time").default(0), // In minutes
+  quizzesCompleted: integer("quizzes_completed").default(0),
+  averageScore: integer("average_score").default(0), // Score * 100 for precision
+  documentsUploaded: integer("documents_uploaded").default(0),
+  flashcardsCreated: integer("flashcards_created").default(0),
+  flashcardsReviewed: integer("flashcards_reviewed").default(0),
+  correctFlashcards: integer("correct_flashcards").default(0),
+  incorrectFlashcards: integer("incorrect_flashcards").default(0),
+  codeSnippetsGenerated: integer("code_snippets_generated").default(0),
+  questionsAsked: integer("questions_asked").default(0),
+  streakDays: integer("streak_days").default(0),
+  longestStreak: integer("longest_streak").default(0),
+  xpPoints: integer("xp_points").default(0), // For gamification
+  level: integer("level").default(1), // User level based on XP
   lastActive: timestamp("last_active").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => {
@@ -437,11 +437,11 @@ export const userStats = mysqlTable("user_stats", {
   }
 });
 
-// ===== AI-GENERATED CONTENT TABLES (Now in MySQL) =====
+// ===== AI-GENERATED CONTENT TABLES (Now in PostgreSQL) =====
 // Chat history sessions
-export const chatHistory = mysqlTable("chat_history", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const chatHistory = pgTable("chat_history", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   sessionId: varchar("session_id", { length: 100 }).notNull().unique(),
   subject: varchar("subject", { length: 255 }),
   messages: json("messages").notNull(), // Array of chat messages
@@ -457,10 +457,10 @@ export const chatHistory = mysqlTable("chat_history", {
 });
 
 // Document summaries
-export const summaries = mysqlTable("summaries", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  documentId: int("document_id").references(() => documents.id, { onDelete: 'cascade' }), // nullable - summaries can exist without documents
+export const summaries = pgTable("summaries", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentId: integer("document_id").references(() => documents.id, { onDelete: 'cascade' }), // nullable - summaries can exist without documents
   originalText: text("original_text").notNull(),
   summary: text("summary").notNull(),
   keyPoints: json("key_points"), // Array of key points
@@ -476,9 +476,9 @@ export const summaries = mysqlTable("summaries", {
 });
 
 // Code snippets generated by AI
-export const codeSnippets = mysqlTable("code_snippets", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const codeSnippets = pgTable("code_snippets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   problem: text("problem").notNull(),
   code: text("code").notNull(),
@@ -496,8 +496,8 @@ export const codeSnippets = mysqlTable("code_snippets", {
 });
 
 // Cached AI responses for performance
-export const cachedResponses = mysqlTable("cached_responses", {
-  id: int().autoincrement().primaryKey(),
+export const cachedResponses = pgTable("cached_responses", {
+  id: serial("id").primaryKey(),
   query: varchar("query", { length: 500 }).notNull(),
   response: text("response").notNull(),
   metadata: json("metadata"), // Additional metadata as JSON
@@ -512,10 +512,10 @@ export const cachedResponses = mysqlTable("cached_responses", {
 });
 
 // Message feedback (likes, dislikes, etc.)
-export const feedback = mysqlTable("feedback", {
-  id: int().autoincrement().primaryKey(),
-  messageId: int("message_id").notNull(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const feedback = pgTable("feedback", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   type: varchar("type", { length: 20 }).notNull(), // like, dislike, regenerate
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {
@@ -527,18 +527,18 @@ export const feedback = mysqlTable("feedback", {
 });
 
 // Shareable quiz links for challenging friends
-export const shareableQuizLinks = mysqlTable("shareable_quiz_links", {
-  id: int().autoincrement().primaryKey(),
+export const shareableQuizLinks = pgTable("shareable_quiz_links", {
+  id: serial("id").primaryKey(),
   linkId: varchar("link_id", { length: 100 }).notNull().unique(),
-  creatorUserId: int("creator_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  creatorUserId: integer("creator_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  quizAttemptId: integer("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
   category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionsData: json("questions_data").notNull(), // Array of question IDs
-  totalQuestions: int("total_questions").notNull(),
+  totalQuestions: integer("total_questions").notNull(),
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true),
-  viewCount: int("view_count").default(0),
+  viewCount: integer("view_count").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -549,16 +549,16 @@ export const shareableQuizLinks = mysqlTable("shareable_quiz_links", {
 });
 
 // Shared quiz attempts to track who took shared quizzes
-export const sharedQuizAttempts = mysqlTable("shared_quiz_attempts", {
-  id: int().autoincrement().primaryKey(),
-  shareableLinkId: int("shareable_link_id").notNull(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  quizAttemptId: int("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
-  score: int("score").notNull(),
-  totalQuestions: int("total_questions").notNull(),
-  correctAnswers: int("correct_answers").notNull(),
-  timeSpent: int("time_spent").notNull(),
-  accuracy: int("accuracy").notNull(),
+export const sharedQuizAttempts = pgTable("shared_quiz_attempts", {
+  id: serial("id").primaryKey(),
+  shareableLinkId: integer("shareable_link_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  quizAttemptId: integer("quiz_attempt_id").notNull().references(() => quizAttempts.id, { onDelete: 'cascade' }),
+  score: integer("score").notNull(),
+  totalQuestions: integer("total_questions").notNull(),
+  correctAnswers: integer("correct_answers").notNull(),
+  timeSpent: integer("time_spent").notNull(),
+  accuracy: integer("accuracy").notNull(),
   completedAt: timestamp("completed_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -574,13 +574,13 @@ export const sharedQuizAttempts = mysqlTable("shared_quiz_attempts", {
 });
 
 // Saved quizzes for "Save for Later" functionality
-export const savedQuizzes = mysqlTable("saved_quizzes", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const savedQuizzes = pgTable("saved_quizzes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
-  questionCount: int("question_count").notNull(),
+  questionCount: integer("question_count").notNull(),
   title: varchar("title", { length: 255 }),
   description: text("description"),
   savedAt: timestamp("saved_at").defaultNow().notNull(),
@@ -593,13 +593,13 @@ export const savedQuizzes = mysqlTable("saved_quizzes", {
 });
 
 // Favorite quizzes for marking quizzes as favorites
-export const favoriteQuizzes = mysqlTable("favorite_quizzes", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const favoriteQuizzes = pgTable("favorite_quizzes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
-  questionCount: int("question_count").notNull(),
+  questionCount: integer("question_count").notNull(),
   title: varchar("title", { length: 255 }),
   description: text("description"),
   favoritedAt: timestamp("favorited_at").defaultNow().notNull(),
@@ -614,19 +614,19 @@ export const favoriteQuizzes = mysqlTable("favorite_quizzes", {
 
 
 // Quiz of the Day completions tracking
-export const quizOfTheDayCompletions = mysqlTable("quiz_of_the_day_completions", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const quizOfTheDayCompletions = pgTable("quiz_of_the_day_completions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   quizId: varchar("quiz_id", { length: 50 }).notNull(), // 'qotd-2026-03-14'
   date: timestamp("date").notNull(), // Date of the quiz
   category: varchar("category", { length: 255 }).notNull(),
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
-  score: int("score").notNull(),
-  totalQuestions: int("total_questions").notNull(),
-  correctAnswers: int("correct_answers").notNull(),
-  timeSpent: int("time_spent").notNull(), // seconds
-  accuracy: int("accuracy").notNull(), // percentage
-  bonusAwarded: int("bonus_awarded").notNull(),
+  score: integer("score").notNull(),
+  totalQuestions: integer("total_questions").notNull(),
+  correctAnswers: integer("correct_answers").notNull(),
+  timeSpent: integer("time_spent").notNull(), // seconds
+  accuracy: integer("accuracy").notNull(), // percentage
+  bonusAwarded: integer("bonus_awarded").notNull(),
   completedAt: timestamp("completed_at").defaultNow().notNull(),
 }, (table) => {
   return {
@@ -638,9 +638,9 @@ export const quizOfTheDayCompletions = mysqlTable("quiz_of_the_day_completions",
 });
 
 // Contact messages for user inquiries
-export const contactMessages = mysqlTable("contact_messages", {
-  id: int().autoincrement().primaryKey(),
-  userId: int("user_id").references(() => users.id, { onDelete: 'set null' }), // Optional - can be null for non-logged-in users
+export const contactMessages = pgTable("contact_messages", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'set null' }), // Optional - can be null for non-logged-in users
   name: varchar("name", { length: 100 }).notNull(),
   email: varchar("email", { length: 100 }).notNull(),
   subject: varchar("subject", { length: 200 }).notNull(),

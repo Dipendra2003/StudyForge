@@ -60,6 +60,9 @@
 
 ### 🤖 AI-Powered Tools
 - **AI Chat Assistant** - Interactive learning companion for instant help
+- **Context-Aware Conversations** - AI dynamically tracks user XP, study plans, and historical context
+- **Resilient AI Infrastructure** - Auto-failover to backup models during high-traffic 503 overloads (Gemini 3.1 Flash Lite -> Gemini 2.5 Flash)
+- **Smart Chat Sessions** - Automatically generates concise, relevant titles for new chats
 - **Code Generator** - Generate code snippets with explanations and run them instantly
 - **Bulk Quiz Generation** - Create multiple quizzes simultaneously
 - **Smart Hints** - Context-aware hints during quizzes
@@ -101,7 +104,7 @@
 ### Backend
 - **Runtime:** Node.js with Express.js
 - **Language:** TypeScript
-- **Database:** MySQL with Drizzle ORM
+- **Database:** PostgreSQL with Drizzle ORM
 - **Authentication:** Passport.js with JWT
 - **Session Management:** Express Session with Redis/File Store
 - **Email:** Nodemailer with SMTP
@@ -109,8 +112,8 @@
 - **Security:** Helmet, CORS, Rate Limiting
 
 ### AI & Machine Learning
-- **Primary AI:** Google Gemini AI (Generative AI)
-- **Alternative:** OpenAI API (optional)
+- **Primary AI:** Google Gemini 3.1 Flash Lite Preview
+- **Fallback AI:** Google Gemini 2.5 Flash (for high availability failover)
 - **Document Processing:** PDF-Parse, Mammoth (DOCX)
 - **Caching:** Redis for AI response caching
 
@@ -131,7 +134,7 @@
 Before you begin, ensure you have the following installed:
 - **Node.js** (v20.0.0 or higher)
 - **npm** (v10.0.0 or higher)
-- **MySQL** (v8.0 or higher)
+- **PostgreSQL** (v14.0 or higher)
 - **Redis** (optional, for caching)
 
 ### Step 1: Clone the Repository
@@ -159,11 +162,11 @@ Edit `.env` and configure the following required variables:
 
 ```env
 # Database
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USERNAME=root
-MYSQL_PASSWORD=your_password
-MYSQL_DATABASE=studyforge
+DATABASE_URL=postgres://postgres:password@localhost:5432/studyforge
+
+
+
+
 
 # JWT Authentication
 JWT_SECRET=your-super-secret-jwt-key-min-32-chars-long
@@ -299,11 +302,11 @@ studyforge/
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MYSQL_HOST` | MySQL database host | `localhost` |
-| `MYSQL_PORT` | MySQL database port | `3306` |
-| `MYSQL_USERNAME` | MySQL username | `root` |
-| `MYSQL_PASSWORD` | MySQL password | `your_password` |
-| `MYSQL_DATABASE` | Database name | `studyforge` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://...` |
+
+
+
+
 | `JWT_SECRET` | JWT signing secret (min 32 chars) | `your-secret-key` |
 | `GEMINI_API_KEY` | Google Gemini API key | `AIza...` |
 

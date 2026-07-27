@@ -196,7 +196,7 @@ export class AchievementService {
       }
 
       // Award the badge (first time only)
-      // Drizzle + mysql2 returns [ResultSetHeader, FieldPacket[]]
+      // Drizzle + postgres returns [ResultSetHeader, FieldPacket[]]
       const result = await db.insert(achievements).values({
         userId,
         badge: badgeType,
@@ -300,7 +300,7 @@ export class AchievementService {
       const achievementDetails = this.getAchievementDetails(achievementType);
 
       // Create the achievement
-      // Drizzle + mysql2 returns [ResultSetHeader, FieldPacket[]]
+      // Drizzle + postgres returns [ResultSetHeader, FieldPacket[]]
       const result = await db.insert(achievements).values({
         userId,
         badge: achievementType,

@@ -1965,11 +1965,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         chatHistory = await storage.updateChatHistory(parseInt(sessionId), validatedMessage);
       } else {
         // Create new chat session
+        // Auto-generate title if it's default or empty
+        let generatedSubject = subject;
+        if (!subject || subject === 'General Study Help') {
+          const cleanText = message.trim();
+          // Extract first 40 characters for the title
+          generatedSubject = cleanText.length > 40 ? cleanText.substring(0, 40) + '...' : cleanText;
+        }
+
         chatHistory = await storage.createChatHistory({
           userId,
           sessionId: Date.now().toString(),
           messages: [validatedMessage],
-          subject: subject || null
+          subject: generatedSubject || null
         });
       }
       
@@ -2033,14 +2041,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       {
-        // Generate personalized greeting for first message
-        const greetings = [
-          `Hey ${userName}! 👋`,
-          `Hi ${userName}! 😊`,
-          `Hello ${userName}! 🎓`,
-          `Welcome ${userName}! 🌟`,
-        ];
-        const selectedGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+        // Only generate personalized greeting instruction for the very first message
+        const isNewConversation = apiMessages.length <= 1;
+        let greetingInstruction = "";
+        
+        if (isNewConversation) {
+          const greetings = [
+            `Hey ${userName}! 👋`,
+            `Hi ${userName}! 😊`,
+            `Hello ${userName}! 🎓`,
+            `Welcome ${userName}! 🌟`,
+          ];
+          const selectedGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+          greetingInstruction = `\n\nIMPORTANT: For your FIRST response in a new conversation, start with a personalized greeting: "${selectedGreeting} I'm Jadoo, your AI study assistant" and then naturally continue with your response to help the user.\n`;
+        }
         
         apiMessages.unshift({
           role: "system",
@@ -2068,12 +2082,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "  * NEVER translate the user's language choice - mirror it exactly" +
             "- Be conversational and friendly, NOT formal or textbook-like" +
             "- Use emojis frequently (🔥, 👉, ✅, 💡, 🚀, ⚡, 🧠, 🎯) to make responses engaging" +
-            "- Keep responses concise - aim for 50% shorter than a formal explanation" +
+            "- Keep responses concise for general queries, BUT if the user explicitly asks for more details, in-depth explanation, or elaboration, you MUST provide a comprehensive, deep, and detailed response without compressing information" +
             "- Provide clear winners and direct recommendations, not just comparisons" +
             "- Use comparison tables when comparing multiple things" +
             "- Structure with clear sections using emojis as headers" +
             "- End with actionable advice or offer to help more" +
-            `\n\nIMPORTANT: For your FIRST response in a new conversation, start with a personalized greeting: "${selectedGreeting} I'm Jadoo, your AI study assistant" and then naturally continue with your response to help the user.\n` +
+            greetingInstruction +
             "\n\nFORMATTING RULES:\n" +
             "1. When providing code examples, ALWAYS use this format:\n" +
             "   - Write the heading OUTSIDE the code block (e.g., 'Example 1: Printing Numbers')\n" +
@@ -2602,12 +2616,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: msg.content
       }));
 
+      // Get user info for personalization
+      const user = await storage.getUser(userId);
+      const userStats = await storage.getUserStats(userId);
+      const userName = user?.fullName?.split(' ')[0] || user?.username || user?.email?.split('@')[0] || "there";
+      const userPlans = await storage.getStudyPlansByUserId(userId);
+      const activePlans = userPlans.filter(p => p.status === 'active');
+
       // Add system message if not present
       if (!apiMessages.some((msg: { role: string }) => msg.role === 'system')) {
         apiMessages.unshift({
           role: "system",
           content: "You are Jadoo, an AI-powered study assistant created specifically for StudyForge platform. " +
             "Your identity is Jadoo. When asked 'who are you', identify yourself as Jadoo, the StudyForge AI study assistant. " +
+            "\n\n--- USER CONTEXT ---\n" +
+            `User's Name: ${userName}\n` +
+            `User's Total XP: ${userStats?.xpPoints || 0}\n` +
+            `Active Study Plans: ${activePlans.length > 0 ? activePlans.map(p => p.title).join(', ') : 'None'}\n` +
             "\n\nYour purpose is to help students learn effectively across ALL subjects and topics, including: " +
             "- Academic subjects (math, science, history, languages, etc.)" +
             "- Technology and computer science (including AI, machine learning, programming)" +
@@ -2625,7 +2650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "  * NEVER translate the user's language choice - mirror it exactly" +
             "- Be conversational and friendly, NOT formal or textbook-like" +
             "- Use emojis frequently (🔥, 👉, ✅, 💡, 🚀, ⚡, 🧠, 🎯) to make responses engaging" +
-            "- Keep responses concise - aim for 50% shorter than a formal explanation" +
+            "- Keep responses concise for general queries, BUT if the user explicitly asks for more details, in-depth explanation, or elaboration, you MUST provide a comprehensive, deep, and detailed response without compressing information" +
             "- Provide clear winners and direct recommendations, not just comparisons" +
             "- Use comparison tables when comparing multiple things" +
             "- Structure with clear sections using emojis as headers" +
@@ -5134,7 +5159,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'sql': 'sql',
       };
 
+      // Map JDoodle language IDs to their latest versionIndex available
+      // Reference JDoodle API: https://docs.jdoodle.com/compiler-api/compiler-api
+      const versionMap: Record<string, string> = {
+        'nodejs': '5',    // Node.js 20.x
+        'python3': '5',   // Python 3.11.x
+        'java': '4',      // JDK 17
+        'cpp': '5',       // GCC 11.x
+        'go': '4',        // Go 1.19
+        'rust': '4',      // Rust 1.68
+        'ruby': '4',      // Ruby 3.2
+        'php': '4',       // PHP 8.2
+      };
+
       const jdoodleLanguage = languageMap[language.toLowerCase()] || 'nodejs';
+      const versionIndex = versionMap[jdoodleLanguage] || '0';
 
       // Use JDoodle API for code execution
       const jdoodleClientId = process.env.JDOODLE_CLIENT_ID;
@@ -5157,7 +5196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           clientSecret: jdoodleClientSecret,
           script: code,
           language: jdoodleLanguage,
-          versionIndex: '0',
+          versionIndex: versionIndex,
           stdin: req.body.stdin || "",
         }),
       });
