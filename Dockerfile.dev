@@ -6,7 +6,7 @@
 # Source code is volume-mounted, not baked into the image.
 # =============================================================================
 
-FROM node:20.18-alpine3.20
+FROM node:24.1-alpine3.20
 
 # Install build tools for bcrypt + runtime utilities
 RUN apk add --no-cache python3 make g++ curl netcat-openbsd

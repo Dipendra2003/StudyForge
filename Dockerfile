@@ -10,7 +10,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Install Dependencies
 # ---------------------------------------------------------------------------
-FROM node:20.18-alpine3.20 AS deps
+FROM node:24.1-alpine3.20 AS deps
 
 # bcrypt requires native build tools (python3, make, g++)
 RUN apk add --no-cache python3 make g++
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 # ---------------------------------------------------------------------------
 # Stage 2: Build Application
 # ---------------------------------------------------------------------------
-FROM node:20.18-alpine3.20 AS build
+FROM node:24.1-alpine3.20 AS build
 
 WORKDIR /app
 
@@ -41,7 +41,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Stage 3: Production Runtime
 # ---------------------------------------------------------------------------
-FROM node:20.18-alpine3.20 AS runtime
+FROM node:24.1-alpine3.20 AS runtime
 
 # Install runtime utilities:
 #   curl           — for health check script
