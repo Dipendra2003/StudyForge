@@ -1,21 +1,47 @@
-node_modules
-dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
-.sessions
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# Environment variables (contains sensitive data)
+# Build outputs
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
 .env
 .env.local
 .env.*.local
-
-# Keep example file
+.env.docker
+.env.docker.local
 !.env.example
 
-# Test and utility files
-test-models.js
-setup-database.js
-verify-database.js
-setup-database.bat
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE and Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary files and caches
+.eslintcache
+.vite/
+.sessions/
+server/public/
+vite.config.ts.*
+*.tar.gz
+
+# Nginx certs
+nginx/certs/

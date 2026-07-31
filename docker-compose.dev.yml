@@ -1,0 +1,48 @@
+# =============================================================================
+# StudyForge — Docker Compose Development Override
+# =============================================================================
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Features:
+#   - Source code volume-mounted for hot-reload (tsx watch + Vite HMR)
+#   - Development Dockerfile with all build tools
+#   - Exposed ports for direct debugging
+#   - No Nginx proxy
+# =============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      # Mount source code for hot-reload
+      - ./server:/app/server
+      - ./client:/app/client
+      - ./shared:/app/shared
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tailwind.config.ts:/app/tailwind.config.ts
+      - ./postcss.config.js:/app/postcss.config.js
+      - ./.env:/app/.env
+      - ./migrations:/app/migrations
+      - ./drizzle.config.ts:/app/drizzle.config.ts
+      # Prevent node_modules from being overwritten by the mount
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      RUN_MIGRATIONS: "true"
+    ports:
+      - "${API_PORT:-5000}:5000"
+    # Override entrypoint for dev (no wait logic needed, depends_on handles it)
+    entrypoint: []
+    command: ["sh", "-c", "npx drizzle-kit migrate && npx tsx watch --env-file=.env server/index.ts"]
+
+  # Expose DB and Redis ports for direct host access during development
+  db:
+    ports:
+      - "${DB_EXTERNAL_PORT:-5432}:5432"
+
+  redis:
+    ports:
+      - "${REDIS_EXTERNAL_PORT:-6379}:6379"

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ShareStreakModal } from "./ShareStreakModal";
 
 interface QuizOfTheDay {
   id: string;
@@ -51,6 +52,7 @@ export function QuizOfTheDay() {
   const [quizOfTheDay, setQuizOfTheDay] = useState<QuizOfTheDay | null>(null);
   const [stats, setStats] = useState<QOTDStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const [timeLeft, setTimeLeft] = useState<string>("");
 
@@ -98,28 +100,7 @@ export function QuizOfTheDay() {
     return () => clearInterval(interval);
   }, [quizOfTheDay?.completed]);
 
-  const handleShare = async () => {
-    if (!stats || !quizOfTheDay) return;
-    const text = `🔥 I'm on a ${stats.currentStreak}-day streak on StudyForge's Quiz of the Day! Can you beat my score?\n\nJoin me at StudyForge!`;
-    
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: 'StudyForge Quiz of the Day',
-          text: text,
-          url: window.location.origin
-        });
-      } else {
-        await navigator.clipboard.writeText(text);
-        toast({
-          title: "Copied to clipboard!",
-          description: "Share your streak with friends!",
-        });
-      }
-    } catch (err) {
-      console.error('Error sharing:', err);
-    }
-  };
+
 
   const fetchQuizOfTheDay = async () => {
     try {
@@ -407,7 +388,7 @@ export function QuizOfTheDay() {
                 </div>
                 
                 <Button 
-                  onClick={handleShare}
+                  onClick={() => setShowShareModal(true)}
                   variant="outline"
                   className="bg-background/80 hover:bg-background border-primary/20 hover:border-primary/50 text-primary transition-all shadow-sm"
                 >
@@ -419,6 +400,14 @@ export function QuizOfTheDay() {
           )}
         </CardContent>
       </Card>
+      
+      {stats && (
+        <ShareStreakModal 
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          streak={stats.currentStreak}
+        />
+      )}
     </motion.div>
   );
 }

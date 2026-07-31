@@ -15,6 +15,8 @@ import { securityHeaders, additionalSecurityHeaders, securityLogging } from "./m
 import { setupCronJobs } from "./cron";
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Nginx) for rate limiting and IP tracking
+
 
 // Security headers middleware (must be early in the middleware chain)
 // Requirements: 8.8

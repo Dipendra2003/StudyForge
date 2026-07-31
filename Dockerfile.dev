@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+# =============================================================================
+# StudyForge — Development Dockerfile
+# =============================================================================
+# Single-stage image for development with hot-reload support.
+# Source code is volume-mounted, not baked into the image.
+# =============================================================================
+
+FROM node:20.18-alpine3.20
+
+# Install build tools for bcrypt + runtime utilities
+RUN apk add --no-cache python3 make g++ curl netcat-openbsd
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts && npm rebuild bcrypt
+
+# Source code is mounted as a volume (not copied)
+# This enables hot-reload with tsx watch and Vite HMR
+
+EXPOSE 5000
+
+ENV NODE_ENV=development \
+    API_PORT=5000
+
+# Use tsx watch for hot-reload in development
+CMD ["npx", "tsx", "watch", "--env-file=.env", "server/index.ts"]

@@ -362,6 +362,10 @@ export default function QuizMode() {
       // Mark as auto-started to prevent re-triggering
       setQueryAutoStarted(true);
       
+      // Remove 'q' parameter from URL to prevent auto-restart on refresh
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      
       // Auto-start the quiz
       handleStartQuiz(aiConfig);
     }
@@ -498,7 +502,7 @@ export default function QuizMode() {
               }),
             });
             
-            console.log('QOTD completion response:', qotdResponse);
+
             
             // Show bonus points notification
             if (qotdResponse?.bonusPoints) {
@@ -756,34 +760,7 @@ export default function QuizMode() {
               </p>
             </div>
             
-            {/* Quick Stats - Quick access to progress and leaderboard */}
-            {!isQuizStarted && !showResults && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-                className="flex gap-2"
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab("progress")}
-                  className="gap-2"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  {!isMobile && "Progress"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab("leaderboard")}
-                  className="gap-2"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  {!isMobile && "Leaderboard"}
-                </Button>
-              </motion.div>
-            )}
+
           </div>
         </motion.div>
 
@@ -792,7 +769,7 @@ export default function QuizMode() {
           Implements Requirements 7, 8, 22, 24: Multiple quiz features
         */}
         <Tabs defaultValue="take-quiz" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${isMobile ? 'grid-cols-3' : 'grid-cols-5'} gap-1 mb-6`}>
+          <TabsList className={`grid w-full ${isMobile ? 'grid-cols-4' : 'grid-cols-5'} gap-1 mb-6`}>
             <TabsTrigger value="take-quiz" className="text-xs md:text-sm gap-1 md:gap-2">
               <Sparkles className="h-3 w-3 md:h-4 md:w-4" />
               {isMobile ? 'Quiz' : 'Take Quiz'}

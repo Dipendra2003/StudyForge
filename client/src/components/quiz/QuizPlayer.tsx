@@ -134,6 +134,9 @@ export default function QuizPlayer({
   // Use ref to track the latest answer value synchronously (fixes race condition)
   const currentAnswerRef = useRef<string | string[] | Record<string, string> | number[] | null>(null);
   
+  // Use ref to prevent double submission race conditions
+  const isSubmittingRef = useRef(false);
+  
   // Hint tracking
   const { 
     totalHintsUsed, 
@@ -269,6 +272,7 @@ export default function QuizPlayer({
       setHasSubmitted(true);
       setIsAnswerCorrect(savedAttempt.isCorrect);
       setShowFeedbackAnimation(false);
+      isSubmittingRef.current = false;
     } else {
       setCurrentAnswer(null);
       currentAnswerRef.current = null;
@@ -276,6 +280,7 @@ export default function QuizPlayer({
       setIsAnswerCorrect(false);
       setShowFeedbackAnimation(false);
       setQuestionStartTime(Date.now());
+      isSubmittingRef.current = false;
     }
     setShowMotivation(false); // Hide motivation when moving to next question
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -406,31 +411,36 @@ export default function QuizPlayer({
       answerToSubmit = currentAnswer;
     }
     
-    // Prevent double submission
-    if (hasSubmitted) {
+    // Prevent double submission (using both state and ref for synchronous guarantee)
+    if (hasSubmitted || isSubmittingRef.current) {
       return;
     }
+    isSubmittingRef.current = true;
     
     // Validate we have an answer
     if (answerToSubmit === null || answerToSubmit === undefined) {
+      isSubmittingRef.current = false;
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty arrays
     if (Array.isArray(answerToSubmit) && answerToSubmit.length === 0) {
+      isSubmittingRef.current = false;
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty strings
     if (typeof answerToSubmit === 'string' && answerToSubmit.trim() === '') {
+      isSubmittingRef.current = false;
       alert('Please select an answer before submitting');
       return;
     }
     
     // Check for empty objects (matching questions)
     if (typeof answerToSubmit === 'object' && !Array.isArray(answerToSubmit) && Object.keys(answerToSubmit).length === 0) {
+      isSubmittingRef.current = false;
       alert('Please select an answer before submitting');
       return;
     }
@@ -484,6 +494,7 @@ export default function QuizPlayer({
 
     // Generate motivational feedback
     fetchMotivationalFeedback(isCorrect);
+    // DO NOT reset isSubmittingRef here. It should only be reset when navigating to the next question.
   };
 
   // Fetch motivational feedback based on answer

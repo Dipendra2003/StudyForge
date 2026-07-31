@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { questions, quizAttempts, userQuizStats, quizOfTheDayCompletions, users } from '../../shared/schema';
-import { eq, desc, sql, and, gte } from 'drizzle-orm';
+import { eq, desc, sql, and, gte, lte } from 'drizzle-orm';
 import { Logger, LogCategory } from '../utils/logger';
 
 /**
@@ -121,7 +121,7 @@ export class QuizOfTheDayService {
           and(
             eq(quizOfTheDayCompletions.userId, userId),
             gte(quizOfTheDayCompletions.date, startOfDay),
-            sql`${quizOfTheDayCompletions.date} <= ${endOfDay}`
+            lte(quizOfTheDayCompletions.date, endOfDay)
           )
         )
         .limit(1);

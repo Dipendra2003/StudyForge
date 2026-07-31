@@ -8,7 +8,6 @@ import {
   getPasswordChangedEmailTemplate,
   getContactNotificationTemplate,
 } from './email-templates';
-
 /**
  * EmailService handles all email sending operations with anti-spam safeguards
  * 
@@ -23,11 +22,9 @@ export class EmailService {
   private transporter: Transporter | null = null;
   private isConfigured: boolean = false;
   private readonly IDEMPOTENCY_WINDOW_MINUTES = 5;
-
   constructor() {
     this.initializeTransporter();
   }
-
   /**
    * Initialize nodemailer transporter with environment variables
    * Validates configuration and sets up SMTP connection
@@ -39,7 +36,6 @@ export class EmailService {
       this.isConfigured = false;
       return;
     }
-
     try {
       // Create transporter with SMTP configuration from environment
       this.transporter = nodemailer.createTransport({
@@ -51,16 +47,13 @@ export class EmailService {
           pass: process.env.SMTP_PASSWORD,
         },
       });
-
       this.isConfigured = true;
-      console.log('[EmailService] Email service initialized successfully');
     } catch (error) {
       console.error('[EmailService] Failed to initialize email service:', error);
       this.isConfigured = false;
       this.transporter = null;
     }
   }
-
   /**
    * Validate that all required environment variables are configured
    * 
@@ -77,17 +70,13 @@ export class EmailService {
       'SMTP_FROM_EMAIL',
       'SMTP_FROM_NAME',
     ];
-
     const missingVars = requiredVars.filter(varName => !process.env[varName]);
-
     if (missingVars.length > 0) {
       console.warn('[EmailService] Missing required environment variables:', missingVars.join(', '));
       return false;
     }
-
     return true;
   }
-
   /**
    * Check if email service is properly configured and ready to send emails
    * 
@@ -96,7 +85,6 @@ export class EmailService {
   public isReady(): boolean {
     return this.isConfigured && this.transporter !== null;
   }
-
   /**
    * Check if a similar email was sent recently to prevent duplicates
    * 
@@ -117,7 +105,6 @@ export class EmailService {
       // Calculate the time threshold (5 minutes ago)
       const thresholdTime = new Date();
       thresholdTime.setMinutes(thresholdTime.getMinutes() - this.IDEMPOTENCY_WINDOW_MINUTES);
-
       // Query email_logs for recent emails of the same type to the same user
       const recentEmails = await db
         .select()
@@ -130,17 +117,14 @@ export class EmailService {
           )
         )
         .limit(1);
-
       // If we found any recent emails, it's a duplicate
       const isDuplicate = recentEmails.length > 0;
-
       if (isDuplicate) {
         console.log(
           `[EmailService] Idempotency check: Duplicate email detected for user ${userId}, type ${emailType}. ` +
           `Last sent at ${recentEmails[0].sentAt}. Preventing duplicate send.`
         );
       }
-
       return isDuplicate;
     } catch (error) {
       // If there's an error checking idempotency, log it but allow the email to proceed
@@ -150,7 +134,6 @@ export class EmailService {
       return false;
     }
   }
-
   /**
    * Record an email sending attempt in the database
    * 
@@ -189,7 +172,6 @@ export class EmailService {
         errorMessage: errorMessage || null,
         sentAt: new Date(),
       });
-
       console.log(
         `[EmailService] Email log recorded: type=${emailType}, recipient=${recipient}, status=${status}`
       );
@@ -206,7 +188,6 @@ export class EmailService {
       });
     }
   }
-
   /**
    * Get a user-friendly error message when email service is not configured
    * 
@@ -217,7 +198,6 @@ export class EmailService {
   public getConfigurationErrorMessage(): string {
     return 'Email service is currently unavailable. Please contact support if this issue persists.';
   }
-
   /**
    * Send an email using the configured SMTP transporter
    * 
@@ -240,7 +220,6 @@ export class EmailService {
     if (!this.isReady()) {
       throw new Error('Email service is not configured');
     }
-
     try {
       await this.transporter!.sendMail({
         from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
@@ -249,14 +228,11 @@ export class EmailService {
         html,
         text,
       });
-
-      console.log(`[EmailService] Email sent successfully to ${to}`);
     } catch (error) {
       console.error('[EmailService] Failed to send email:', error);
       throw error;
     }
   }
-
   /**
    * Send a study reminder email to user
    * 
@@ -275,15 +251,12 @@ export class EmailService {
     taskCount: number
   ): Promise<void> {
     const emailType = 'study_reminder';
-
     if (!this.isReady()) {
       const errorMessage = this.getConfigurationErrorMessage();
       await this.recordEmailSent(userId, emailType, email, 'Study Reminder', 'failed', errorMessage);
       return; // Return silently for cron jobs
     }
-
     const subject = `Study Reminder: ${taskCount} tasks due today in ${planTitle}`;
-    
     const html = `
       <!DOCTYPE html>
       <html>
@@ -317,16 +290,12 @@ export class EmailService {
       </body>
       </html>
     `;
-
     const text = `
 Hello ${username},
-
 You have ${taskCount} study tasks due today for your study plan ${planTitle}.
 Stay on track and complete your tasks to earn more XP!
-
 View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study-planner
     `;
-
     try {
       await this.sendEmail(email, subject, html, text);
       await this.recordEmailSent(userId, emailType, email, subject, 'sent');
@@ -335,7 +304,6 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
       await this.recordEmailSent(userId, emailType, email, subject, 'failed', errorMessage);
     }
   }
-
   /**
    * Send verification email to user
    * 
@@ -360,34 +328,26 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
     otp: string
   ): Promise<void> {
     const emailType = 'verification';
-
     // Check if email service is configured
     if (!this.isReady()) {
       const errorMessage = this.getConfigurationErrorMessage();
       await this.recordEmailSent(userId, emailType, email, 'Email Verification', 'failed', errorMessage);
       throw new Error(errorMessage);
     }
-
     // Check idempotency - prevent duplicate emails
     const isDuplicate = await this.checkIdempotency(userId, emailType);
     if (isDuplicate) {
-      console.log(`[EmailService] Skipping duplicate verification email for user ${userId}`);
       return;
     }
-
     // Generate verification link
     const appUrl = process.env.APP_URL || 'http://localhost:5000';
     const verificationLink = `${appUrl}/verify-email?token=${token}`;
-
     // Get email template
     const template = getVerificationEmailTemplate(username, verificationLink, otp, appUrl);
-
     const subject = 'Verify Your Email - StudyForge';
-
     try {
       // Send the email
       await this.sendEmail(email, subject, template.html, template.text);
-
       // Record successful send
       await this.recordEmailSent(userId, emailType, email, subject, 'sent');
     } catch (error) {
@@ -397,7 +357,6 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
       throw error;
     }
   }
-
   /**
    * Send password reset email to user
    * 
@@ -422,34 +381,26 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
     otp: string
   ): Promise<void> {
     const emailType = 'reset';
-
     // Check if email service is configured
     if (!this.isReady()) {
       const errorMessage = this.getConfigurationErrorMessage();
       await this.recordEmailSent(userId, emailType, email, 'Password Reset', 'failed', errorMessage);
       throw new Error(errorMessage);
     }
-
     // Check idempotency - prevent duplicate emails
     const isDuplicate = await this.checkIdempotency(userId, emailType);
     if (isDuplicate) {
-      console.log(`[EmailService] Skipping duplicate password reset email for user ${userId}`);
       return;
     }
-
     // Generate reset link
     const appUrl = process.env.APP_URL || 'http://localhost:5000';
     const resetLink = `${appUrl}/reset-password?token=${token}`;
-
     // Get email template
     const template = getPasswordResetEmailTemplate(username, resetLink, otp, appUrl);
-
     const subject = 'Reset Your Password - StudyForge';
-
     try {
       // Send the email
       await this.sendEmail(email, subject, template.html, template.text);
-
       // Record successful send
       await this.recordEmailSent(userId, emailType, email, subject, 'sent');
     } catch (error) {
@@ -459,7 +410,6 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
       throw error;
     }
   }
-
   /**
    * Send password changed notification email to user
    * 
@@ -480,33 +430,25 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
     username: string
   ): Promise<void> {
     const emailType = 'notification';
-
     // Check if email service is configured
     if (!this.isReady()) {
       const errorMessage = this.getConfigurationErrorMessage();
       await this.recordEmailSent(userId, emailType, email, 'Password Changed', 'failed', errorMessage);
       throw new Error(errorMessage);
     }
-
     // Check idempotency - prevent duplicate emails
     const isDuplicate = await this.checkIdempotency(userId, emailType);
     if (isDuplicate) {
-      console.log(`[EmailService] Skipping duplicate password changed email for user ${userId}`);
       return;
     }
-
     // Get app URL
     const appUrl = process.env.APP_URL || 'http://localhost:5000';
-
     // Get email template
     const template = getPasswordChangedEmailTemplate(username, appUrl);
-
     const subject = 'Password Changed - StudyForge';
-
     try {
       // Send the email
       await this.sendEmail(email, subject, template.html, template.text);
-
       // Record successful send
       await this.recordEmailSent(userId, emailType, email, subject, 'sent');
     } catch (error) {
@@ -516,7 +458,6 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
       throw error;
     }
   }
-
   /**
    * Send contact form notification to admin
    * 
@@ -538,35 +479,26 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
   ): Promise<void> {
     const emailType = 'contact_notification';
     const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL;
-
     if (!adminEmail) {
       console.warn('[EmailService] Admin email not configured, skipping contact notification');
       return;
     }
-
     // Get email template
     const template = getContactNotificationTemplate(name, email, subject, message, userId);
-
     const emailSubject = `New Contact Form: ${subject}`;
-
     try {
       // Send the email to admin
       await this.sendEmail(adminEmail, emailSubject, template.html, template.text);
-
       // Record successful send
       await this.recordEmailSent(userId || null, emailType, adminEmail, emailSubject, 'sent');
-      
-      console.log('[EmailService] Contact notification sent to admin successfully');
     } catch (error) {
       // Record failed send
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.recordEmailSent(userId || null, emailType, adminEmail, emailSubject, 'failed', errorMessage);
-      
       console.error('[EmailService] Failed to send contact notification:', error);
       // Don't throw error - contact form should still work even if email fails
     }
   }
-
   /**
    * Send study plan reminder email
    * 
@@ -587,21 +519,16 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
     textContent: string
   ): Promise<void> {
     const emailType = 'study_plan_reminder';
-
     try {
       await this.sendEmail(email, subject, htmlContent, textContent);
       await this.recordEmailSent(userId, emailType, email, subject, 'sent');
-      
-      console.log(`[EmailService] Study plan email sent successfully to ${email}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.recordEmailSent(userId, emailType, email, subject, 'failed', errorMessage);
-      
       console.error('[EmailService] Failed to send study plan email:', error);
       // Don't throw - reminders should not break the system
     }
   }
-
   /**
    * Send password reset by admin email
    * Sends temporary password to user when admin resets their password
@@ -613,7 +540,6 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
   ): Promise<void> {
     const emailType = 'admin_password_reset';
     const subject = 'Your Password Has Been Reset - StudyForge';
-
     const html = `
       <!DOCTYPE html>
       <html>
@@ -661,31 +587,23 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
       </body>
       </html>
     `;
-
     const text = `
 Password Reset by Administrator
-
 Hello ${username},
-
 An administrator has reset your password. Your temporary password is:
-
 ${tempPassword}
-
 ⚠️ Important Security Notice:
 - This is a temporary password
 - Please change it immediately after logging in
 - Do not share this password with anyone
 - If you did not request this reset, contact support immediately
-
 To change your password:
 1. Log in with the temporary password above
 2. Go to your account settings
 3. Select "Change Password"
 4. Enter a new secure password
-
 This is an automated message from StudyForge.
     `;
-
     try {
       await this.sendEmail(email, subject, html, text);
       await this.recordEmailSent(null, emailType, email, subject, 'sent');
@@ -695,7 +613,6 @@ This is an automated message from StudyForge.
       throw error;
     }
   }
-
   /**
    * Send email change verification
    */
@@ -708,7 +625,6 @@ This is an automated message from StudyForge.
     const subject = 'Verify Your New Email Address - StudyForge';
     const appUrl = process.env.APP_URL || 'http://localhost:5000';
     const verificationLink = `${appUrl}/verify-email-change?token=${token}`;
-
     const html = `
       <!DOCTYPE html>
       <html>
@@ -746,21 +662,14 @@ This is an automated message from StudyForge.
       </body>
       </html>
     `;
-
     const text = `
 Verify Your New Email Address
-
 You requested to change your email address. Please verify this new email address to complete the change.
-
 Your verification code is: ${otp}
-
 Or visit: ${verificationLink}
-
 This code will expire in 24 hours.
-
 If you did not request this change, please ignore this email or contact support if you're concerned about your account security.
     `;
-
     try {
       await this.sendEmail(newEmail, subject, html, text);
       await this.recordEmailSent(null, emailType, newEmail, subject, 'sent');
@@ -770,7 +679,6 @@ If you did not request this change, please ignore this email or contact support 
       throw error;
     }
   }
-
   /**
    * Send email changed notification to old email
    */
@@ -780,7 +688,6 @@ If you did not request this change, please ignore this email or contact support 
   ): Promise<void> {
     const emailType = 'email_changed_notification';
     const subject = 'Your Email Address Has Been Changed - StudyForge';
-
     const html = `
       <!DOCTYPE html>
       <html>
@@ -815,22 +722,15 @@ If you did not request this change, please ignore this email or contact support 
       </body>
       </html>
     `;
-
     const text = `
 Email Address Changed
-
 Hello ${username},
-
 This is to confirm that your email address has been successfully changed.
-
 ⚠️ Security Notice:
 If you did not make this change, your account may have been compromised. Please contact support immediately.
-
 Your account is now associated with a new email address. All future communications will be sent to your new email.
-
 This is an automated message from StudyForge.
     `;
-
     try {
       await this.sendEmail(oldEmail, subject, html, text);
       await this.recordEmailSent(null, emailType, oldEmail, subject, 'sent');
@@ -840,7 +740,6 @@ This is an automated message from StudyForge.
       // Don't throw - this is a notification email
     }
   }
-
   /**
    * Send suspicious activity alert
    */
@@ -851,7 +750,6 @@ This is an automated message from StudyForge.
   ): Promise<void> {
     const emailType = 'security_alert';
     const subject = '🔒 Security Alert - Unusual Activity Detected - StudyForge';
-
     const alertsHtml = alerts.map(alert => `
       <div style="background: ${alert.severity === 'high' ? '#FEE2E2' : alert.severity === 'medium' ? '#FEF3C7' : '#E0E7FF'}; 
                   border-left: 4px solid ${alert.severity === 'high' ? '#DC2626' : alert.severity === 'medium' ? '#F59E0B' : '#6366F1'}; 
@@ -859,11 +757,9 @@ This is an automated message from StudyForge.
         <strong>${alert.severity.toUpperCase()} Priority:</strong> ${alert.description}
       </div>
     `).join('');
-
     const alertsText = alerts.map(alert => 
       `${alert.severity.toUpperCase()} Priority: ${alert.description}`
     ).join('\n');
-
     const html = `
       <!DOCTYPE html>
       <html>
@@ -901,27 +797,19 @@ This is an automated message from StudyForge.
       </body>
       </html>
     `;
-
     const text = `
 🔒 Security Alert - Unusual Activity Detected
-
 Hello ${username},
-
 We've detected unusual activity on your account:
-
 ${alertsText}
-
 What should you do?
 - Review your recent account activity
 - Change your password if you suspect unauthorized access
 - Enable two-factor authentication for added security
 - Contact support if you need assistance
-
 If this activity was you, you can safely ignore this message.
-
 This is an automated security alert from StudyForge.
     `;
-
     try {
       await this.sendEmail(email, subject, html, text);
       await this.recordEmailSent(null, emailType, email, subject, 'sent');
@@ -932,5 +820,4 @@ This is an automated security alert from StudyForge.
     }
   }
 }
-
 export const emailService = new EmailService();

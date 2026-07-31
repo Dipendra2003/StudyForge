@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (identifier: string, password: string) => {
-    console.log('[AuthContext] Login attempt:', { identifier: identifier ? '***' : 'empty', password: password ? '***' : 'empty' });
+
     
     const response = await fetch('/api/auth/login', {
       method: 'POST',
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const result = await response.json();
-    console.log('[AuthContext] Login response:', { ok: response.ok, status: response.status });
+
 
     if (!response.ok) {
       console.error('[AuthContext] Login failed:', result.message);
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Server sets tokens as httpOnly cookies, just get user data
     const userData = result.data?.user || result.user;
-    console.log('[AuthContext] Login successful, user role:', userData?.role);
+
     setUser(userData);
   };
 

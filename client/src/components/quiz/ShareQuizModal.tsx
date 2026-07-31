@@ -84,10 +84,10 @@ export function ShareQuizModal({
 
           {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 p-6"
+            initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-40%" }}
+            animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+            exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-40%" }}
+            className="fixed left-1/2 top-1/2 w-[90vw] max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 p-6"
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
@@ -112,7 +112,7 @@ export function ShareQuizModal({
               <p className="text-gray-600 dark:text-gray-300">
                 Challenge your friends to beat your score of{" "}
                 <span className="font-bold text-blue-600 dark:text-blue-400">
-                  {score}/{totalQuestions}
+                  {score > totalQuestions ? `${score}%` : `${score}/${totalQuestions}`}
                 </span>
                 !
               </p>

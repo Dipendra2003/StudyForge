@@ -74,7 +74,7 @@ export class ShareableQuizService {
           isActive: true,
           viewCount: 0,
         })
-        .$returningId();
+        .returning();
 
       Logger.info(LogCategory.QUIZ, "Generated shareable quiz link", {
         userId,

@@ -3,9 +3,11 @@ import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { AlertCircle, Trophy, Users, ArrowLeft } from "lucide-react";
-import QuizPlayer from "@/components/quiz/QuizPlayer";
+import QuizPlayer, { QuizResults } from "@/components/quiz/QuizPlayer";
 import { SharedQuizComparison } from "@/components/quiz/SharedQuizComparison";
 import type { Question } from "@/../../shared/quiz-types";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/queryClient";
 
 interface SharedQuizData {
   id: number;
@@ -24,6 +26,7 @@ interface SharedQuizData {
 export default function SharedQuiz() {
   const [, navigate] = useLocation();
   const [, params] = useRoute("/quiz/shared/:linkId");
+  const { user } = useAuth();
   
   // Safely extract linkId with proper null checking
   const linkId = params?.linkId || '';
@@ -66,88 +69,63 @@ export default function SharedQuiz() {
     }
     
     if (Array.isArray(parsedQuestionsData) && parsedQuestionsData.length > 0) {
-      // Extract question IDs from questionsData
-      const questionIds = parsedQuestionsData.map((q: any) => q.questionId || q.id).filter(Boolean);
-      
-      if (questionIds.length === 0) {
-        generateNewQuestions();
-        return;
-      }
-      
-      // Fetch questions from the database
-      fetch(`/api/questions?ids=${questionIds.join(",")}`, {
-        credentials: "include",
-      })
-        .then((res) => res.json())
-        .then((result) => {
-          if (result.success && result.data && result.data.length > 0) {
-            setQuestions(result.data);
-          } else {
-            // Fallback to generating new questions if IDs don't return results
-            generateNewQuestions();
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to load questions:", err);
-          generateNewQuestions();
-        });
-    } else {
-      // If no questionsData, generate new questions
-      generateNewQuestions();
-    }
-    
-    function generateNewQuestions() {
-      if (!data?.data) return; // Guard against undefined data
-      
-      const params = new URLSearchParams({
-        category: data.data.category || 'tech',
-        difficulty: data.data.difficulty || 'medium',
-        count: String(data.data.totalQuestions || 2),
-        aiMode: 'true',
-        types: 'mcq'
-      });
-      
-      fetch(`/api/questions?${params}`, {
-        credentials: "include",
-      })
-        .then((res) => res.json())
-        .then((result) => {
-          if (result.success && result.data) {
-            setQuestions(result.data);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to generate questions:", err);
-        });
+      setQuestions(parsedQuestionsData);
     }
   }, [data]);
+
+  // Save Quiz Attempt Mutation
+  const saveQuizAttemptMutation = useMutation({
+    mutationFn: async (results: QuizResults) => {
+      const response = await apiRequest<{ id: number }>('/api/quiz-attempts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          score: results.score,
+          totalQuestions: results.totalQuestions,
+          correctAnswers: results.correctAnswers,
+          incorrectAnswers: results.incorrectAnswers,
+          timeSpent: results.timeSpent,
+          category: data?.data?.category || 'tech',
+          difficulty: data?.data?.difficulty || 'medium',
+          hintsUsed: results.hintsUsed || 0,
+          questionsData: questions,
+          questionAttempts: results.questionAttempts ? Object.values(results.questionAttempts) : [],
+        }),
+      });
+      return response;
+    }
+  });
 
   // Record shared quiz completion
   const recordCompletionMutation = useMutation({
     mutationFn: async (attemptId: number) => {
-      const response = await fetch(`/api/quiz/share/${linkId}/complete`, {
+      const response = await apiRequest(`/api/quiz/share/${linkId}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ quizAttemptId: attemptId }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to record completion");
-      }
-
-      return response.json();
+      return response;
     },
   });
 
-  const handleQuizComplete = async (results: any) => {
-    // The quiz completion is already recorded via /api/quiz/complete
-    // We just need to link it to the shared quiz
-    if (results.quizAttemptId) {
-      setQuizAttemptId(results.quizAttemptId);
-      await recordCompletionMutation.mutateAsync(results.quizAttemptId);
+  const handleQuizComplete = async (results: QuizResults) => {
+    try {
+      // 1. Save the quiz attempt to the database
+      const saveResponse = await saveQuizAttemptMutation.mutateAsync(results);
+      
+      // 2. If successful, link it to the shared quiz leaderboard
+      if (saveResponse?.id) {
+        setQuizAttemptId(saveResponse.id);
+        await recordCompletionMutation.mutateAsync(saveResponse.id);
+      }
+      
+      // 3. Mark as completed to show leaderboard
+      setQuizCompleted(true);
+    } catch (err) {
+      console.error("Error completing shared quiz:", err);
+      // Still show completed state even if save failed, so user isn't stuck
+      setQuizCompleted(true);
     }
-    setQuizCompleted(true);
   };
 
   const formatTime = (seconds: number) => {
@@ -306,20 +284,29 @@ export default function SharedQuiz() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <button
             onClick={() => navigate("/")}
             className="flex-1 py-3 px-6 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
           >
             Cancel
           </button>
-          <button
-            onClick={() => setQuizStarted(true)}
-            disabled={questions.length === 0}
-            className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
-          >
-            {questions.length === 0 ? "Loading Questions..." : "Start Quiz"}
-          </button>
+          {!user ? (
+            <button
+              onClick={() => navigate(`/login?redirect=/quiz/shared/${linkId}`)}
+              className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Login to Challenge
+            </button>
+          ) : (
+            <button
+              onClick={() => setQuizStarted(true)}
+              disabled={questions.length === 0}
+              className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+            >
+              {questions.length === 0 ? "Loading Questions..." : "Start Quiz"}
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

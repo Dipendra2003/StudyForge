@@ -352,7 +352,7 @@ export function registerQuizRoutes(router: Router): void {
         weakCategories: recommendations.weakCategories,
         recommendations: recommendations.recommendations,
         categoryPerformance,
-        overallAccuracy: Math.round(overallAccuracy * 100),
+        overallAccuracy: Math.round(overallAccuracy),
       });
     } catch (error) {
       Logger.error(LogCategory.API, 'Error fetching weak area recommendations', error as Error);

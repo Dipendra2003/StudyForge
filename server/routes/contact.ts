@@ -32,9 +32,9 @@ router.post('/', async (req: Request, res: Response) => {
       subject: validatedData.subject,
       message: validatedData.message,
       status: 'pending',
-    });
+    }).returning();
 
-    const insertId = (result as any).insertId;
+    const insertId = result[0]?.id;
 
     // Send email notification to admin (non-blocking)
     emailService.sendContactNotification(

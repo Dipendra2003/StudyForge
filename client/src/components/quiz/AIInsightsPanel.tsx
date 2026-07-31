@@ -253,16 +253,20 @@ export function AIInsightsPanel({ userId, onStartQuiz }: AIInsightsPanelProps) {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <p className="font-medium text-sm mb-1">🎯 Try {difficultyData.difficulty} difficulty!</p>
-                        <p className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2 mb-1">
+                          <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <p className="font-semibold text-sm">Try {difficultyData.difficulty} difficulty!</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
                           {difficultyData.notification || `You're ready for more challenging questions`}
                         </p>
                       </div>
                       <Button 
                         size="sm" 
                         onClick={() => handleStartQuiz(undefined, difficultyData.difficulty)}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all"
                       >
+                        <Zap className="h-3 w-3 mr-1" />
                         Start
                       </Button>
                     </div>
@@ -274,20 +278,24 @@ export function AIInsightsPanel({ userId, onStartQuiz }: AIInsightsPanelProps) {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="p-4 rounded-lg bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 border border-orange-200 dark:border-orange-800"
+                    className="p-4 rounded-lg bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 border border-orange-200 dark:border-orange-800 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <p className="font-medium text-sm mb-1">📚 Practice {weakAreaData.weakCategories[0]}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Boost your score from {Math.round(weakAreaData.categoryPerformance[weakAreaData.weakCategories[0]] * 100)}% to {weakAreaData.overallAccuracy}%
+                        <div className="flex items-center gap-2 mb-1">
+                          <Target className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                          <p className="font-semibold text-sm">Practice {weakAreaData.weakCategories[0]}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                          Boost your score from {Math.round(weakAreaData.categoryPerformance[weakAreaData.weakCategories[0]])}% to {weakAreaData.overallAccuracy}%
                         </p>
                       </div>
                       <Button 
                         size="sm" 
                         onClick={() => handleStartQuiz(weakAreaData.weakCategories[0])}
-                        className="bg-orange-600 hover:bg-orange-700"
+                        className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-md hover:shadow-lg transition-all"
                       >
+                        <Zap className="h-3 w-3 mr-1" />
                         Practice
                       </Button>
                     </div>
@@ -356,7 +364,7 @@ export function AIInsightsPanel({ userId, onStartQuiz }: AIInsightsPanelProps) {
                     <div className="space-y-3">
                       {weakAreaData.weakCategories.map((category, index) => {
                         const performance = weakAreaData.categoryPerformance[category] || 0;
-                        const performancePercent = Math.round(performance * 100);
+                        const performancePercent = Math.round(performance);
                         
                         return (
                           <motion.div
@@ -397,14 +405,28 @@ export function AIInsightsPanel({ userId, onStartQuiz }: AIInsightsPanelProps) {
                         <Sparkles className="h-4 w-4 text-yellow-600" />
                         Study Tips
                       </h4>
-                      {weakAreaData.recommendations.map((rec, index) => (
-                        <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                            {index + 1}
+                      {weakAreaData.recommendations.map((rec, index) => {
+                        // Strip leading bullet point if present
+                        const cleanText = rec.replace(/^[\*\-]\s*/, '');
+                        // Split by markdown bold tags
+                        const parts = cleanText.split(/(\*\*.*?\*\*)/g);
+                        
+                        return (
+                          <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary mt-0.5">
+                              {index + 1}
+                            </div>
+                            <p className="text-sm leading-relaxed">
+                              {parts.map((part, i) => {
+                                if (part.startsWith('**') && part.endsWith('**')) {
+                                  return <strong key={i} className="text-foreground">{part.slice(2, -2)}</strong>;
+                                }
+                                return <span key={i}>{part}</span>;
+                              })}
+                            </p>
                           </div>
-                          <p className="text-sm leading-relaxed">{rec}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </>
                 ) : (

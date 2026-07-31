@@ -1,0 +1,27 @@
+name: Weekly Security Audit
+
+on:
+  schedule:
+    # Run at 02:00 on Sunday
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  trivy-scan-image:
+    name: Scan Production Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy vulnerability scanner on GHCR Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}:latest'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - name: Send Notification on Failure
+        if: failure() && env.WEBHOOK_URL != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" -d '{"content": "🚨 **Security Alert:** Weekly Trivy scan found CRITICAL or HIGH vulnerabilities in `${{ github.repository }}:latest`. Please review the GitHub Actions logs."}' $WEBHOOK_URL

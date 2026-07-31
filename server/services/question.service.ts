@@ -153,18 +153,12 @@ export class QuestionService {
       averageScore: 0,
     };
 
-    const result = await db.insert(questions).values(insertData);
+    const result = await db.insert(questions).values(insertData).returning();
 
     // Handle different database driver return formats
     let questionId: number;
     
-    // Check for insertId (PostgreSQL)
-    if (result && typeof (result as any).insertId !== 'undefined') {
-      const insertId = (result as any).insertId;
-      questionId = typeof insertId === 'bigint' ? Number(insertId) : Number(insertId);
-    } 
-    // Check for returning clause result (PostgreSQL style)
-    else if (Array.isArray(result) && result.length > 0 && (result[0] as any)?.id) {
+    if (Array.isArray(result) && result.length > 0 && (result[0] as any)?.id) {
       questionId = (result[0] as any).id;
     }
     // Fallback: query for the last inserted question by this user

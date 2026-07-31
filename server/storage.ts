@@ -1920,8 +1920,8 @@ export class DatabaseStorage implements IStorage {
             updatedAt: now,
             ...statsData,
           })
+          .onConflictDoNothing({ target: userStats.userId })
           .returning();
-        
         return await this.getUserStats(userId);
       }
 

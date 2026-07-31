@@ -196,22 +196,12 @@ export class AchievementService {
       }
 
       // Award the badge (first time only)
-      // Drizzle + postgres returns [ResultSetHeader, FieldPacket[]]
-      const result = await db.insert(achievements).values({
+      const created = await db.insert(achievements).values({
         userId,
         badge: badgeType,
         description,
         level: 1,
-      });
-
-      const insertId = result[0].insertId;
-
-      // Fetch the created achievement
-      const created = await db
-        .select()
-        .from(achievements)
-        .where(eq(achievements.id, insertId))
-        .limit(1);
+      }).returning();
 
       if (created.length === 0) {
         return null;
@@ -300,22 +290,12 @@ export class AchievementService {
       const achievementDetails = this.getAchievementDetails(achievementType);
 
       // Create the achievement
-      // Drizzle + postgres returns [ResultSetHeader, FieldPacket[]]
-      const result = await db.insert(achievements).values({
+      const created = await db.insert(achievements).values({
         userId,
         badge: achievementType,
         description: achievementDetails.description,
         level: achievementDetails.level,
-      });
-
-      const insertId = result[0].insertId;
-
-      // Fetch the created achievement
-      const created = await db
-        .select()
-        .from(achievements)
-        .where(eq(achievements.id, insertId))
-        .limit(1);
+      }).returning();
 
       if (created.length === 0) {
         return null;

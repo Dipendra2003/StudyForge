@@ -1,0 +1,146 @@
+# =============================================================================
+# StudyForge — Docker Compose (Base Configuration)
+# =============================================================================
+# This file defines the core services. Use with overrides:
+#   Development:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Production:   docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Application (Node.js API + React Frontend)
+  # ---------------------------------------------------------------------------
+  app:
+    container_name: studyforge-app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database — use Docker service name 'db', unless an external DATABASE_URL is provided in .env
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-studyforge}:${POSTGRES_PASSWORD:-studyforge_secret}@db:5432/${POSTGRES_DB:-studyforge}}
+
+      # Redis — use Docker service name 'redis'
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # Server
+      API_PORT: ${API_PORT:-5000}
+      NODE_ENV: ${NODE_ENV:-development}
+
+      # Application URLs
+      APP_URL: ${APP_URL:-http://localhost:5000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5000}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
+      JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
+
+      # AI
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+
+      # Email (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-StudyForge}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+
+      # Code Execution (optional)
+      JDOODLE_CLIENT_ID: ${JDOODLE_CLIENT_ID:-}
+      JDOODLE_CLIENT_SECRET: ${JDOODLE_CLIENT_SECRET:-}
+
+      # Cloudinary (optional)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-studyforge}
+
+      # Security
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+
+      # File upload limits
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB:-5}
+
+      # Database pool tuning
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-}
+      DB_IDLE_TIMEOUT_SECONDS: ${DB_IDLE_TIMEOUT_SECONDS:-}
+      DB_CONNECT_TIMEOUT_SECONDS: ${DB_CONNECT_TIMEOUT_SECONDS:-}
+
+      # Virus scanning (optional)
+      ENABLE_VIRUS_SCAN: ${ENABLE_VIRUS_SCAN:-false}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+
+      # Migrations
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+    networks:
+      - studyforge-network
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16.6-alpine
+    container_name: studyforge-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-studyforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studyforge_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-studyforge}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studyforge} -d ${POSTGRES_DB:-studyforge}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - studyforge-network
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: studyforge-redis
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - studyforge-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  pg_data:
+    name: studyforge-pg-data
+  redis_data:
+    name: studyforge-redis-data
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  studyforge-network:
+    name: studyforge-network
+    driver: bridge

@@ -6,6 +6,8 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6.3-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.3.1-61dafb)](https://reactjs.org/)
+[![CI/CD](https://github.com/Dipendra2003/StudyForge/actions/workflows/main-ci-cd.yml/badge.svg)](https://github.com/Dipendra2003/StudyForge/actions/workflows/main-ci-cd.yml)
+[![Weekly Security Audit](https://github.com/Dipendra2003/StudyForge/actions/workflows/scheduled-security.yml/badge.svg)](https://github.com/Dipendra2003/StudyForge/actions/workflows/scheduled-security.yml)
 
 ---
 
@@ -209,6 +211,65 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:5000`
+
+---
+
+## 🐳 Docker Setup (Alternative)
+
+If you prefer Docker, you can run the entire stack with a single command.
+
+### Prerequisites
+- **Docker** (v20.10 or higher)
+- **Docker Compose** (v2.0 or higher — included with Docker Desktop)
+
+### Quick Start (Development)
+
+1. **Copy the Docker environment template:**
+   ```bash
+   cp .env.docker .env
+   ```
+
+2. **Edit `.env`** and set your required variables:
+   - `JWT_SECRET` — generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   - `GEMINI_API_KEY` — from [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+3. **Start all services:**
+   ```bash
+   npm run docker:dev
+   ```
+
+   This starts:
+   - 🟢 **App** — Node.js server with hot-reload at `http://localhost:5000`
+   - 🐘 **PostgreSQL** — Database at `localhost:5432`
+   - 🔴 **Redis** — Cache at `localhost:6379`
+
+4. **View logs:**
+   ```bash
+   npm run docker:logs
+   ```
+
+5. **Stop everything:**
+   ```bash
+   npm run docker:down
+   ```
+
+### Production Deployment
+
+```bash
+# Set NODE_ENV and configure production values in .env, then:
+npm run docker:prod
+```
+
+This adds an **Nginx reverse proxy** on port 80 with gzip compression, rate limiting, and SSL-ready configuration.
+
+### Docker Commands Reference
+
+| Command | Description |
+|---|---|
+| `npm run docker:dev` | Start development environment |
+| `npm run docker:prod` | Start production environment (detached) |
+| `npm run docker:down` | Stop and remove all containers |
+| `npm run docker:logs` | Follow application logs |
 
 ---
 

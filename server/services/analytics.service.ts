@@ -81,7 +81,7 @@ export class AnalyticsService {
         .limit(1);
 
       if (stats.length === 0) {
-        // Create initial stats record
+        // Create initial stats record (use onConflictDoNothing for concurrent requests race condition)
         await db.insert(userQuizStats).values({
           userId,
           totalAttempts: 0,
@@ -96,7 +96,7 @@ export class AnalyticsService {
           lastQuizDate: null,
           categoryStats: {},
           difficultyStats: {},
-        });
+        }).onConflictDoNothing({ target: userQuizStats.userId });
 
         // Fetch the newly created record
         stats = await db
@@ -146,7 +146,7 @@ export class AnalyticsService {
    */
   async recordQuizAttempt(attempt: QuizAttemptDTO): Promise<number> {
     try {
-      // Insert quiz attempt record
+      // Insert quiz attempt record using .returning() for Postgres
       const result = await db.insert(quizAttempts).values({
         userId: attempt.userId,
         score: attempt.score,
@@ -157,10 +157,10 @@ export class AnalyticsService {
         category: attempt.category,
         difficulty: attempt.difficulty,
         completed: attempt.completed,
-      });
+      }).returning();
 
       // Get the inserted ID
-      const insertId = result[0]?.insertId || result.insertId;
+      const insertId = result[0]?.id;
 
       // Update user quiz stats
       await this.updateUserStats(attempt);

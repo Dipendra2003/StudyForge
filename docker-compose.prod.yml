@@ -1,0 +1,159 @@
+# =============================================================================
+# StudyForge — Docker Compose Production Override
+# =============================================================================
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Features:
+#   - Multi-stage production Dockerfile (optimized, ~150MB image)
+#   - Nginx reverse proxy with SSL-ready config
+#   - Resource limits on all containers
+#   - Restart policies for reliability
+#   - Logging configuration with rotation
+#   - Security hardening (no-new-privileges, read-only where possible)
+#   - Internal-only DB/Redis ports (not exposed to host)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Application — Production Build
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      RUN_MIGRATIONS: "true"
+    restart: unless-stopped
+    # Don't expose app port directly — Nginx handles external traffic
+    expose:
+      - "5000"
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    # Writable tmpfs for logs and temp files (app filesystem is read-only)
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+      - /app/logs:size=50M
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: studyforge-nginx
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # SSL Certificates volume (must exist)
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M
+      - /var/cache/nginx:size=50M
+      - /var/run:size=1M
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    networks:
+      - studyforge-network
+
+  # ---------------------------------------------------------------------------
+  # Database — Production Hardening
+  # ---------------------------------------------------------------------------
+  db:
+    restart: unless-stopped
+    # Don't expose DB port externally in production
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # Redis — Production Hardening
+  # ---------------------------------------------------------------------------
+  redis:
+    restart: unless-stopped
+    # Don't expose Redis port externally in production
+    expose:
+      - "6379"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # ClamAV Virus Scanner (Optional — uncomment to enable)
+  # ---------------------------------------------------------------------------
+  # clamav:
+  #   image: clamav/clamav:stable
+  #   container_name: studyforge-clamav
+  #   restart: unless-stopped
+  #   expose:
+  #     - "3310"
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: "1.0"
+  #         memory: 2048M
+  #       reservations:
+  #         cpus: "0.25"
+  #         memory: 512M
+  #   networks:
+  #     - studyforge-network

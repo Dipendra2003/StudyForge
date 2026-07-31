@@ -40,10 +40,8 @@ import { uploadRateLimiter, profilePictureRateLimiter } from "./middleware/uploa
 import { validateImageUpload, validateDocumentUpload, validateWithVirusScan } from "./middleware/file-validation.middleware";
 import { virusScanService } from "./services/virus-scan.service";
 import { cloudinaryService } from "./services/cloudinary";
-
 // Initialize email service
 const emailService = new EmailService();
-
 // Token generator utility
 const TokenGenerator = {
   generateToken: () => {
@@ -58,7 +56,6 @@ const TokenGenerator = {
     return expiry;
   }
 };
-
 // Email rate limiter - 3 emails per hour per IP
 const emailRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -71,7 +68,6 @@ const emailRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
 // OTP rate limiter - 10 attempts per 15 minutes per IP
 const otpRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -84,11 +80,8 @@ const otpRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-
 // Analytics cache (5-minute TTL)
 const analyticsCache = new Map<string, { data: any; timestamp: number }>();
-
 // Configure multer for file uploads (memory storage)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -104,7 +97,6 @@ const upload = multer({
       'text/rtf',
       'application/rtf',
     ];
-    
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -112,7 +104,6 @@ const upload = multer({
     }
   },
 });
-
 // Configure multer for image uploads
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -121,7 +112,6 @@ const imageUpload = multer({
   },
   fileFilter: (_req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -129,16 +119,13 @@ const imageUpload = multer({
     }
   },
 });
-
 export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Health Check Endpoints =====
-  
   // System health check
   app.get('/api/health', async (_req: Request, res: Response) => {
     try {
       const virusScanAvailable = await virusScanService.isAvailable();
       const cloudinaryAvailable = cloudinaryService.isAvailable();
-      
       const health = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -157,7 +144,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         },
       };
-      
       res.status(200).json(health);
     } catch (error) {
       res.status(503).json({
@@ -166,31 +152,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
   // ===== User Settings Endpoints =====
-  
   app.patch('/api/users/me/media-retention', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { retentionDays } = req.body;
       const validDays = [0, 7, 15, 30];
-      
       if (typeof retentionDays !== 'number' || !validDays.includes(retentionDays)) {
         return res.status(400).json({ message: "Invalid retention days value" });
       }
-
       await db.update(users)
         .set({ mediaRetentionDays: retentionDays })
         .where(eq(users.id, req.user!.id));
-
       res.status(200).json({ message: "Media retention setting updated successfully" });
     } catch (error) {
       Logger.error(LogCategory.SYSTEM, 'Error updating media retention setting', error as Error);
       res.status(500).json({ message: "Failed to update settings" });
     }
   });
-  
   // ===== Authentication Endpoints =====
-  
   // Test endpoint to reset rate limiter (development only)
   if (process.env.NODE_ENV === 'development') {
     app.post('/api/test/reset-rate-limiter', async (_req: Request, res: Response) => {
@@ -202,18 +181,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   }
-  
   // User registration - PROTECTED with email rate limiting to prevent spam
   app.post('/api/auth/register', emailRateLimiter, async (req: Request, res: Response) => {
     try {
       const userData = registerSchema.parse(req.body);
-      
       Logger.auth('Registration attempt started', {
         action: 'register',
         username: userData.username,
         email: userData.email,
       });
-      
       // Check if username or email already exists
       const existingUserByUsername = await storage.getUserByUsername(userData.username);
       if (existingUserByUsername) {
@@ -224,7 +200,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(409).json({ message: "Username already exists" });
       }
-      
       const existingUserByEmail = await storage.getUserByEmail(userData.email);
       if (existingUserByEmail) {
         Logger.security('Registration failed - email already in use', {
@@ -234,15 +209,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(409).json({ message: "Email address already in use" });
       }
-      
       // Hash password with bcrypt (salt rounds = 10)
       const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
       // Generate verification token and OTP
       const verificationToken = TokenGenerator.generateToken();
       const verificationOtp = TokenGenerator.generateOTP();
       const verificationTokenExpiry = TokenGenerator.generateExpiry(24); // 24 hours
-      
       // Create user with hashed password and verification credentials
       const user = await storage.createUser({
         username: userData.username,
@@ -254,7 +226,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verificationOtp,
         verificationTokenExpiry,
       });
-      
       Logger.auth('User account created successfully', {
         action: 'register',
         userId: user.id,
@@ -262,10 +233,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: user.email,
         emailVerified: false,
       });
-      
       // Generate verification link for development mode
       const verificationLink = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
-      
       // Send verification email with link and OTP
       try {
         await emailService.sendVerificationEmail(
@@ -278,7 +247,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (emailError) {
         // Email service already logs the error
       }
-      
       Logger.auth('Registration completed successfully', {
         action: 'register',
         userId: user.id,
@@ -286,11 +254,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: user.email,
         success: true,
       });
-      
       // Don't return password or sensitive token fields in response
       const { password: _pwd, verificationToken: _vt, verificationOtp: _vo, verificationTokenExpiry: _vte, 
               resetToken: _rt, resetOtp: _ro, resetTokenExpiry: _rte, ...userResponse } = user;
-      
       return res.status(201).json({
         message: "User registered successfully. Please check your email to verify your account.",
         user: userResponse,
@@ -305,17 +271,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // User login
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
       const { identifier, password } = req.body;
-      
       Logger.auth('Login attempt started', {
         action: 'login',
         identifier,
       });
-      
       if (!identifier || !password) {
         Logger.security('Login failed - missing credentials', {
           action: 'login',
@@ -323,13 +286,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Username/Email and password are required" });
       }
-      
       // Try to find user by username first, then by email
       let user = await storage.getUserByUsername(identifier);
       if (!user) {
         user = await storage.getUserByEmail(identifier);
       }
-      
       // Return 401 for invalid credentials (user not found or password mismatch)
       if (!user) {
         Logger.security('Login failed - user not found', {
@@ -339,10 +300,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      
       // Use bcrypt.compare() to validate hashed password
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      
       if (!isPasswordValid) {
         Logger.security('Login failed - invalid password', {
           action: 'login',
@@ -352,7 +311,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      
       // Check if email is verified
       if (!user.emailVerified) {
         Logger.security('Login failed - email not verified', {
@@ -368,12 +326,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: user.email
         });
       }
-      
       // Get IP address and user agent for session tracking
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
         || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
-      
       // Generate JWT token pair with session tracking
       const tokenPair = await jwtService.generateTokenPair(
         {
@@ -385,7 +341,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ipAddress,
         userAgent
       );
-      
       // Set accessToken httpOnly cookie with 15-minute expiration
       res.cookie('accessToken', tokenPair.accessToken, {
         httpOnly: true,
@@ -394,7 +349,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 15 * 60 * 1000, // 15 minutes
         path: '/',
       });
-      
       // Set refreshToken httpOnly cookie with 7-day expiration
       res.cookie('refreshToken', tokenPair.refreshToken, {
         httpOnly: true,
@@ -403,12 +357,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (reduced from 30 for better security)
         path: '/',
       });
-      
       // Update last login timestamp
       await storage.updateUser(user.id, {
         lastLogin: new Date(),
       });
-      
       Logger.auth('Login completed successfully', {
         action: 'login',
         userId: user.id,
@@ -417,11 +369,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerified: user.emailVerified,
         success: true,
       });
-      
       // Return user data (excluding password and sensitive fields) including emailVerified status
       const { password: _, verificationToken, verificationOtp, verificationTokenExpiry, 
               resetToken, resetOtp, resetTokenExpiry, ...userResponse } = user;
-      
       return res.status(200).json({
         message: "Login successful",
         user: userResponse
@@ -430,24 +380,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // User logout
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     try {
       const refreshToken = req.cookies?.refreshToken;
       const userId = req.user?.id; // May be undefined if token is expired
-      
       Logger.auth('Logout attempt', {
         action: 'logout',
         userId,
         hasRefreshToken: !!refreshToken,
       });
-      
       // Revoke refresh token if present
       if (refreshToken) {
         await jwtService.revokeRefreshToken(refreshToken);
       }
-      
       // Clear accessToken cookie with matching options
       res.clearCookie('accessToken', {
         httpOnly: true,
@@ -455,7 +401,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sameSite: 'strict',
         path: '/',
       });
-      
       // Clear refreshToken cookie with matching options
       res.clearCookie('refreshToken', {
         httpOnly: true,
@@ -463,17 +408,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sameSite: 'strict',
         path: '/',
       });
-      
       Logger.auth('Logout completed successfully', {
         action: 'logout',
         userId,
         success: true,
       });
-      
       return res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
       Logger.error(LogCategory.SECURITY, 'Logout error', error as Error);
-      
       // Still clear cookies even if revocation fails
       res.clearCookie('accessToken', {
         httpOnly: true,
@@ -481,18 +423,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sameSite: 'strict',
         path: '/',
       });
-      
       res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/',
       });
-      
       return res.status(200).json({ message: "Logged out successfully" });
     }
   });
-  
   // Get current user
   app.get('/api/auth/me', jwtAuth, async (req: Request, res: Response) => {
     try {
@@ -500,34 +439,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      
       // Fetch fresh user data from database
       const user = await storage.getUser(req.user.id);
-      
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       // Return user data excluding sensitive fields
       const { password, verificationToken, verificationOtp, verificationTokenExpiry,
               resetToken, resetOtp, resetTokenExpiry, ...userResponse } = user;
-      
       return res.status(200).json({ user: userResponse });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Forgot password - send reset email - PROTECTED with BOTH email and OTP rate limiting
   app.post('/api/auth/forgot-password', emailRateLimiter, otpRateLimiter, async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
-      
       Logger.verification('Password reset request started', {
         action: 'forgot_password',
         email,
       });
-      
       if (!email) {
         Logger.security('Password reset failed - missing email', {
           action: 'forgot_password',
@@ -535,7 +467,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Email is required" });
       }
-      
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
@@ -548,9 +479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Invalid email address format" 
         });
       }
-      
       const user = await storage.getUserByEmail(email);
-      
       // SECURITY: Return generic message to prevent email enumeration
       if (!user) {
         Logger.security('Password reset failed - user not found', {
@@ -563,29 +492,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           emailSent: true,
         });
       }
-      
       // Generate both reset token and OTP with 1-hour expiration
       const resetToken = TokenGenerator.generateToken();
       const resetOtp = TokenGenerator.generateOTP();
       const resetTokenExpiry = TokenGenerator.generateExpiry(1); // 1 hour
-      
       // Store reset token, OTP, and expiry in database
       await storage.updateUser(user.id, {
         resetToken,
         resetOtp,
         resetTokenExpiry,
       });
-      
       Logger.verification('Password reset credentials generated', {
         action: 'forgot_password',
         userId: user.id,
         username: user.username,
         email: user.email,
       });
-      
       // Send password reset email with both reset link and OTP code
       const resetLink = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
-      
       try {
         await emailService.sendPasswordResetEmail(
           user.id,
@@ -597,7 +521,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (emailError) {
         // Email service already logs the error
       }
-      
       Logger.verification('Password reset request completed successfully', {
         action: 'forgot_password',
         userId: user.id,
@@ -605,7 +528,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: user.email,
         success: true,
       });
-      
       return res.status(200).json({ 
         message: "Password reset instructions have been sent to your email address.",
         emailSent: true,
@@ -619,18 +541,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Reset password with token or OTP
   app.post('/api/auth/reset-password', otpRateLimiter, async (req: Request, res: Response) => {
     try {
       const { token, otp, password } = req.body;
       const method = token ? 'token' : 'otp';
-      
       Logger.verification('Password reset attempt started', {
         action: 'reset_password',
         method,
       });
-      
       // Require either token or OTP
       if (!token && !otp) {
         Logger.security('Password reset failed - missing credentials', {
@@ -639,7 +558,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Reset token or OTP is required" });
       }
-      
       if (!password) {
         Logger.security('Password reset failed - missing password', {
           action: 'reset_password',
@@ -648,7 +566,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Password is required" });
       }
-      
       // Validate new password meets minimum requirements (8 characters)
       if (password.length < 8) {
         Logger.security('Password reset failed - password too short', {
@@ -658,7 +575,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
-      
       // Query user by reset token OR OTP using storage layer
       let user;
       if (token) {
@@ -666,7 +582,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (otp) {
         user = await storage.getUserByResetOtp(otp);
       }
-      
       // Validate token/OTP exists
       if (!user) {
         Logger.security('Password reset failed - invalid code', {
@@ -676,7 +591,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Invalid reset code" });
       }
-      
       // Check if token/OTP has expired
       if (user.resetTokenExpiry && user.resetTokenExpiry < new Date()) {
         Logger.security('Password reset failed - code expired', {
@@ -691,10 +605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expired: true,
         });
       }
-      
       // Hash new password using bcrypt with 10 salt rounds
       const hashedPassword = await bcrypt.hash(password, 10);
-      
       // Update user password and clear both reset token and OTP fields
       await storage.updateUser(user.id, {
         password: hashedPassword,
@@ -702,7 +614,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resetOtp: null,
         resetTokenExpiry: null,
       });
-      
       Logger.verification('Password reset completed successfully', {
         action: 'reset_password',
         userId: user.id,
@@ -711,14 +622,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method,
         success: true,
       });
-      
       // Send password changed confirmation email
       try {
         await emailService.sendPasswordChangedEmail(user.id, user.email, user.username);
       } catch (emailError) {
         // Email service already logs the error
       }
-      
       // Return success response
       return res.status(200).json({ 
         message: "Password has been reset successfully. You can now log in with your new password." 
@@ -727,18 +636,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Verify email with token or OTP
   app.post('/api/auth/verify-email', otpRateLimiter, async (req: Request, res: Response) => {
     try {
       const { token, otp } = req.body;
       const method = token ? 'token' : 'otp';
-      
       Logger.verification('Email verification attempt started', {
         action: 'verify_email',
         method,
       });
-      
       // Require either token or OTP
       if (!token && !otp) {
         Logger.security('Email verification failed - missing credentials', {
@@ -747,7 +653,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Verification token or OTP is required" });
       }
-      
       // Find user by verification token OR OTP
       let user;
       if (token) {
@@ -755,7 +660,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (otp) {
         user = await storage.getUserByVerificationOtp(otp);
       }
-      
       if (!user) {
         Logger.security('Email verification failed - invalid code', {
           action: 'verify_email',
@@ -764,7 +668,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Invalid verification code" });
       }
-      
       // Check if token/OTP has expired
       if (user.verificationTokenExpiry && user.verificationTokenExpiry < new Date()) {
         Logger.security('Email verification failed - code expired', {
@@ -779,7 +682,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expired: true,
         });
       }
-      
       // Check if email is already verified
       if (user.emailVerified) {
         Logger.verification('Email verification - already verified', {
@@ -794,7 +696,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           alreadyVerified: true,
         });
       }
-      
       // Mark email as verified and clear both token and OTP
       await storage.updateUser(user.id, {
         emailVerified: true,
@@ -802,7 +703,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         verificationOtp: null,
         verificationTokenExpiry: null,
       });
-      
       Logger.verification('Email verified successfully', {
         action: 'verify_email',
         userId: user.id,
@@ -811,7 +711,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         method,
         success: true,
       });
-      
       return res.status(200).json({ 
         message: "Email has been verified successfully. You can now log in.",
       });
@@ -819,7 +718,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Resend verification email - PROTECTED with BOTH email and OTP rate limiting to prevent abuse
   app.post('/api/auth/resend-verification', emailRateLimiter, otpRateLimiter, async (req: Request, res: Response) => {
     try {
@@ -828,10 +726,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authenticated: !!req.user?.id,
         email: req.body.email,
       });
-      
       // SECURITY: Require email in request body (no authenticated user support to prevent abuse)
       const { email } = req.body;
-      
       if (!email) {
         Logger.security('Resend verification failed - missing email', {
           action: 'resend_verification',
@@ -841,7 +737,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Email address is required" 
         });
       }
-      
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
@@ -854,10 +749,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Invalid email address format" 
         });
       }
-      
       // Find user by email
       const user = await storage.getUserByEmail(email);
-      
       if (!user) {
         Logger.security('Resend verification failed - user not found', {
           action: 'resend_verification',
@@ -869,7 +762,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "If an account exists with this email, a verification email has been sent." 
         });
       }
-      
       // Check if email is already verified
       if (user.emailVerified) {
         Logger.verification('Resend verification failed - email already verified', {
@@ -881,29 +773,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Email is already verified" });
       }
-      
       // Generate new verification token and OTP, invalidate previous credentials
       const verificationToken = TokenGenerator.generateToken();
       const verificationOtp = TokenGenerator.generateOTP();
       const verificationTokenExpiry = TokenGenerator.generateExpiry(24); // 24 hours
-      
       // Update user with new verification credentials
       await storage.updateUser(user.id, {
         verificationToken,
         verificationOtp,
         verificationTokenExpiry,
       });
-      
       Logger.verification('New verification credentials generated', {
         action: 'resend_verification',
         userId: user.id,
         username: user.username,
         email: user.email,
       });
-      
       // Send new verification email with both link and OTP
       const verificationLink = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
-      
       try {
         await emailService.sendVerificationEmail(
           user.id,
@@ -915,7 +802,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (emailError) {
         // Email service already logs the error
       }
-      
       Logger.verification('Resend verification completed successfully', {
         action: 'resend_verification',
         userId: user.id,
@@ -923,7 +809,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: user.email,
         success: true,
       });
-      
       return res.status(200).json({ 
         message: "Verification email has been sent. Please check your inbox.",
         // For development only - include OTP in response
@@ -936,24 +821,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Logout from all devices - revoke all refresh tokens
   app.post('/api/auth/logout-all', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id;
-      
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      
       Logger.auth('Logout from all devices attempt', {
         action: 'logout_all',
         userId,
       });
-      
       // Revoke all refresh tokens for this user
       await jwtService.revokeAllUserTokens(userId);
-      
       // Clear cookies for current session
       res.clearCookie('accessToken', {
         httpOnly: true,
@@ -961,20 +841,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sameSite: 'strict',
         path: '/',
       });
-      
       res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/',
       });
-      
       Logger.auth('Logout from all devices completed', {
         action: 'logout_all',
         userId,
         success: true,
       });
-      
       return res.status(200).json({ 
         message: "Logged out from all devices successfully" 
       });
@@ -982,18 +859,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get active sessions count
   app.get('/api/auth/sessions', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id;
-      
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      
       const sessionCount = await jwtService.getActiveSessionCount(userId);
-      
       return res.status(200).json({ 
         activeSessions: sessionCount 
       });
@@ -1001,22 +874,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Refresh token endpoint (optional - middleware handles this automatically)
   app.post('/api/auth/refresh', async (req: Request, res: Response) => {
     try {
       const refreshToken = req.cookies?.refreshToken;
-      
       if (!refreshToken) {
         return res.status(401).json({ 
           message: "No refresh token provided",
           code: 'NO_REFRESH_TOKEN'
         });
       }
-      
       // Verify refresh token
       const payload = await jwtService.verifyRefreshToken(refreshToken);
-      
       if (!payload) {
         res.clearCookie('accessToken', {
           httpOnly: true,
@@ -1024,35 +893,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sameSite: 'strict',
           path: '/',
         });
-        
         res.clearCookie('refreshToken', {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
           path: '/',
         });
-        
         return res.status(401).json({ 
           message: "Invalid or expired refresh token",
           code: 'INVALID_REFRESH_TOKEN'
         });
       }
-      
       // Get user from database
       const user = await storage.getUser(payload.userId);
-      
       if (!user || !user.isActive) {
         return res.status(401).json({ 
           message: "User not found or inactive",
           code: 'USER_INVALID'
         });
       }
-      
       // Get IP and user agent
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
         || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
-      
       // Generate new token pair
       const newTokenPair = await jwtService.generateTokenPair(
         {
@@ -1064,10 +927,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ipAddress,
         userAgent
       );
-      
       // Revoke old refresh token
       await jwtService.revokeRefreshToken(refreshToken);
-      
       // Set new cookies
       res.cookie('accessToken', newTokenPair.accessToken, {
         httpOnly: true,
@@ -1076,7 +937,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 15 * 60 * 1000, // 15 minutes
         path: '/',
       });
-      
       res.cookie('refreshToken', newTokenPair.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -1084,12 +944,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       });
-      
       Logger.auth('Token refreshed via refresh endpoint', {
         action: 'token_refresh_endpoint',
         userId: user.id,
       });
-      
       return res.status(200).json({ 
         message: "Token refreshed successfully" 
       });
@@ -1097,9 +955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // ===== Document Management Endpoints =====
-  
   // Extract text from uploaded file (PDF, Word, etc.)
   app.post('/api/extract-text', jwtAuth, uploadRateLimiter, upload.single('file'), validateDocumentUpload, validateWithVirusScan, async (req: Request, res: Response) => {
     try {
@@ -1109,17 +965,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Please select a file to upload"
         });
       }
-
       const file = req.file;
       let extractedText = '';
-
       Logger.debug(LogCategory.SECURITY, 'Text extraction started', {
         userId: req.user?.id,
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
       });
-
       // Extract text based on file type
       if (file.mimetype === 'application/pdf') {
         // Extract text from PDF
@@ -1128,7 +981,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const require = createRequire(import.meta.url);
           // @ts-ignore
           const { PDFParse } = require("pdf-parse");
-          
           // Custom render function to better handle text extraction with formatting hints
           const renderPage = (pageData: any) => {
             // Render text with proper spacing and structure
@@ -1136,22 +988,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               normalizeWhitespace: true,
               disableCombineTextItems: false
             };
-            
             return pageData.getTextContent(renderOptions)
               .then((textContent: any) => {
                 let lastY: number | null = null;
                 let lastFontSize: number | null = null;
                 let text = '';
-                
                 for (let item of textContent.items) {
                   const currentY = item.transform[5];
                   const fontSize = item.height || 12;
-                  
                   // Detect potential headings (larger font size)
                   if (lastFontSize !== null && fontSize > lastFontSize * 1.2) {
                     text += '\n\n'; // Extra spacing before heading
                   }
-                  
                   // Add line break if Y position changed significantly
                   if (lastY !== null && Math.abs(lastY - currentY) > 5) {
                     // Double line break for larger gaps (paragraphs)
@@ -1161,30 +1009,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       text += '\n';
                     }
                   }
-                  
                   // Add the text
                   text += item.str;
-                  
                   // Add space if next item is on same line
                   if (item.str && !item.str.endsWith(' ') && !item.str.endsWith('-')) {
                     text += ' ';
                   }
-                  
                   lastY = currentY;
                   lastFontSize = fontSize;
                 }
-                
                 return text;
               });
           };
-          
           // Instantiate PDFParse class with options
           const parser = new PDFParse({ data: new Uint8Array(file.buffer) });
           const result = await parser.getText({
             pagerender: renderPage
           });
           extractedText = result.text;
-          
           Logger.debug(LogCategory.SECURITY, 'PDF text extraction successful', {
             userId: req.user?.id,
             fileName: file.originalname,
@@ -1209,7 +1051,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Use convertToHtml to preserve some formatting, then convert to readable text
           const htmlResult = await mammoth.convertToHtml({ buffer: file.buffer });
-          
           // Convert HTML to formatted text (preserve structure)
           let formattedText = htmlResult.value
             // Convert headings to text with extra spacing
@@ -1239,16 +1080,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"')
             .replace(/&#39;/g, "'");
-          
           extractedText = formattedText;
-          
           Logger.debug(LogCategory.SECURITY, 'Word document text extraction successful', {
             userId: req.user?.id,
             fileName: file.originalname,
             textLength: extractedText.length,
             messages: htmlResult.messages.length,
           });
-          
           // Log any warnings from mammoth
           if (htmlResult.messages.length > 0) {
             Logger.security('Word extraction warnings', {
@@ -1270,12 +1108,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (file.mimetype === 'text/plain' || file.mimetype === 'text/rtf' || file.mimetype === 'application/rtf') {
         // Plain text or RTF
         extractedText = file.buffer.toString('utf-8');
-        
         // Basic RTF cleanup if needed
         if (file.mimetype === 'text/rtf' || file.mimetype === 'application/rtf') {
           extractedText = extractedText.replace(/\\[a-z]+\d*\s?/g, '').replace(/[{}]/g, '');
         }
-        
         Logger.debug(LogCategory.SECURITY, 'Text file extraction successful', {
           userId: req.user?.id,
           fileName: file.originalname,
@@ -1287,10 +1123,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Please upload a PDF, Word, TXT, or RTF file."
         });
       }
-
       // Clean up the extracted text while preserving structure
       extractedText = extractedText.trim();
-      
       // Improved text cleanup that preserves formatting better
       extractedText = extractedText
         // Remove hyphenation at line breaks (but preserve intentional hyphens)
@@ -1308,7 +1142,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Preserve intentional line breaks after punctuation
         .replace(/([.!?])\s*\n/g, '$1\n\n')
         .trim();
-
       // Validate extracted text
       if (!extractedText || extractedText.length < 10) {
         Logger.security('Extracted text too short', {
@@ -1321,13 +1154,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "The document appears to be empty or contains only images."
         });
       }
-
       Logger.debug(LogCategory.SECURITY, 'Text extraction completed successfully', {
         userId: req.user?.id,
         fileName: file.originalname,
         textLength: extractedText.length,
       });
-
       return res.status(200).json({
         message: "Text extracted successfully",
         text: extractedText,
@@ -1343,18 +1174,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Upload/create document
   app.post('/api/documents', jwtAuth, async (req: Request, res: Response) => {
     try {
       const docData = documentUploadSchema.parse(req.body);
       const userId = req.user?.id!;
-      
       const document = await storage.createDocument({
         ...docData,
         userId
       });
-      
       return res.status(201).json({
         message: "Document created successfully",
         document
@@ -1363,60 +1191,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get all user documents (with pagination)
   app.get('/api/documents', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      
       const result = await storage.getDocumentsByUserId(userId, page, limit);
-      
       return res.status(200).json(result);
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Get document by ID
   app.get('/api/documents/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const documentId = parseInt(req.params.id);
       const document = await storage.getDocumentById(documentId);
-      
       if (!document) {
         return res.status(404).json({ message: "Document not found" });
       }
-      
       // Check if document belongs to the user
       if (document.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       return res.status(200).json({ document });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Update document
   app.patch('/api/documents/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const documentId = parseInt(req.params.id);
       const document = await storage.getDocumentById(documentId);
-      
       if (!document) {
         return res.status(404).json({ message: "Document not found" });
       }
-      
       // Check if document belongs to the user
       if (document.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       const updatedDocument = await storage.updateDocument(documentId, req.body);
-      
       return res.status(200).json({
         message: "Document updated successfully",
         document: updatedDocument
@@ -1425,64 +1241,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete document
   app.delete('/api/documents/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const documentId = parseInt(req.params.id);
       const document = await storage.getDocumentById(documentId);
-      
       if (!document) {
         return res.status(404).json({ message: "Document not found" });
       }
-      
       // Check if document belongs to the user
       if (document.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       await storage.deleteDocument(documentId);
-      
       return res.status(200).json({ message: "Document deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Summarize document or text
   app.post('/api/documents/summarize', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { text, type, documentId } = req.body;
-      
       if (!text && !documentId) {
         return res.status(400).json({ message: "Either text or documentId is required" });
       }
-      
       let textToSummarize = text;
-      
       // If documentId is provided, fetch the document
       if (documentId) {
         const document = await storage.getDocumentById(parseInt(documentId));
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         // Check if document belongs to the user
         if (document.userId !== req.user?.id!) {
           return res.status(403).json({ message: "Access denied" });
         }
-        
         textToSummarize = document.content || '';
       }
-      
       if (!textToSummarize) {
         return res.status(400).json({ message: "No text content to summarize" });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       // Determine max length based on summary type (significantly increased for better content)
       let maxLength = 2000; // Default: comprehensive summary
       switch (type) {
@@ -1499,7 +1300,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           maxLength = 3000; // Increased from 600 to 3000
           break;
       }
-      
       let summary;
       try {
         const result = await geminiService.summarizeText(textToSummarize, maxLength, req.user?.id);
@@ -1508,12 +1308,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating summary:", error);
         return res.status(500).json({ message: "Failed to generate summary" });
       }
-      
       // If documentId was provided, update the document with the summary
       if (documentId) {
         await storage.updateDocument(parseInt(documentId), { summary });
       }
-      
       return res.status(200).json({
         message: "Summary generated successfully",
         summary
@@ -1522,50 +1320,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // ===== Summary Endpoints =====
-  
   // Create summary (generate and save to database)
   app.post('/api/summaries', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { documentId, originalText, type } = req.body;
       const userId = req.user?.id!;
-      
       Logger.info(LogCategory.API, 'Summary creation request', {
         userId,
         documentId,
         textLength: originalText?.length || 0,
         type,
       });
-      
       if (!documentId && !originalText) {
         return res.status(400).json({ message: "Either documentId or originalText is required" });
       }
-      
       let textToSummarize = originalText;
       let docId = documentId;
-      
       // If documentId is provided, fetch the document
       if (documentId) {
         const document = await storage.getDocumentById(parseInt(documentId));
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         // Check if document belongs to the user
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied" });
         }
-        
         textToSummarize = document.content || originalText || '';
         docId = document.id;
       }
-      
       if (!textToSummarize || textToSummarize.trim().length === 0) {
         return res.status(400).json({ message: "No text content to summarize" });
       }
-
       // Validate text length
       if (textToSummarize.trim().length < 50) {
         return res.status(400).json({ 
@@ -1573,10 +1360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Please provide at least 50 characters of text to summarize."
         });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       // Determine max length based on summary type (significantly increased for better content)
       let maxLength = 2000; // Default: comprehensive summary
       switch (type) {
@@ -1593,7 +1378,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           maxLength = 3000; // Increased from 600 to 3000
           break;
       }
-      
       let summaryResult;
       try {
         Logger.info(LogCategory.API, 'Generating summary with Gemini', {
@@ -1602,19 +1386,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type,
           maxLength,
         });
-
         summaryResult = await geminiService.summarizeText(
           textToSummarize, 
           maxLength, 
           userId,
           type as 'concise' | 'detailed' | 'eli5' | 'academic' | 'balanced'
         );
-
         // Validate summary result
         if (!summaryResult || !summaryResult.summary || summaryResult.summary.trim().length === 0) {
           throw new Error('AI generated empty summary');
         }
-
         Logger.info(LogCategory.API, 'Summary generated successfully', {
           userId,
           summaryLength: summaryResult.summary.length,
@@ -1628,9 +1409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           textLength: textToSummarize.length,
           type,
         });
-        
         const errorMessage = error.message?.toLowerCase() || '';
-        
         // Check for quota/rate limit errors (multiple patterns)
         if (errorMessage.includes('quota') || 
             errorMessage.includes('too many requests') || 
@@ -1642,7 +1421,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             retryAfter: "24 hours"
           });
         }
-        
         // Check for text length errors
         if (errorMessage.includes('maximum length') || errorMessage.includes('too long')) {
           return res.status(400).json({ 
@@ -1650,7 +1428,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             error: "The document is too long to summarize. Please reduce the text length and try again."
           });
         }
-
         // Check for empty response errors
         if (errorMessage.includes('empty') || errorMessage.includes('no response')) {
           return res.status(500).json({ 
@@ -1658,13 +1435,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             error: "The AI service returned an empty response. Please try again."
           });
         }
-        
         return res.status(500).json({ 
           message: "Failed to generate summary",
           error: error.message || "An unexpected error occurred while generating the summary."
         });
       }
-      
       // Save summary to database
       const savedSummary = await storage.createSummary({
         userId,
@@ -1683,12 +1458,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           relatedLinks: summaryResult.relatedLinks,
         }
       });
-
       Logger.info(LogCategory.API, 'Summary saved to database', {
         userId,
         summaryId: savedSummary.id,
       });
-      
       // Award Gamification XP
       let gamificationStats = null;
       try {
@@ -1697,7 +1470,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to award XP for summary', err);
       }
-      
       // Return the saved summary
       return res.status(201).json({
         message: "Summary created successfully",
@@ -1709,96 +1481,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Analyze code complexity
   app.post('/api/code-generator/analyze', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { code } = req.body;
       if (!code) return res.status(400).json({ message: "Code is required" });
-      
       const { geminiService } = await import('./services/gemini');
       const analysis = await geminiService.generateContent(
         `Analyze the time and space complexity of the following code. Provide a concise explanation starting with "Time Complexity: O(...), Space Complexity: O(...)".\n\nCode:\n${code}`,
         { maxOutputTokens: 200 },
         req.user?.id
       );
-      
       return res.status(200).json({ complexity: analysis });
     } catch (error) {
       console.error("Error analyzing complexity:", error);
       return res.status(500).json({ message: "Failed to analyze complexity" });
     }
   });
-  
   // Get all summaries for the user
   app.get('/api/summaries', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const documentId = req.query.documentId ? parseInt(req.query.documentId as string) : null;
-      
       let summaries;
-      
       if (documentId) {
         // Check if document belongs to user
         const document = await storage.getDocumentById(documentId);
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied to the document" });
         }
-        
         summaries = await storage.getSummariesByDocumentId(documentId);
       } else {
         summaries = await storage.getSummariesByUserId(userId);
       }
-      
       return res.status(200).json({ summaries });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Get summary by ID
   app.get('/api/summaries/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const summaryId = parseInt(req.params.id);
       const summary = await storage.getSummaryById(summaryId);
-      
       if (!summary) {
         return res.status(404).json({ message: "Summary not found" });
       }
-      
       // Check if summary belongs to the user
       if (summary.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       return res.status(200).json({ summary });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Update summary
   app.patch('/api/summaries/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const summaryId = parseInt(req.params.id);
       const summary = await storage.getSummaryById(summaryId);
-      
       if (!summary) {
         return res.status(404).json({ message: "Summary not found" });
       }
-      
       // Check if summary belongs to the user
       if (summary.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       const updatedSummary = await storage.updateSummary(summaryId, req.body);
-      
       return res.status(200).json({
         message: "Summary updated successfully",
         summary: updatedSummary
@@ -1807,24 +1560,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete summary
   app.delete('/api/summaries/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const summaryId = parseInt(req.params.id);
       const summary = await storage.getSummaryById(summaryId);
-      
       if (!summary) {
         return res.status(404).json({ message: "Summary not found" });
       }
-      
       // Check if summary belongs to the user
       if (summary.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       await storage.deleteSummary(summaryId);
-      
       // Revoke XP for anti-cheat
       try {
         const { GamificationService } = await import('./services/gamification.service');
@@ -1832,15 +1580,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to revoke XP on summary delete', err);
       }
-      
       return res.status(200).json({ message: "Summary deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // ===== AI Chat Endpoints =====
-  
   const chatUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
@@ -1856,7 +1601,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   });
-
   // Start or continue chat session
   app.post('/api/chat', jwtAuth, chatUpload.array('files', 10), async (req: Request, res: Response) => {
     try {
@@ -1865,12 +1609,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.id!;
       const files = req.files as Express.Multer.File[];
       const inlineData: { data: string; mimeType: string }[] = [];
-
       if (files && files.length > 0) {
         // Process files sequentially to avoid race conditions with documentContext
         for (const file of files) {
           let fileUrl = "";
-          
           // Background upload to Cloudinary (if configured)
           try {
             if (cloudinaryService.isAvailable()) {
@@ -1879,9 +1621,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 file.mimetype, 
                 { folder: 'studyforge/attachments' }
               );
-              
               // Save to database and get the inserted ID
-              const [result] = await db.insert(attachments).values({
+              const result = await db.insert(attachments).values({
                 userId,
                 filename: file.filename || file.originalname,
                 originalName: file.originalname,
@@ -1889,41 +1630,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 mimeType: file.mimetype,
                 size: file.size,
                 source: 'chat'
-              });
-              
+              }).returning();
               // Use the proxy URL for the chat history inlineData so thumbnails work
-              if (result && result.insertId) {
-                fileUrl = `/api/media/${result.insertId}`;
+              if (result && result.length > 0 && result[0].id) {
+                fileUrl = `/api/media/${result[0].id}`;
               }
             }
           } catch (err) {
             console.error("Error uploading attachment to Cloudinary:", err);
           }
-
           // Process for Gemini context
           if (file.mimetype === 'application/pdf') {
             try {
-              console.log(`[PDF] Parsing PDF: ${file.originalname} (${file.buffer.length} bytes)`);
-              const pdfParseModule = await import('pdf-parse');
-              const PDFParse = pdfParseModule.PDFParse;
-              const parser = new PDFParse({ data: new Uint8Array(file.buffer) });
-              const pdfData = await parser.getText();
-              const extractedText = pdfData.text.trim();
-              await parser.destroy();
-              
-              console.log(`[PDF] Extracted ${extractedText.length} characters from ${file.originalname}`);
-              
-              if (extractedText) {
-                const prefix = `[UPLOADED PDF CONTENT: ${file.originalname}]:\n`;
-                documentContext = documentContext ? `${documentContext}\n\n${prefix}${extractedText}` : `${prefix}${extractedText}`;
-                console.log(`[PDF] documentContext updated, total length: ${documentContext.length}`);
-              } else {
-                console.warn(`[PDF] No text extracted from ${file.originalname}`);
-              }
-              
-              // Add a placeholder to inlineData so the frontend knows a PDF was attached
+              console.log(`[PDF] Processing PDF attachment: ${file.originalname} (${file.buffer.length} bytes)`);
+              // We removed pdf-parse here because it fails on scanned image PDFs and poisons the documentContext 
+              // with garbage text. Instead, we rely entirely on Gemini 1.5's native multimodal PDF support.
               inlineData.push({
-                data: '',
+                data: file.buffer.toString('base64'),
                 mimeType: 'application/pdf',
                 fileUrl: fileUrl || undefined
               } as any);
@@ -1938,29 +1661,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-      
       // Validate message format
       const validatedMessage = chatMessageSchema.parse({
         role: "user",
         content: message,
         ...(inlineData.length > 0 ? { inlineData } : {})
       });
-      
       let chatHistory;
-      
       if (sessionId) {
         // Get existing chat session
         chatHistory = await storage.getChatHistoryById(parseInt(sessionId));
-        
         if (!chatHistory) {
           return res.status(404).json({ message: "Chat session not found" });
         }
-        
         // Check if chat belongs to the user
         if (chatHistory.userId !== userId) {
           return res.status(403).json({ message: "Access denied" });
         }
-        
         // Update existing chat with new message
         chatHistory = await storage.updateChatHistory(parseInt(sessionId), validatedMessage);
       } else {
@@ -1972,7 +1689,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Extract first 40 characters for the title
           generatedSubject = cleanText.length > 40 ? cleanText.substring(0, 40) + '...' : cleanText;
         }
-
         chatHistory = await storage.createChatHistory({
           userId,
           sessionId: Date.now().toString(),
@@ -1980,15 +1696,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           subject: generatedSubject || null
         });
       }
-      
       // Get all previous messages to provide context
       const messages = chatHistory ? (Array.isArray(chatHistory.messages) 
         ? chatHistory.messages 
         : JSON.parse((chatHistory.messages as string) || '[]')) : [];
-      
       // Import chat summarization utilities
       const { shouldSummarizeConversation, createSummarizationPrompt, truncateWithSummary } = await import('./utils/chatSummarization');
-      
       // Check if conversation needs summarization (more than 20 messages)
       let processedMessages = messages;
       if (shouldSummarizeConversation(messages, 20)) {
@@ -1997,7 +1710,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { geminiService } = await import('./services/gemini');
           const summaryPrompt = createSummarizationPrompt(messages.slice(0, -10));
           const summary = await geminiService.generateContent(summaryPrompt, {}, userId);
-          
           // Truncate messages and add summary
           processedMessages = truncateWithSummary(messages, 10, summary);
         } catch (error) {
@@ -2006,32 +1718,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           processedMessages = messages.slice(-15);
         }
       }
-      
       // Prepare messages for Gemini (convert assistant to model)
       const apiMessages = processedMessages.map((msg: ChatMessage) => {
         let cleanInlineData = undefined;
         if (msg.inlineData) {
-          // Filter out PDF placeholders so Gemini doesn't complain about empty documents
-          const filtered = msg.inlineData.filter((data: any) => data.mimeType !== 'application/pdf' && data.data !== '');
+          // Filter out empty data placeholders so Gemini doesn't complain
+          const filtered = msg.inlineData.filter((data: any) => data.data !== '');
           if (filtered.length > 0) {
             cleanInlineData = filtered;
           }
         }
-        
         return {
           role: msg.role as "user" | "assistant" | "system",
           content: msg.content,
           ...(cleanInlineData ? { inlineData: cleanInlineData } : {})
         };
       });
-      
       // Get user info for personalization
       const user = await storage.getUser(userId);
       const userStats = await storage.getUserStats(userId);
       const userName = user?.fullName?.split(' ')[0] || user?.username || user?.email?.split('@')[0] || "there";
       const userPlans = await storage.getStudyPlansByUserId(userId);
       const activePlans = userPlans.filter(p => p.status === 'active');
-      
       // Add system message at the beginning for better context
       // Always refresh the system message to include latest documentContext (e.g. newly uploaded PDFs)
       const existingSystemIndex = apiMessages.findIndex((msg: { role: string }) => msg.role === 'system');
@@ -2039,12 +1747,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Remove existing system message - we'll create a fresh one with updated context
         apiMessages.splice(existingSystemIndex, 1);
       }
-      
       {
         // Only generate personalized greeting instruction for the very first message
         const isNewConversation = apiMessages.length <= 1;
         let greetingInstruction = "";
-        
         if (isNewConversation) {
           const greetings = [
             `Hey ${userName}! 👋`,
@@ -2055,7 +1761,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const selectedGreeting = greetings[Math.floor(Math.random() * greetings.length)];
           greetingInstruction = `\n\nIMPORTANT: For your FIRST response in a new conversation, start with a personalized greeting: "${selectedGreeting} I'm Jadoo, your AI study assistant" and then naturally continue with your response to help the user.\n`;
         }
-        
         apiMessages.unshift({
           role: "system",
           content: "You are Jadoo, an AI-powered study assistant created specifically for StudyForge platform. " +
@@ -2125,19 +1830,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `${subject ? `This conversation is about ${subject}.` : ""}`
         });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
       let aiResponseContent = "";
-      
       const isStreaming = req.headers.accept === 'text/event-stream' || req.query.stream === 'true';
-
       if (isStreaming) {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
-
         try {
           const stream = geminiService.generateChatResponseStream(apiMessages, { maxOutputTokens: 8192 }, userId);
           let chunkCount = 0;
@@ -2150,14 +1851,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               (res as any).flush();
             }
           }
-          console.log(`[STREAM_DEBUG] Successfully sent ${chunkCount} chunks. Total length: ${aiResponseContent.length}`);
         } catch (error) {
           console.error("Error generating AI stream response:", error);
           const errorMsg = "I'm sorry, I encountered an error processing your request. Please try again.";
           aiResponseContent += errorMsg;
           res.write(`data: ${JSON.stringify({ content: errorMsg })}\n\n`);
         }
-
         // Add AI response to chat history
         if (chatHistory) {
           chatHistory = await storage.updateChatHistory(chatHistory.id, {
@@ -2166,12 +1865,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date()
           });
         }
-        
         res.write(`data: ${JSON.stringify({ done: true, chatHistory })}\n\n`);
-        console.log(`[STREAM_DEBUG] Sent done signal. Response length: ${aiResponseContent.length}`);
         return res.end();
       }
-
       // Existing non-streaming logic
       try {
         aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
@@ -2179,13 +1875,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating AI response:", error);
         aiResponseContent = "I'm sorry, I encountered an error processing your request. Please try again.";
       }
-      
       const aiResponse = {
         role: "assistant",
         content: aiResponseContent,
         timestamp: new Date()
       };
-      
       // Add AI response to chat history
       if (chatHistory) {
         chatHistory = await storage.updateChatHistory(chatHistory.id, {
@@ -2194,7 +1888,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date()
         });
       }
-      
       return res.status(200).json({
         message: "Chat message processed",
         response: aiResponse,
@@ -2204,78 +1897,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get user's chat history
   app.get('/api/chat/history', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const history = await storage.getChatHistoriesByUserId(userId);
-      
       // Return array directly for frontend compatibility
       return res.status(200).json(history);
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Get specific chat session by ID
   app.get('/api/chat/history/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const chatId = parseInt(req.params.id);
-      
       if (isNaN(chatId)) {
         return res.status(400).json({ message: "Invalid chat ID" });
       }
-      
       const chatHistory = await storage.getChatHistoryById(chatId);
-      
       if (!chatHistory) {
         return res.status(404).json({ message: "Chat session not found" });
       }
-      
       // Check if chat belongs to the user
       if (chatHistory.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       return res.status(200).json({ chatHistory });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Update chat session (edit title/subject)
   app.patch('/api/chat/history/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const chatId = parseInt(req.params.id);
       const { subject } = req.body;
-      
       if (isNaN(chatId)) {
         return res.status(400).json({ message: "Invalid chat ID" });
       }
-      
       const chatHistory = await storage.getChatHistoryById(chatId);
-      
       if (!chatHistory) {
         return res.status(404).json({ message: "Chat session not found" });
       }
-      
       // Check if chat belongs to the user
       if (chatHistory.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Update the chat subject
       const updatedChat = await storage.updateChatHistorySubject(chatId, subject);
-      
       Logger.debug(LogCategory.SECURITY, 'Chat history updated', {
         action: 'update_chat',
         userId,
         chatId,
       });
-      
       return res.status(200).json({ 
         message: "Chat updated successfully",
         chatHistory: updatedChat 
@@ -2284,34 +1961,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Proxy media route to obscure Cloudinary URLs from users
   app.get('/api/media/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const attachmentId = parseInt(req.params.id);
-      
       if (isNaN(attachmentId)) {
         return res.status(400).json({ message: "Invalid media ID" });
       }
-
       const [attachment] = await db.select().from(attachments).where(
         and(
           eq(attachments.id, attachmentId),
           eq(attachments.userId, userId)
         )
       );
-
       if (!attachment) {
         return res.status(404).json({ message: "Media not found" });
       }
-
       // If it's a remote URL, proxy it via https
       if (attachment.fileUrl.startsWith('https://')) {
         const https = await import('https');
         const { v2: cloudinary } = await import('cloudinary');
         let targetUrl = attachment.fileUrl;
-        
         // Generate proper Cloudinary URL based on request type
         const publicId = cloudinaryService.extractPublicId(attachment.fileUrl);
         if (publicId) {
@@ -2320,7 +1991,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Auto-detect resource_type from the stored URL (handles both old 'raw' and new 'image' uploads)
           const isRawUpload = attachment.fileUrl.includes('/raw/');
           const pdfResourceType = isRawUpload ? 'raw' : 'image';
-          
           if (isPdf && isPreview) {
             if (isRawUpload) {
               // 'raw' type PDFs can't generate JPG thumbnails - return a placeholder
@@ -2335,7 +2005,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               resource_type: 'image',
               format: 'jpg'
             });
-            console.log(`[PROXY] Generated PDF Thumbnail URL: ${targetUrl} for publicId: ${publicId}`);
           } else if (isPdf && !isPreview) {
             // For full PDF download: use Cloudinary's private download API which bypasses CDN restrictions
             try {
@@ -2365,7 +2034,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         }
-        
         // Pass Range header for PDF viewer byte-range requests
         const options: any = { 
           headers: {
@@ -2377,10 +2045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (req.headers.range) {
           options.headers['Range'] = req.headers.range;
         }
-
         https.get(targetUrl, options, (stream) => {
-          console.log(`[PROXY] Cloudinary returned status ${stream.statusCode} for ${targetUrl}`);
-          
           // If Cloudinary returned an error, handle redirects or pass through
           if (stream.statusCode === 301 || stream.statusCode === 302) {
             const redirectUrl = stream.headers.location;
@@ -2389,7 +2054,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               https.get(redirectUrl, options, (redirectStream) => {
                 if (redirectStream.headers['content-length']) res.setHeader('Content-Length', redirectStream.headers['content-length']);
                 if (redirectStream.headers['accept-ranges']) res.setHeader('Accept-Ranges', redirectStream.headers['accept-ranges']);
-                
                 const isPdf = attachment.mimeType === 'application/pdf';
                 const isPreview = req.query.preview === 'true';
                 if (isPreview && isPdf) {
@@ -2407,13 +2071,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return;
             }
           }
-
           // Pass back necessary headers for Chrome's native PDF viewer
           if (stream.headers['content-length']) res.setHeader('Content-Length', stream.headers['content-length']);
           if (stream.headers['accept-ranges']) res.setHeader('Accept-Ranges', stream.headers['accept-ranges']);
           if (stream.headers['content-range']) res.setHeader('Content-Range', stream.headers['content-range']);
           if (stream.headers['content-encoding']) res.setHeader('Content-Encoding', stream.headers['content-encoding']);
-          
           const isPdf = attachment.mimeType === 'application/pdf';
           const isPreview = req.query.preview === 'true';
           if (isPreview && isPdf) {
@@ -2421,16 +2083,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             res.setHeader('Content-Type', attachment.mimeType);
           }
-          
           res.setHeader('Content-Disposition', `inline; filename="${attachment.originalName}"`);
           res.status(stream.statusCode || 200);
-
           // Handle proxy errors safely
           stream.on('error', (err) => {
             console.error('[PROXY] Error streaming media from Cloudinary:', err);
             if (!res.headersSent) res.status(500).end();
           });
-          
           stream.pipe(res);
         }).on('error', (err) => {
           console.error('HTTPS Get Error:', err);
@@ -2447,45 +2106,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Failed to load media" });
     }
   });
-
   // Get all user attachments (Media Gallery)
   app.get('/api/attachments', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const userAttachments = await db.select().from(attachments).where(eq(attachments.userId, userId)).orderBy(sql`${attachments.createdAt} DESC`);
-      
       // Obscure Cloudinary URLs by pointing to our internal proxy route
       const obscuredAttachments = userAttachments.map((att: any) => ({
         ...att,
         fileUrl: `/api/media/${att.id}`
       }));
-      
       return res.status(200).json(obscuredAttachments);
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Delete an attachment
   app.delete('/api/attachments/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const attachmentId = parseInt(req.params.id);
-      
       if (isNaN(attachmentId)) {
         return res.status(400).json({ message: "Invalid attachment ID" });
       }
-
       const attachmentRows = await db.select().from(attachments).where(eq(attachments.id, attachmentId));
       if (attachmentRows.length === 0) {
         return res.status(404).json({ message: "Attachment not found" });
       }
-
       const attachment = attachmentRows[0];
       if (attachment.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-
       // Delete from Cloudinary if configured
       if (cloudinaryService.isAvailable()) {
         try {
@@ -2498,45 +2149,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Proceed with DB deletion even if Cloudinary fails
         }
       }
-
       await db.delete(attachments).where(eq(attachments.id, attachmentId));
-      
       return res.status(200).json({ message: "Attachment deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Delete chat session
   app.delete('/api/chat/history/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const chatId = parseInt(req.params.id);
-      
       if (isNaN(chatId)) {
         return res.status(400).json({ message: "Invalid chat ID" });
       }
-      
       const chatHistory = await storage.getChatHistoryById(chatId);
-      
       if (!chatHistory) {
         return res.status(404).json({ message: "Chat session not found" });
       }
-      
       // Check if chat belongs to the user
       if (chatHistory.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Delete the chat
       await storage.deleteChatHistory(chatId);
-      
       Logger.debug(LogCategory.SECURITY, 'Chat history deleted', {
         action: 'delete_chat',
         userId,
         chatId,
       });
-      
       return res.status(200).json({ 
         message: "Chat deleted successfully" 
       });
@@ -2544,30 +2185,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Save message feedback (like/dislike)
   app.post('/api/feedback', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { messageId, type } = req.body;
       const userId = req.user?.id!;
-
       if (!messageId || !type) {
         return res.status(400).json({ message: "messageId and type are required" });
       }
-
       // Validate type
       const validTypes = ['like', 'dislike', 'unlike', 'undislike', 'regenerate'];
       if (!validTypes.includes(type)) {
         return res.status(400).json({ message: "Invalid feedback type" });
       }
-
       // Create feedback record
       const feedback = await storage.createFeedback({
         messageId,
         userId,
         type,
       });
-
       return res.status(201).json({
         message: "Feedback saved successfully",
         feedback,
@@ -2576,53 +2212,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Regenerate AI response for a message
   app.post('/api/chat/regenerate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { sessionId, messageIndex } = req.body;
       const userId = req.user?.id!;
-
       if (!sessionId) {
         return res.status(400).json({ message: "sessionId is required" });
       }
-
       // Get chat history
       const chatHistory = await storage.getChatHistoryById(parseInt(sessionId));
-
       if (!chatHistory) {
         return res.status(404).json({ message: "Chat session not found" });
       }
-
       // Check if chat belongs to the user
       if (chatHistory.userId !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-
       // Get messages
       const messages = Array.isArray(chatHistory.messages)
         ? chatHistory.messages
         : JSON.parse((chatHistory.messages as string) || '[]');
-
       // Get the user message before the AI response to regenerate
       let contextMessages = messages;
       if (typeof messageIndex === 'number' && messageIndex > 0) {
         contextMessages = messages.slice(0, messageIndex);
       }
-
       // Prepare messages for Gemini
       const apiMessages = contextMessages.map((msg: ChatMessage) => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content
       }));
-
       // Get user info for personalization
       const user = await storage.getUser(userId);
       const userStats = await storage.getUserStats(userId);
       const userName = user?.fullName?.split(' ')[0] || user?.username || user?.email?.split('@')[0] || "there";
       const userPlans = await storage.getStudyPlansByUserId(userId);
       const activePlans = userPlans.filter(p => p.status === 'active');
-
       // Add system message if not present
       if (!apiMessages.some((msg: { role: string }) => msg.role === 'system')) {
         apiMessages.unshift({
@@ -2682,31 +2308,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "- For every problem shown, provide the fix/solution"
         });
       }
-
       // Generate new response
       const { geminiService } = await import('./services/gemini');
       let aiResponseContent: string;
-
       try {
         aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
       } catch (error) {
         console.error("Error generating AI response:", error);
         aiResponseContent = "I'm sorry, I encountered an error processing your request. Please try again.";
       }
-
       const aiResponse = {
         role: "assistant",
         content: aiResponseContent,
         timestamp: new Date()
       };
-
       // Save feedback for regeneration
       await storage.createFeedback({
         messageId: sessionId,
         userId,
         type: 'regenerate',
       });
-
       return res.status(200).json({
         message: "Response regenerated successfully",
         response: aiResponse,
@@ -2715,31 +2336,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Report a message
   app.post('/api/report', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { messageId, messageContent, reason } = req.body;
       const userId = req.user?.id!;
-
       if (!messageContent) {
         return res.status(400).json({ message: "messageContent is required" });
       }
-
       Logger.security('Message reported', {
         action: 'report_message',
         userId,
         messageId,
         reason: reason || 'user_reported',
       });
-
       // Save report as feedback
       await storage.createFeedback({
         messageId: messageId || 0,
         userId,
         type: 'report',
       });
-
       return res.status(200).json({
         message: "Report submitted successfully",
         success: true,
@@ -2748,17 +2364,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Save a message to user's collection
   app.post('/api/messages/save', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { messageId, messageContent } = req.body;
       const userId = req.user?.id!;
-
       if (!messageContent) {
         return res.status(400).json({ message: "messageContent is required" });
       }
-
       // Create a document with the saved message
       const savedMessage = await storage.createDocument({
         userId,
@@ -2767,14 +2380,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileType: 'txt',
         summary: messageContent.substring(0, 200) + (messageContent.length > 200 ? '...' : ''),
       });
-
       Logger.debug(LogCategory.SECURITY, 'Message saved', {
         action: 'save_message',
         userId,
         messageId,
         documentId: savedMessage.id,
       });
-
       return res.status(200).json({
         message: "Message saved successfully",
         document: savedMessage,
@@ -2783,34 +2394,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // ===== Flashcard Endpoints =====
-  
    // Create flashcard
   app.post('/api/flashcards', jwtAuth, async (req: Request, res: Response) => {
     try {
       const flashcardData = insertFlashcardSchema.parse(req.body);
       const userId = req.user?.id!;
-      
       // If document ID is provided, check if document exists and belongs to user
       if (flashcardData.documentId) {
         const document = await storage.getDocumentById(flashcardData.documentId);
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied to the document" });
         }
       }
-      
       const flashcard = await storage.createFlashcard({
         ...flashcardData,
         userId: userId!,
         documentId: flashcardData.documentId ?? undefined
       } as any);
-      
       return res.status(201).json({
         message: "Flashcard created successfully",
         flashcard
@@ -2819,7 +2423,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get flashcards by document ID or all user flashcards (with pagination)
   app.get('/api/flashcards', jwtAuth, async (req: Request, res: Response) => {
     try {
@@ -2827,19 +2430,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documentId = req.query.documentId ? parseInt(req.query.documentId as string) : null;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      
       if (documentId) {
         // Check if document belongs to user
         const document = await storage.getDocumentById(documentId);
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied to the document" });
         }
-        
         // For document-specific queries, return all (no pagination)
         const flashcards = await storage.getFlashcardsByDocumentId(documentId);
         return res.status(200).json({ flashcards });
@@ -2852,23 +2451,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Update flashcard
   app.patch('/api/flashcards/:id', jwtAuth, validateFlashcardUpdate, async (req: Request, res: Response) => {
     try {
       const flashcardId = parseInt(req.params.id);
-      
       // Validate flashcard ID
       if (isNaN(flashcardId) || flashcardId <= 0) {
         return res.status(400).json({ message: "Invalid flashcard ID" });
       }
-      
       const flashcard = await storage.getFlashcardById(flashcardId);
-      
       if (!flashcard) {
         return res.status(404).json({ message: "Flashcard not found" });
       }
-      
       // Check if flashcard belongs to the user (ownership verification)
       if (flashcard.userId !== req.user?.id!) {
         Logger.security('Unauthorized flashcard update attempt', {
@@ -2878,20 +2472,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(403).json({ message: "Access denied. You can only update your own flashcards." });
       }
-      
       // Update the flashcard with validated data
       const updatedFlashcard = await storage.updateFlashcard(flashcardId, req.body);
-      
       if (!updatedFlashcard) {
         return res.status(500).json({ message: "Failed to update flashcard" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Flashcard updated successfully', {
         userId: req.user?.id,
         flashcardId,
         updatedFields: Object.keys(req.body),
       });
-      
       return res.status(200).json({
         message: "Flashcard updated successfully",
         flashcard: updatedFlashcard
@@ -2900,24 +2490,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete flashcard
   app.delete('/api/flashcards/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const flashcardId = parseInt(req.params.id);
       const flashcard = await storage.getFlashcardById(flashcardId);
-      
       if (!flashcard) {
         return res.status(404).json({ message: "Flashcard not found" });
       }
-      
       // Check if flashcard belongs to the user
       if (flashcard.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       await storage.deleteFlashcard(flashcardId);
-      
       // Revoke XP for anti-cheat
       try {
         const { GamificationService } = await import('./services/gamification.service');
@@ -2925,25 +2510,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to revoke XP on flashcard delete', err);
       }
-      
       return res.status(200).json({ message: "Flashcard deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Generate flashcard with AI
   app.post('/api/flashcards/generate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { topic, context } = req.body;
-      
       if (!topic) {
         return res.status(400).json({ message: "Topic is required" });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       let flashcardData;
       try {
         flashcardData = await geminiService.generateFlashcard(topic, context, req.user?.id);
@@ -2951,7 +2531,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating flashcard:", error);
         return res.status(500).json({ message: "Failed to generate flashcard" });
       }
-      
       return res.status(200).json({
         message: "Flashcard generated successfully",
         question: flashcardData.question,
@@ -2963,30 +2542,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Review flashcard (update spaced repetition data)
   app.post('/api/flashcards/:id/review', jwtAuth, async (req: Request, res: Response) => {
     try {
       const flashcardId = parseInt(req.params.id);
       const { correct, confidence } = req.body;
-      
       const flashcard = await storage.getFlashcardById(flashcardId);
-      
       if (!flashcard) {
         return res.status(404).json({ message: "Flashcard not found" });
       }
-      
       // Check if flashcard belongs to the user
       if (flashcard.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Import SM-2 algorithm utilities
       const { calculateSM2, booleanToQuality, calculateNextReviewDate, calculateStreak } = await import('./utils/spacedRepetition');
-      
       // Convert boolean to quality rating (0-5)
       const quality = booleanToQuality(correct, confidence);
-      
       // Calculate new spaced repetition parameters using SM-2 algorithm
       const sm2Result = calculateSM2(
         quality,
@@ -2994,11 +2566,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         flashcard.easeFactor || 250,
         0 // We don't track repetitions separately, so use 0
       );
-      
       // Calculate next review date
       const nextReviewDate = calculateNextReviewDate(sm2Result.interval);
       const now = new Date();
-      
       // Update flashcard
       const updatedFlashcard = await storage.updateFlashcard(flashcardId, {
         repetitionInterval: sm2Result.interval,
@@ -3006,11 +2576,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastReviewed: now,
         nextReviewDate: nextReviewDate
       });
-      
       // Update user stats
       const userId = req.user?.id!;
       const userStats = await storage.getUserStats(userId);
-      
       if (userStats) {
         // Calculate streak
         const newStreak = calculateStreak(
@@ -3018,7 +2586,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userStats.streakDays || 0,
           now
         );
-        
         await storage.updateUserStats(userId, {
           flashcardsReviewed: (userStats.flashcardsReviewed || 0) + 1,
           correctFlashcards: (userStats.correctFlashcards || 0) + (correct ? 1 : 0),
@@ -3028,7 +2595,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastActive: now,
         });
       }
-      
       return res.status(200).json({
         message: "Flashcard reviewed successfully",
         flashcard: updatedFlashcard,
@@ -3041,32 +2607,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get due flashcards for review
   app.get('/api/flashcards/due', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const limit = parseInt(req.query.limit as string) || 20;
-      
       // Get all user's flashcards
       const { flashcards } = await storage.getFlashcardsByUserId(userId);
-      
       // Import utility to check if card is due
       const { isCardDue } = await import('./utils/spacedRepetition');
-      
       // Filter for due cards
       const dueFlashcards = flashcards.filter(card => isCardDue(card.nextReviewDate));
-      
       // Sort by next review date (oldest first, null dates first)
       dueFlashcards.sort((a, b) => {
         if (!a.nextReviewDate) return -1;
         if (!b.nextReviewDate) return 1;
         return new Date(a.nextReviewDate).getTime() - new Date(b.nextReviewDate).getTime();
       });
-      
       // Limit results
       const limitedDueCards = dueFlashcards.slice(0, limit);
-      
       return res.status(200).json({
         flashcards: limitedDueCards,
         total: dueFlashcards.length,
@@ -3076,36 +2635,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Generate multiple flashcards from document using AI
   app.post('/api/documents/:id/generate-flashcards', jwtAuth, async (req: Request, res: Response) => {
     try {
       const documentId = parseInt(req.params.id);
       const userId = req.user?.id!;
       const { count = 10, difficulty = 'medium' } = req.body;
-      
       // Validate document ID
       if (isNaN(documentId) || documentId <= 0) {
         return res.status(400).json({ message: "Invalid document ID" });
       }
-      
       // Validate count
       if (count < 5 || count > 20) {
         return res.status(400).json({ message: "Count must be between 5 and 20" });
       }
-      
       // Validate difficulty
       if (!['easy', 'medium', 'hard'].includes(difficulty)) {
         return res.status(400).json({ message: "Difficulty must be easy, medium, or hard" });
       }
-      
       // Get document and verify ownership
       const document = await storage.getDocumentById(documentId);
-      
       if (!document) {
         return res.status(404).json({ message: "Document not found" });
       }
-      
       if (document.userId !== userId) {
         Logger.security('Unauthorized flashcard generation attempt', {
           userId,
@@ -3114,15 +2666,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(403).json({ message: "Access denied. You can only generate flashcards from your own documents." });
       }
-      
       // Check if document has content
       if (!document.content || document.content.trim().length < 100) {
         return res.status(400).json({ message: "Document content is too short to generate flashcards" });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       Logger.debug(LogCategory.SECURITY, 'Bulk flashcard generation started', {
         userId,
         documentId,
@@ -3130,7 +2679,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         difficulty,
         contentLength: document.content.length,
       });
-      
       let flashcardsData;
       try {
         flashcardsData = await geminiService.generateFlashcardsFromDocument(
@@ -3151,13 +2699,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: (error as Error).message 
         });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Bulk flashcard generation completed', {
         userId,
         documentId,
         generatedCount: flashcardsData.length,
       });
-      
       return res.status(200).json({
         message: `Successfully generated ${flashcardsData.length} flashcards`,
         flashcards: flashcardsData,
@@ -3167,38 +2713,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Generate flashcards from text (without document ID)
   app.post('/api/flashcards/generate-from-text', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const { text, count = 10, difficulty = 'medium' } = req.body;
-      
       // Validate text
       if (!text || typeof text !== 'string' || text.trim().length < 100) {
         return res.status(400).json({ message: "Text content is required and must be at least 100 characters" });
       }
-      
       // Validate count
       if (count < 5 || count > 20) {
         return res.status(400).json({ message: "Count must be between 5 and 20" });
       }
-      
       // Validate difficulty
       if (!['easy', 'medium', 'hard'].includes(difficulty)) {
         return res.status(400).json({ message: "Difficulty must be easy, medium, or hard" });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       Logger.debug(LogCategory.SECURITY, 'Flashcard generation from text started', {
         userId,
         count,
         difficulty,
         contentLength: text.length,
       });
-      
       let flashcardsData;
       try {
         flashcardsData = await geminiService.generateFlashcardsFromDocument(
@@ -3218,12 +2757,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: (error as Error).message 
         });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Flashcard generation from text completed', {
         userId,
         generatedCount: flashcardsData.length,
       });
-      
       // Award Gamification XP
       let gamificationStats = null;
       try {
@@ -3232,7 +2769,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to award XP for flashcards', err);
       }
-
       return res.status(200).json({
         message: `Successfully generated ${flashcardsData.length} flashcards`,
         flashcards: flashcardsData,
@@ -3242,35 +2778,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Save multiple flashcards at once (bulk create)
   app.post('/api/flashcards/bulk', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { flashcards, documentId } = req.body;
       const userId = req.user?.id!;
-      
       // Validate flashcards array
       if (!Array.isArray(flashcards) || flashcards.length === 0) {
         return res.status(400).json({ message: "Flashcards array is required and must not be empty" });
       }
-      
       if (flashcards.length > 20) {
         return res.status(400).json({ message: "Cannot create more than 20 flashcards at once" });
       }
-      
       // If document ID is provided, verify ownership
       if (documentId) {
         const document = await storage.getDocumentById(documentId);
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied to the document" });
         }
       }
-      
       // Validate each flashcard
       const validatedFlashcards = [];
       for (let i = 0; i < flashcards.length; i++) {
@@ -3284,13 +2813,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Bulk flashcard creation started', {
         userId,
         documentId,
         count: validatedFlashcards.length,
       });
-      
       // Create all flashcards
       const createdFlashcards = [];
       for (const flashcardData of validatedFlashcards) {
@@ -3309,7 +2836,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Continue creating other flashcards even if one fails
         }
       }
-      
       // Update user stats
       const userStats = await storage.getUserStats(userId);
       if (userStats) {
@@ -3317,14 +2843,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           flashcardsCreated: (userStats.flashcardsCreated || 0) + createdFlashcards.length,
         });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Bulk flashcard creation completed', {
         userId,
         documentId,
         requestedCount: validatedFlashcards.length,
         createdCount: createdFlashcards.length,
       });
-      
       return res.status(201).json({
         message: `Successfully created ${createdFlashcards.length} flashcards`,
         flashcards: createdFlashcards,
@@ -3334,16 +2858,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get flashcard analytics
   app.get('/api/flashcards/analytics', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
-      
       // Check cache first (5-minute TTL)
       const cacheKey = `flashcard_analytics_${userId}`;
       const cacheTTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-      
       const cached = analyticsCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < cacheTTL) {
         return res.status(200).json({
@@ -3352,23 +2873,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           cached: true,
         });
       }
-      
       // Fetch all user flashcards (no pagination for analytics)
       const { flashcards } = await storage.getFlashcardsByUserId(userId);
-      
       // Fetch user stats
       const userStats = await storage.getUserStats(userId);
-      
       // Calculate analytics
       const { calculateFlashcardAnalytics } = await import('./utils/flashcardAnalytics');
       const analytics = calculateFlashcardAnalytics(flashcards, userStats);
-      
       // Cache the result
       analyticsCache.set(cacheKey, {
         data: analytics,
         timestamp: Date.now(),
       });
-      
       return res.status(200).json({
         message: "Analytics retrieved successfully",
         analytics,
@@ -3378,13 +2894,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Export flashcards in various formats
   app.get('/api/flashcards/export', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const format = (req.query.format as string)?.toLowerCase() || 'json';
-      
       // Validate format
       const validFormats = ['csv', 'json', 'anki'];
       if (!validFormats.includes(format)) {
@@ -3392,23 +2906,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Invalid format. Supported formats: csv, json, anki" 
         });
       }
-      
       // Fetch all user flashcards (no pagination for export)
       const { flashcards } = await storage.getFlashcardsByUserId(userId);
-      
       if (flashcards.length === 0) {
         return res.status(404).json({ 
           message: "No flashcards found to export" 
         });
       }
-      
       // Import export utilities
       const { convertToCSV, convertToJSON, convertToAnki } = await import('./utils/flashcardExport');
-      
       let content: string;
       let contentType: string;
       let fileExtension: string;
-      
       // Convert to requested format
       switch (format) {
         case 'csv':
@@ -3428,48 +2937,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileExtension = 'json';
           break;
       }
-      
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
       const filename = `flashcards_export_${timestamp}.${fileExtension}`;
-      
       // Set headers for file download
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      
       return res.status(200).send(content);
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // ===== MCQ Endpoints =====
-  
   // Create MCQ
   app.post('/api/mcqs', jwtAuth, async (req: Request, res: Response) => {
     try {
       const mcqData = insertMcqSchema.parse(req.body);
       const userId = req.user?.id!;
-      
       // If document ID is provided, check if document exists and belongs to user
       if (mcqData.documentId) {
         const document = await storage.getDocumentById(mcqData.documentId);
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied to the document" });
         }
       }
-      
       const mcq = await storage.createMcq({
         ...mcqData,
         userId: userId!,
         documentId: mcqData.documentId ?? undefined
       } as any);
-      
       return res.status(201).json({
         message: "MCQ created successfully",
         mcq
@@ -3478,7 +2977,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get MCQs by document ID, difficulty, or all user MCQs (with pagination)
   app.get('/api/mcqs', jwtAuth, async (req: Request, res: Response) => {
     try {
@@ -3487,19 +2985,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const difficulty = req.query.difficulty as string | null;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      
       if (documentId) {
         // Check if document belongs to user
         const document = await storage.getDocumentById(documentId);
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied to the document" });
         }
-        
         // For document-specific queries, return all (no pagination)
         const mcqs = await storage.getMcqsByDocumentId(documentId);
         return res.status(200).json({ mcqs });
@@ -3516,24 +3010,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Update MCQ
   app.patch('/api/mcqs/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const mcqId = parseInt(req.params.id);
       const mcq = await storage.getMcqById(mcqId);
-      
       if (!mcq) {
         return res.status(404).json({ message: "MCQ not found" });
       }
-      
       // Check if MCQ belongs to the user
       if (mcq.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       const updatedMcq = await storage.updateMcq(mcqId, req.body);
-      
       return res.status(200).json({
         message: "MCQ updated successfully",
         mcq: updatedMcq
@@ -3542,42 +3031,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete MCQ
   app.delete('/api/mcqs/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const mcqId = parseInt(req.params.id);
       const mcq = await storage.getMcqById(mcqId);
-      
       if (!mcq) {
         return res.status(404).json({ message: "MCQ not found" });
       }
-      
       // Check if MCQ belongs to the user
       if (mcq.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       await storage.deleteMcq(mcqId);
-      
       return res.status(200).json({ message: "MCQ deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Generate MCQ with AI
   app.post('/api/mcqs/generate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { topic, difficulty, context } = req.body;
-      
       if (!topic) {
         return res.status(400).json({ message: "Topic is required" });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       let mcqData;
       try {
         mcqData = await geminiService.generateMCQ(topic, difficulty || 'medium', context, req.user?.id);
@@ -3585,14 +3065,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating MCQ:", error);
         return res.status(500).json({ message: "Failed to generate MCQ" });
       }
-      
       // Transform the response to match the frontend format
       const options = mcqData.options.map((text: string, index: number) => ({
         id: (index + 1).toString(),
         text: text,
         isCorrect: index === mcqData.correctOption
       }));
-      
       return res.status(200).json({
         message: "MCQ generated successfully",
         question: mcqData.question,
@@ -3605,13 +3083,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Save quiz attempt
   app.post('/api/quiz-attempts', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { score, totalQuestions, correctAnswers, wrongAnswers, incorrectAnswers: reqIncorrectAnswers, timeSpent, category, difficulty, questionsData, questionAttempts: questionAttemptsData } = req.body;
       const userId = req.user?.id;
-      
       // Validate required fields
       if (!userId) {
         console.error('Quiz attempt save failed: No user ID');
@@ -3620,7 +3096,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Authentication required" 
         });
       }
-      
       if (score === undefined || totalQuestions === undefined || correctAnswers === undefined) {
         console.error('Quiz attempt save failed: Missing required fields', {
           hasScore: score !== undefined,
@@ -3632,14 +3107,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Missing required fields: score, totalQuestions, or correctAnswers" 
         });
       }
-      
-      console.log('Saving quiz attempt:', {
-        userId,
-        questionsDataCount: questionsData?.length || 0,
-        questionAttemptsCount: questionAttemptsData?.length || 0,
-        questionAttemptsSample: questionAttemptsData?.[0]
-      });
-      
       // Fetch full question data from database including correctAnswer
       // The questionsData from frontend doesn't have correctAnswer for security
       let fullQuestionsData = questionsData;
@@ -3651,7 +3118,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .select()
               .from(questions)
               .where(inArray(questions.id, questionIds));
-            
             // Map database questions to include all necessary fields
             fullQuestionsData = dbQuestions.map((q: any) => ({
               id: q.id,
@@ -3665,38 +3131,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               tags: q.tags,
               hints: q.hints,
             }));
-            
-            console.log('Fetched full questions with correct answers:', {
-              count: fullQuestionsData.length,
-              sample: fullQuestionsData[0] ? {
-                id: fullQuestionsData[0].id,
-                hasCorrectAnswer: 'correctAnswer' in fullQuestionsData[0]
-              } : null
-            });
           }
         } catch (fetchError) {
           console.error('Failed to fetch full question data:', fetchError);
           // Continue with original data if fetch fails
         }
       }
-      
       // Calculate accuracy - support both wrongAnswers and incorrectAnswers field names
       const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
       const incorrectAnswers = reqIncorrectAnswers !== undefined 
         ? reqIncorrectAnswers 
         : (wrongAnswers !== undefined ? wrongAnswers : (totalQuestions - correctAnswers));
-      
-      console.log('Quiz attempt data:', {
-        userId,
-        score,
-        totalQuestions,
-        correctAnswers,
-        incorrectAnswers,
-        accuracy,
-        category: category || 'general',
-        difficulty: difficulty || 'medium'
-      });
-      
       // Use AnalyticsService to record quiz attempt
       const analyticsService = new AnalyticsService();
       const attemptId = await analyticsService.recordQuizAttempt({
@@ -3712,9 +3157,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         questionsData: fullQuestionsData, // Use full questions data with correct answers
         completed: true
       });
-      
-      console.log('Quiz attempt saved with ID:', attemptId);
-      
       // Save individual question attempts if provided
       if (questionAttemptsData && Array.isArray(questionAttemptsData) && questionAttemptsData.length > 0) {
         try {
@@ -3725,22 +3167,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isCorrect: qa.isCorrect,
             timeSpent: qa.timeSpent || 0,
           }));
-          
-          console.log('Inserting question attempts:', questionAttemptsToInsert.length);
           await db.insert(questionAttempts).values(questionAttemptsToInsert);
-          console.log('Question attempts saved successfully');
         } catch (qaError) {
           console.error('Failed to save question attempts:', qaError);
           // Don't fail the whole request if question attempts fail
         }
       } else {
-        console.log('No question attempts data to save');
       }
-      
       // Check and award achievements
       const achievementService = new AchievementService();
       let newAchievements: any[] = [];
-      
       try {
         newAchievements = await achievementService.checkAndAwardBadges(userId, {
           score,
@@ -3752,17 +3188,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           category: category || 'general',
           difficulty: difficulty || 'medium',
         });
-        
-        console.log('Achievements checked:', {
-          userId,
-          newAchievementsCount: newAchievements.length,
-          achievements: newAchievements.map(a => a.name)
-        });
       } catch (achievementError) {
         console.error('Failed to check achievements:', achievementError);
         // Don't fail the request if achievements fail
       }
-      
       // Award Gamification XP
       let gamificationStats = null;
       try {
@@ -3771,7 +3200,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to award XP for quiz completion', err);
       }
-      
       return res.status(201).json({
         success: true,
         message: "Quiz attempt saved successfully",
@@ -3782,7 +3210,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error('Error saving quiz attempt:', error);
-      
       // Return detailed error response
       return res.status(500).json({
         success: false,
@@ -3791,45 +3218,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-
   // Get quiz statistics
   app.get('/api/quiz-attempts/stats', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const stats = await storage.getQuizStatsByUserId(userId);
-      
       return res.status(200).json({ stats });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Get quiz attempts history
   app.get('/api/quiz-attempts', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const limit = parseInt(req.query.limit as string) || 50;
       const attempts = await storage.getQuizAttemptsByUserId(userId, limit);
-      
       return res.status(200).json({ attempts });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Get individual quiz attempt details with questions and answers
   app.get('/api/quiz-attempts/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const attemptId = parseInt(req.params.id);
-
       if (isNaN(attemptId)) {
         return res.status(400).json({
           success: false,
           error: 'Invalid attempt ID',
         });
       }
-
       // Get quiz attempt
       const [attempt] = await db
         .select()
@@ -3841,35 +3261,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         )
         .limit(1);
-
       if (!attempt) {
         return res.status(404).json({
           success: false,
           error: 'Quiz attempt not found',
         });
       }
-
       // Get question attempts
       const questionAttemptsList = await db
         .select()
         .from(questionAttempts)
         .where(eq(questionAttempts.quizAttemptId, attemptId));
-
       // Get questions data - stored in questionsData field
       const questionsData = attempt.questionsData as any[] || [];
-      
-      console.log('Quiz attempt details:', {
-        attemptId,
-        questionsDataLength: questionsData.length,
-        questionAttemptsLength: questionAttemptsList.length,
-        firstQuestionSample: questionsData[0] ? {
-          id: questionsData[0].id,
-          type: questionsData[0].type,
-          hasCorrectAnswer: 'correctAnswer' in questionsData[0],
-          correctAnswer: questionsData[0].correctAnswer
-        } : null
-      });
-      
       return res.status(200).json({
         success: true,
         data: {
@@ -3891,20 +3295,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Delete quiz attempt
   app.delete('/api/quiz-attempts/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const attemptId = parseInt(req.params.id);
-
       if (isNaN(attemptId)) {
         return res.status(400).json({
           success: false,
           error: 'Invalid attempt ID',
         });
       }
-
       // Verify ownership
       const [attempt] = await db
         .select()
@@ -3916,24 +3317,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         )
         .limit(1);
-
       if (!attempt) {
         return res.status(404).json({
           success: false,
           error: 'Quiz attempt not found',
         });
       }
-
       // Delete question attempts first (foreign key constraint)
       await db
         .delete(questionAttempts)
         .where(eq(questionAttempts.quizAttemptId, attemptId));
-
       // Delete quiz attempt
       await db
         .delete(quizAttempts)
         .where(eq(quizAttempts.id, attemptId));
-
       // Revoke XP for anti-cheat
       try {
         const { GamificationService } = await import('./services/gamification.service');
@@ -3941,7 +3338,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to revoke XP on quiz attempt delete', err);
       }
-
       return res.status(200).json({
         success: true,
         message: 'Quiz attempt deleted successfully',
@@ -3950,41 +3346,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // ===== Quiz Endpoints =====
-  
   // Validate answer endpoint - secure answer checking
   // Get correct answer for a question (only after quiz completion for review)
   app.post('/api/quiz/get-correct-answer', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { questionId } = req.body;
       const userId = req.user?.id;
-
       if (!userId) {
         return res.status(401).json({
           success: false,
           error: 'Not authenticated',
         });
       }
-
       if (!questionId) {
         return res.status(400).json({
           success: false,
           error: 'Missing questionId',
         });
       }
-
       // Fetch the question from database to get correct answer
       const { questionService } = await import('./services/question.service');
       const question = await questionService.getQuestionById(questionId);
-
       if (!question) {
         return res.status(404).json({
           success: false,
           error: 'Question not found',
         });
       }
-
       // Return correct answer for review mode
       return res.status(200).json({
         success: true,
@@ -3995,7 +3384,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Validate answer endpoint
   // This endpoint validates answers on the server side to prevent cheating
   // Returns both validation result AND correct answer (only after submission)
@@ -4003,65 +3391,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { questionId, userAnswer } = req.body;
       const userId = req.user?.id;
-
       if (!userId) {
         return res.status(401).json({
           success: false,
           error: 'Not authenticated',
         });
       }
-
       if (!questionId || userAnswer === undefined) {
         return res.status(400).json({
           success: false,
           error: 'Missing questionId or userAnswer',
         });
       }
-
       // Fetch the question from database to get correct answer
       const { questionService } = await import('./services/question.service');
       const question = await questionService.getQuestionById(questionId);
-
       if (!question) {
         return res.status(404).json({
           success: false,
           error: 'Question not found',
         });
       }
-
       // IMPORTANT: Validate question correctness before checking answer
       // This prevents issues where AI generated wrong correctAnswer
       if (question.type === 'mcq') {
         const { validateMCQQuestion, attemptAutoFix } = await import('./utils/question-validator');
         const validation = validateMCQQuestion(question);
-        
         if (!validation.isValid) {
           console.error('Question validation failed:', {
             questionId,
             errors: validation.errors,
             question: question.question.substring(0, 100)
           });
-          
           // Try to auto-fix the question
           const fixed = attemptAutoFix(question);
           if (fixed) {
-            console.log('Question auto-fixed:', {
-              questionId,
-              oldAnswer: question.correctAnswer,
-              newAnswer: fixed.correctAnswer
-            });
-            
             // Update the question in database with fixed answer
             try {
               await db
                 .update(questions)
                 .set({ correctAnswer: fixed.correctAnswer })
                 .where(eq(questions.id, questionId));
-              
               // Use the fixed question for validation
               question.correctAnswer = fixed.correctAnswer;
-              
-              console.log('Question updated in database with correct answer');
             } catch (updateError) {
               console.error('Failed to update question:', updateError);
             }
@@ -4070,22 +3442,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-
       // Validate answer based on question type
       let isCorrect = false;
       const correctAnswer = question.correctAnswer;
-
-      console.log('Validating answer:', {
-        questionId,
-        questionType: question.type,
-        userAnswer,
-        correctAnswer,
-        question: question.question.substring(0, 100)
-      });
-
       if (question.type === 'mcq') {
         isCorrect = userAnswer === correctAnswer;
-        console.log('MCQ validation:', { userAnswer, correctAnswer, isCorrect });
       } else if (question.type === 'true-false') {
         isCorrect = userAnswer.toString().toLowerCase() === correctAnswer.toString().toLowerCase();
       } else if (question.type === 'fill-blank' && Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
@@ -4105,7 +3466,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isCorrect = userAnswer.every((val: string, idx: number) => val === correctAnswer[idx]);
         }
       }
-
       // SECURITY: Only return correct answer AFTER user has submitted
       // This prevents users from seeing the answer before attempting
       return res.status(200).json({
@@ -4118,7 +3478,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get questions based on filters or generate with AI
   // Requirements: 2.1, 2.2, 2.4, 2.5, 10.1, 10.6, 28.2
   // Rate limiting: aiModeAwareRateLimiter only applies when aiMode=true (Requirements 4.3, 4.4)
@@ -4127,7 +3486,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { category, difficulty, types, limit, aiMode, topic } = req.query;
       const userId = req.user?.id!;
-      
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -4137,19 +3495,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
       }
-
       const questionCount = parseInt(limit as string) || 10;
       const questionTypes = types ? (types as string).split(',') : ['mcq'];
       const difficultyLevel = (difficulty as string || 'medium') as 'easy' | 'medium' | 'hard';
       const categoryName = category as string || 'General Knowledge';
-      
       // Requirement 28.2: When AI mode is enabled, generate questions with AI
       if (aiMode === 'true') {
         // FIX: When topic is provided, use ONLY the topic and ignore category
         // This ensures AI generates questions exclusively from the user's specified topic
         const topicParam = topic as string;
         const generationTopic = (topicParam && topicParam.trim().length > 0) ? topicParam.trim() : categoryName;
-        
         Logger.info(LogCategory.API, 'Generating questions with AI', {
           userId,
           topic: generationTopic,
@@ -4158,11 +3513,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           difficulty: difficultyLevel,
           types: questionTypes,
         });
-        
         try {
           // Import AI quiz service
           const { aiQuizService } = await import('./services/ai-quiz.service');
-          
           // FIX: Pass generationTopic as both topic and category
           // When user provides a topic, it should be used as the category too
           // This ensures the AI generates questions ONLY from the specified topic
@@ -4174,17 +3527,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             questionTypes as any[],
             generationTopic // Use topic as category when topic is provided
           );
-          
           Logger.info(LogCategory.API, 'AI questions generated successfully', {
             userId,
             requestedCount: questionCount,
             generatedCount: questions.length,
           });
-          
           // SECURITY: Strip correct answers before sending to frontend
           const questionsWithoutAnswers = questions.map(q => {
             const { correctAnswer, ...questionWithoutAnswer } = q;
-            
             // Additional security: Strip correctAnswer from fill-blank blanks
             if (q.type === 'fill-blank' && questionWithoutAnswer.questionData) {
               const fillBlankData = questionWithoutAnswer.questionData as any;
@@ -4195,7 +3545,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
               }
             }
-            
             // Strip isCorrect from MCQ options
             if (q.type === 'mcq' && questionWithoutAnswer.questionData) {
               const mcqData = questionWithoutAnswer.questionData as any;
@@ -4206,10 +3555,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
               }
             }
-            
             return questionWithoutAnswer;
           });
-          
           return res.status(200).json({
             success: true,
             questions: questionsWithoutAnswers,
@@ -4223,12 +3570,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             topic: topic || categoryName,
             count: questionCount,
           });
-          
           // Return the AI error with specific code
           return handleApiError(error, res);
         }
       }
-      
       // Database mode: fetch questions from database
       // Requirement 2.1: Retrieve questions from database based on filters
       Logger.info(LogCategory.API, 'Fetching questions from database', {
@@ -4238,10 +3583,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         types: questionTypes,
         limit: questionCount,
       });
-      
       try {
         const { questionService } = await import('./services/question.service');
-        
         const questions = await questionService.getQuestions({
           category: categoryName,
           difficulty: difficultyLevel,
@@ -4249,16 +3592,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           limit: questionCount,
           isPublic: true,
         });
-        
         Logger.info(LogCategory.API, 'Database questions fetched successfully', {
           userId,
           count: questions.length,
         });
-        
         // SECURITY: Strip correct answers before sending to frontend
         const questionsWithoutAnswers = questions.map(q => {
           const { correctAnswer, ...questionWithoutAnswer } = q;
-          
           // Additional security: Strip correctAnswer from fill-blank blanks
           if (q.type === 'fill-blank' && questionWithoutAnswer.questionData) {
             const fillBlankData = questionWithoutAnswer.questionData as any;
@@ -4269,7 +3609,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
           }
-          
           // Strip isCorrect from MCQ options
           if (q.type === 'mcq' && questionWithoutAnswer.questionData) {
             const mcqData = questionWithoutAnswer.questionData as any;
@@ -4280,10 +3619,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
           }
-          
           return questionWithoutAnswer;
         });
-        
         return res.status(200).json({
           success: true,
           questions: questionsWithoutAnswers,
@@ -4299,16 +3636,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Get available question count based on filters
   app.get('/api/questions/count', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { category, difficulty, types } = req.query;
-      
       // For now, return a mock count since the questions table might not be fully populated
       // In production, this would query the database with filters
       const questionTypes = types ? (types as string).split(',') : ['mcq'];
-      
       // Mock data - replace with actual database query
       const mockCounts: Record<string, Record<string, number>> = {
         'tech': { 'easy': 25, 'medium': 30, 'hard': 20 },
@@ -4319,72 +3653,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'history': { 'easy': 18, 'medium': 22, 'hard': 16 },
         'literature': { 'easy': 16, 'medium': 20, 'hard': 14 },
       };
-      
       const categoryKey = (category as string || 'tech').toLowerCase();
       const difficultyKey = (difficulty as string || 'medium').toLowerCase();
-      
       const baseCount = mockCounts[categoryKey]?.[difficultyKey] || 10;
-      
       // Adjust count based on number of question types selected
       const adjustedCount = Math.floor(baseCount * questionTypes.length / 5);
-      
       return res.status(200).json({ count: adjustedCount });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Generate quiz from documents or topics
   app.post('/api/quizzes/generate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { topic, documentId, numberOfQuestions, difficulty } = req.body;
       const userId = req.user?.id!;
-      
       if (!topic && !documentId) {
         return res.status(400).json({ message: "Either topic or documentId is required" });
       }
-      
       let contextText = topic || '';
-      
       // If documentId is provided, fetch the document content
       if (documentId) {
         const document = await storage.getDocumentById(parseInt(documentId));
-        
         if (!document) {
           return res.status(404).json({ message: "Document not found" });
         }
-        
         // Check if document belongs to the user
         if (document.userId !== userId) {
           return res.status(403).json({ message: "Access denied" });
         }
-        
         contextText = document.content || document.title || '';
       }
-      
       if (!contextText) {
         return res.status(400).json({ message: "No content available to generate quiz" });
       }
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       const numQuestions = numberOfQuestions || 5;
       const quizDifficulty = difficulty || 'medium';
       const questions = [];
-      
       // Generate multiple MCQs
       for (let i = 0; i < numQuestions; i++) {
         try {
           const mcqData = await geminiService.generateMCQ(contextText, quizDifficulty, `Question ${i + 1} of ${numQuestions}`, userId);
-          
           // Transform the response to match the frontend format
           const options = mcqData.options.map((text: string, index: number) => ({
             id: (index + 1).toString(),
             text: text,
             isCorrect: index === mcqData.correctOption
           }));
-          
           questions.push({
             question: mcqData.question,
             options: options,
@@ -4396,11 +3713,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Error generating question ${i + 1}:`, error);
         }
       }
-      
       if (questions.length === 0) {
         return res.status(500).json({ message: "Failed to generate quiz questions" });
       }
-      
       return res.status(200).json({
         message: "Quiz generated successfully",
         questions,
@@ -4411,17 +3726,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Submit quiz and calculate score
   app.post('/api/quizzes/submit', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { questions, answers, timeSpent } = req.body;
       const userId = req.user?.id!;
-      
       if (!questions || !Array.isArray(questions) || !answers) {
         return res.status(400).json({ message: "Invalid quiz submission data" });
       }
-      
       // Calculate score
       let correctAnswers = 0;
       let wrongAnswers = 0;
@@ -4433,18 +3745,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isCorrect: boolean;
         explanation: string;
       }> = [];
-      
       questions.forEach((question: any, index: number) => {
         const userAnswer = answers[index];
         const correctOption = question.options.find((opt: any) => opt.isCorrect);
         const isCorrect = userAnswer === correctOption?.id;
-        
         if (isCorrect) {
           correctAnswers++;
         } else {
           wrongAnswers++;
         }
-        
         results.push({
           questionIndex: index,
           question: question.question,
@@ -4454,10 +3763,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           explanation: question.explanation
         });
       });
-      
       const totalQuestions = questions.length;
       const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-      
       // Save quiz attempt
       Logger.info(LogCategory.API, 'Quiz submission recorded', {
         userId,
@@ -4467,7 +3774,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         wrongAnswers,
         timeSpent
       });
-      
       // Update user stats
       const userStats = await storage.getUserStats(userId);
       if (userStats) {
@@ -4476,7 +3782,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalQuizScore: (userStats.totalQuizScore || 0) + score
         });
       }
-      
       return res.status(200).json({
         message: "Quiz submitted successfully",
         score,
@@ -4489,46 +3794,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Generate hint for a question
   app.post('/api/quiz/hint', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { questionId, attemptNumber, sessionId } = req.body;
       const userId = req.user?.id!;
-
       if (!questionId) {
         return res.status(400).json({ message: "Question ID is required" });
       }
-
       // Import AI quiz service
       const { aiQuizService } = await import('./services/ai-quiz.service');
       const { questionService } = await import('./services/question.service');
-
       // Get the question
       const question = await questionService.getQuestionById(questionId);
-      
       if (!question) {
         return res.status(404).json({ message: "Question not found" });
       }
-
       // Generate hint based on attempt number (default to 1 for first hint)
       const hintAttempt = attemptNumber || 1;
       const hint = await aiQuizService.generateHint(question, hintAttempt, userId);
-
       // If sessionId is provided, update the session to track hint usage
       if (sessionId) {
         try {
           const { quizSessions } = await import('@shared/schema');
           const { db } = await import('./db');
           const { eq } = await import('drizzle-orm');
-
           // Get current session
           const [session] = await db
             .select()
             .from(quizSessions)
             .where(eq(quizSessions.sessionId, sessionId))
             .limit(1);
-
           if (session && session.userId === userId) {
             // Increment hints used
             await db
@@ -4544,7 +3840,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Don't fail the request if session update fails
         }
       }
-
       return res.status(200).json({
         hint,
         attemptNumber: hintAttempt
@@ -4554,41 +3849,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // ===== Deck Management Endpoints =====
-  
   // Create deck
   app.post('/api/decks', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const { name, description, isPublic } = req.body;
-      
       if (!name || name.trim().length === 0) {
         return res.status(400).json({ message: "Deck name is required" });
       }
-      
       if (name.length > 255) {
         return res.status(400).json({ message: "Deck name must be 255 characters or less" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Deck creation started', {
         userId,
         name,
       });
-      
       const deck = await storage.createDeck({
         userId,
         name: name.trim(),
         description: description?.trim() || null,
         isPublic: isPublic ?? false,
       });
-      
       Logger.debug(LogCategory.SECURITY, 'Deck created successfully', {
         userId,
         deckId: deck.id,
         name: deck.name,
       });
-      
       return res.status(201).json({
         message: "Deck created successfully",
         deck,
@@ -4597,19 +3884,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get all user decks
   app.get('/api/decks', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const flashcardId = req.query.flashcardId ? parseInt(req.query.flashcardId as string) : undefined;
-      
       Logger.debug(LogCategory.SECURITY, 'Fetching user decks', {
         userId,
       });
-      
       const decks = await storage.getDecksByUserId(userId);
-      
       // Get card count for each deck and check if flashcard is in deck
       const decksWithCardCount = await Promise.all(
         decks.map(async (deck) => {
@@ -4622,12 +3905,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
       Logger.debug(LogCategory.SECURITY, 'User decks fetched successfully', {
         userId,
         count: decksWithCardCount.length,
       });
-      
       return res.status(200).json({
         decks: decksWithCardCount,
         count: decksWithCardCount.length,
@@ -4636,42 +3917,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get deck by ID with cards
   app.get('/api/decks/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
-      
       if (isNaN(deckId)) {
         return res.status(400).json({ message: "Invalid deck ID" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Fetching deck with cards', {
         userId,
         deckId,
       });
-      
       const deck = await storage.getDeckById(deckId);
-      
       if (!deck) {
         return res.status(404).json({ message: "Deck not found" });
       }
-      
       // Verify ownership
       if (deck.userId !== userId) {
         return res.status(403).json({ message: "Access denied to this deck" });
       }
-      
       // Get all flashcards in this deck
       const cards = await storage.getFlashcardsByDeckId(deckId);
-      
       Logger.debug(LogCategory.SECURITY, 'Deck fetched successfully', {
         userId,
         deckId,
         cardCount: cards.length,
       });
-      
       return res.status(200).json({
         deck: {
           ...deck,
@@ -4683,34 +3955,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Update deck
   app.patch('/api/decks/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
       const { name, description, isPublic } = req.body;
-      
       if (isNaN(deckId)) {
         return res.status(400).json({ message: "Invalid deck ID" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Deck update started', {
         userId,
         deckId,
       });
-      
       const deck = await storage.getDeckById(deckId);
-      
       if (!deck) {
         return res.status(404).json({ message: "Deck not found" });
       }
-      
       // Verify ownership
       if (deck.userId !== userId) {
         return res.status(403).json({ message: "Access denied to this deck" });
       }
-      
       // Validate name if provided
       if (name !== undefined) {
         if (!name || name.trim().length === 0) {
@@ -4720,20 +3985,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Deck name must be 255 characters or less" });
         }
       }
-      
       // Build update object
       const updateData: any = {};
       if (name !== undefined) updateData.name = name.trim();
       if (description !== undefined) updateData.description = description?.trim() || null;
       if (isPublic !== undefined) updateData.isPublic = isPublic;
-      
       const updatedDeck = await storage.updateDeck(deckId, updateData);
-      
       Logger.debug(LogCategory.SECURITY, 'Deck updated successfully', {
         userId,
         deckId,
       });
-      
       return res.status(200).json({
         message: "Deck updated successfully",
         deck: updatedDeck,
@@ -4742,44 +4003,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete deck
   app.delete('/api/decks/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
-      
       if (isNaN(deckId)) {
         return res.status(400).json({ message: "Invalid deck ID" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Deck deletion started', {
         userId,
         deckId,
       });
-      
       const deck = await storage.getDeckById(deckId);
-      
       if (!deck) {
         return res.status(404).json({ message: "Deck not found" });
       }
-      
       // Verify ownership
       if (deck.userId !== userId) {
         return res.status(403).json({ message: "Access denied to this deck" });
       }
-      
       const deleted = await storage.deleteDeck(deckId);
-      
       if (!deleted) {
         return res.status(500).json({ message: "Failed to delete deck" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Deck deleted successfully', {
         userId,
         deckId,
       });
-      
       return res.status(200).json({
         message: "Deck deleted successfully",
       });
@@ -4787,63 +4038,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Add card to deck
   app.post('/api/decks/:id/cards', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const deckId = parseInt(req.params.id);
       const { flashcardId, position } = req.body;
-      
       if (isNaN(deckId)) {
         return res.status(400).json({ message: "Invalid deck ID" });
       }
-      
       if (!flashcardId || isNaN(flashcardId)) {
         return res.status(400).json({ message: "Valid flashcard ID is required" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Adding card to deck', {
         userId,
         deckId,
         flashcardId,
       });
-      
       // Verify deck exists and user owns it
       const deck = await storage.getDeckById(deckId);
-      
       if (!deck) {
         return res.status(404).json({ message: "Deck not found" });
       }
-      
       if (deck.userId !== userId) {
         return res.status(403).json({ message: "Access denied to this deck" });
       }
-      
       // Verify flashcard exists and user owns it
       const flashcard = await storage.getFlashcardById(flashcardId);
-      
       if (!flashcard) {
         return res.status(404).json({ message: "Flashcard not found" });
       }
-      
       if (flashcard.userId !== userId) {
         return res.status(403).json({ message: "Access denied to this flashcard" });
       }
-      
       // Add card to deck
       const deckFlashcard = await storage.addCardToDeck(
         deckId,
         flashcardId,
         position ?? 0
       );
-      
       Logger.debug(LogCategory.SECURITY, 'Card added to deck successfully', {
         userId,
         deckId,
         flashcardId,
       });
-      
       return res.status(201).json({
         message: "Card added to deck successfully",
         deckFlashcard,
@@ -4858,52 +4096,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Remove card from deck
   app.delete('/api/decks/:deckId/cards/:cardId', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const deckId = parseInt(req.params.deckId);
       const cardId = parseInt(req.params.cardId);
-      
       if (isNaN(deckId)) {
         return res.status(400).json({ message: "Invalid deck ID" });
       }
-      
       if (isNaN(cardId)) {
         return res.status(400).json({ message: "Invalid card ID" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Removing card from deck', {
         userId,
         deckId,
         cardId,
       });
-      
       // Verify deck exists and user owns it
       const deck = await storage.getDeckById(deckId);
-      
       if (!deck) {
         return res.status(404).json({ message: "Deck not found" });
       }
-      
       if (deck.userId !== userId) {
         return res.status(403).json({ message: "Access denied to this deck" });
       }
-      
       // Remove card from deck
       const removed = await storage.removeCardFromDeck(deckId, cardId);
-      
       if (!removed) {
         return res.status(404).json({ message: "Card not found in deck" });
       }
-      
       Logger.debug(LogCategory.SECURITY, 'Card removed from deck successfully', {
         userId,
         deckId,
         cardId,
       });
-      
       return res.status(200).json({
         message: "Card removed from deck successfully",
       });
@@ -4911,23 +4138,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // ===== Code Generator Endpoints =====
-  
   // Generate code
   app.post('/api/code-generator', jwtAuth, async (req: Request, res: Response) => {
     try {
       const codeData = codeGenerationSchema.parse(req.body);
       const userId = req.user?.id!;
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       let promptToSend = codeData.problem;
       if (codeData.refinePrompt) {
         promptToSend = `Original request: ${codeData.problem}\n\nRefinement: ${codeData.refinePrompt}`;
       }
-      
       // Generate code using the Gemini service
       let codeResponse;
       try {
@@ -4945,7 +4167,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           language: codeData.language !== 'auto' ? codeData.language : 'javascript'
         };
       }
-      
       // Auto-generate tags based on problem description and language
       const autoTags: string[] = [codeData.language];
       if (codeData.difficulty) {
@@ -4956,7 +4177,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (problemWords) {
         autoTags.push(...Array.from(new Set(problemWords)));
       }
-      
       const generatedCode = {
         title: `Solution for: ${codeData.problem.substring(0, 30)}...`,
         problem: codeData.problem,
@@ -4965,13 +4185,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         explanation: codeResponse.explanation,
         tags: codeData.tags || autoTags
       };
-      
       // Save the generated code
       const codeSnippet = await storage.createCodeSnippet({
         ...generatedCode,
         userId
       });
-      
       // Update user stats
       const userStats = await storage.getUserStats(userId);
       if (userStats) {
@@ -4979,7 +4197,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           codeSnippetsGenerated: userStats.codeSnippetsGenerated + 1
         });
       }
-      
       // Award Gamification XP
       let gamificationStats = null;
       try {
@@ -4988,7 +4205,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to award XP for code generation', err);
       }
-      
       return res.status(200).json({
         message: "Code generated successfully",
         codeSnippet,
@@ -4998,7 +4214,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get user's code snippets with optional filtering (with pagination)
   app.get('/api/code-snippets', jwtAuth, async (req: Request, res: Response) => {
     try {
@@ -5007,15 +4222,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tag = req.query.tag as string | undefined;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      
       const result = await storage.getCodeSnippetsByUserId(userId, page, limit);
       let snippets = result.snippets;
-      
       // Filter by language if provided
       if (language && language !== 'all') {
         snippets = snippets.filter(snippet => snippet.language === language);
       }
-      
       // Filter by tag if provided
       if (tag && tag !== 'all') {
         snippets = snippets.filter(snippet => {
@@ -5025,11 +4237,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return tags.includes(tag);
         });
       }
-      
       // Update total and totalPages based on filtered results
       const filteredTotal = snippets.length;
       const filteredTotalPages = Math.ceil(filteredTotal / limit);
-      
       return res.status(200).json({
         snippets,
         total: filteredTotal,
@@ -5040,13 +4250,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get unique tags from user's code snippets
   app.get('/api/code-snippets/tags', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const snippets = await storage.getCodeSnippetsByUserId(userId);
-      
       // Extract all unique tags
       const tagsSet = new Set<string>();
       snippets.snippets.forEach((snippet: any) => {
@@ -5055,24 +4263,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : (typeof snippet.tags === 'string' ? JSON.parse(snippet.tags || '[]') : []);
         tags.forEach((tag: string) => tagsSet.add(tag));
       });
-      
       return res.status(200).json({ tags: Array.from(tagsSet).sort() });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Update code snippet
   app.put('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const snippetId = parseInt(req.params.id);
       const updates = req.body;
-
       if (!snippetId) {
         return res.status(400).json({ message: "Snippet ID is required" });
       }
-
       // Verify ownership
       const snippet = await storage.getCodeSnippetById(snippetId);
       if (!snippet) {
@@ -5081,10 +4285,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (snippet.userId !== userId) {
         return res.status(403).json({ message: "Unauthorized to update this snippet" });
       }
-
       // Update the snippet
       const updatedSnippet = await storage.updateCodeSnippet(snippetId, updates);
-
       return res.status(200).json({
         message: "Code snippet updated successfully",
         snippet: updatedSnippet
@@ -5093,17 +4295,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Delete code snippet
   app.delete('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const snippetId = parseInt(req.params.id);
-
       if (!snippetId) {
         return res.status(400).json({ message: "Snippet ID is required" });
       }
-
       // Verify ownership
       const snippet = await storage.getCodeSnippetById(snippetId);
       if (!snippet) {
@@ -5112,10 +4311,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (snippet.userId !== userId) {
         return res.status(403).json({ message: "Unauthorized to delete this snippet" });
       }
-
       // Delete the snippet
       await storage.deleteCodeSnippet(snippetId);
-
       // Revoke XP for anti-cheat
       try {
         const { GamificationService } = await import('./services/gamification.service');
@@ -5123,7 +4320,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to revoke XP on code snippet delete', err);
       }
-
       return res.status(200).json({
         message: "Code snippet deleted successfully"
       });
@@ -5131,16 +4327,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Execute code
   app.post('/api/code-executor', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { code, language } = req.body;
-      
       if (!code || !language) {
         return res.status(400).json({ message: "Code and language are required" });
       }
-
       // Map language names to JDoodle language IDs
       const languageMap: Record<string, string> = {
         'javascript': 'nodejs',
@@ -5158,7 +4351,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'r': 'r',
         'sql': 'sql',
       };
-
       // Map JDoodle language IDs to their latest versionIndex available
       // Reference JDoodle API: https://docs.jdoodle.com/compiler-api/compiler-api
       const versionMap: Record<string, string> = {
@@ -5171,21 +4363,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'ruby': '4',      // Ruby 3.2
         'php': '4',       // PHP 8.2
       };
-
       const jdoodleLanguage = languageMap[language.toLowerCase()] || 'nodejs';
       const versionIndex = versionMap[jdoodleLanguage] || '0';
-
       // Use JDoodle API for code execution
       const jdoodleClientId = process.env.JDOODLE_CLIENT_ID;
       const jdoodleClientSecret = process.env.JDOODLE_CLIENT_SECRET;
-
       if (!jdoodleClientId || !jdoodleClientSecret) {
         return res.status(500).json({ 
           message: "Code execution service not configured. Please add JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET to your .env file",
           output: "Error: Code execution service not available"
         });
       }
-
       const response = await fetch('https://api.jdoodle.com/v1/execute', {
         method: 'POST',
         headers: {
@@ -5200,16 +4388,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stdin: req.body.stdin || "",
         }),
       });
-
       const result = await response.json();
-
       if (result.error) {
         return res.status(400).json({
           message: "Code execution failed",
           output: result.error,
         });
       }
-
       return res.status(200).json({
         output: result.output || result.stdout || "Code executed successfully with no output",
         memory: result.memory,
@@ -5220,24 +4405,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Update code snippet (for adding/editing tags and categories)
   app.patch('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const snippetId = parseInt(req.params.id);
       const snippet = await storage.getCodeSnippetById(snippetId);
-      
       if (!snippet) {
         return res.status(404).json({ message: "Code snippet not found" });
       }
-      
       // Check if snippet belongs to the user
       if (snippet.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       const updatedSnippet = await storage.updateCodeSnippet(snippetId, req.body);
-      
       return res.status(200).json({
         message: "Code snippet updated successfully",
         snippet: updatedSnippet
@@ -5246,38 +4426,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete code snippet
   app.delete('/api/code-snippets/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const snippetId = parseInt(req.params.id);
       const snippet = await storage.getCodeSnippetById(snippetId);
-      
       if (!snippet) {
         return res.status(404).json({ message: "Code snippet not found" });
       }
-      
       // Check if snippet belongs to the user
       if (snippet.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       await storage.deleteCodeSnippet(snippetId);
-      
       return res.status(200).json({ message: "Code snippet deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // ===== Study Plan Endpoints =====
-  
   // Create study plan
   app.post('/api/study-plans', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planData = insertStudyPlanSchema.parse(req.body);
       const userId = req.user?.id!;
-      
       const plan = await storage.createStudyPlan({
         userId,
         title: planData.title,
@@ -5286,7 +4458,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate: planData.startDate || null,
         endDate: planData.endDate || null,
       } as any);
-      
       return res.status(201).json({
         message: "Study plan created successfully",
         plan
@@ -5295,36 +4466,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get user's study plans
   app.get('/api/study-plans', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const plans = await storage.getStudyPlansByUserId(userId);
-      
       return res.status(200).json({ plans });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Update study plan
   app.patch('/api/study-plans/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       const updatedPlan = await storage.updateStudyPlan(planId, req.body);
-      
       return res.status(200).json({
         message: "Study plan updated successfully",
         plan: updatedPlan
@@ -5333,45 +4497,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete study plan
   app.delete('/api/study-plans/:id', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       await storage.deleteStudyPlan(planId);
-      
       return res.status(200).json({ message: "Study plan deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-  
   // Generate study plan with AI
   app.post('/api/study-plans/generate', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { topic, durationDays, goal, preferences } = req.body;
-      
       if (!topic) {
         return res.status(400).json({ message: "Topic is required" });
       }
-      
       const duration = durationDays || 7;
       const studyGoal = goal || `Learn ${topic}`;
-      
       // Import and use the Gemini service with enhanced preferences
       const { geminiService } = await import('./services/gemini');
-      
       let planData;
       try {
         planData = await geminiService.generateStudyPlan(
@@ -5385,25 +4539,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating study plan:", error);
         return res.status(500).json({ message: "Failed to generate study plan" });
       }
-      
       // Calculate scheduled dates for each item
       const startDate = new Date();
       const scheduleDataWithDates = planData.scheduleData.map((item: any, index: number) => {
         const scheduledDate = new Date(startDate);
         scheduledDate.setDate(startDate.getDate() + index);
-        
         // Set time based on preferences or default to 9:00 AM
         const preferredTime = preferences?.preferredTimeOfDay || 'morning';
         const hour = preferredTime === 'morning' ? 9 : preferredTime === 'afternoon' ? 14 : 18;
         scheduledDate.setHours(hour, 0, 0, 0);
-        
         return {
           ...item,
           scheduledDate: scheduledDate.toISOString(),
           reminderSent: false,
         };
       });
-      
       return res.status(200).json({
         message: "Study plan generated successfully",
         title: planData.title,
@@ -5418,30 +4568,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Generate study items for an existing plan
   app.post('/api/study-plans/:id/generate-items', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Calculate duration in days
       const startDate = plan.startDate ? new Date(plan.startDate) : new Date();
       const endDate = plan.endDate ? new Date(plan.endDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
-      
       let planData;
       try {
         planData = await geminiService.generateStudyPlan(
@@ -5454,12 +4598,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating study items:", error);
         return res.status(500).json({ message: "Failed to generate study items" });
       }
-      
       // Update the plan with the generated items
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         scheduleData: planData.scheduleData 
       });
-      
       return res.status(200).json({
         message: "Study items generated successfully",
         plan: updatedPlan
@@ -5468,38 +4610,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Add a single study item to a plan
   app.post('/api/study-plans/:id/items', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const { title, description, duration, recurring, recurrencePattern, prerequisites, scheduledDate } = req.body;
-      
       if (!title) {
         return res.status(400).json({ message: "Title is required" });
       }
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Parse existing scheduleData
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
-      
       // Validate prerequisites exist
       if (prerequisites && Array.isArray(prerequisites) && prerequisites.length > 0) {
         const existingIds = scheduleData.map((item: any) => item.id);
         const invalidPrereqs = prerequisites.filter((id: string) => !existingIds.includes(id));
-        
         if (invalidPrereqs.length > 0) {
           return res.status(400).json({ 
             message: "Invalid prerequisite IDs", 
@@ -5507,7 +4641,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
       // Create new item with unique ID and enhanced metadata
       const newItem = {
         id: String(Date.now()),
@@ -5527,14 +4660,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recurrencePattern: recurrencePattern || null, // 'daily', 'weekly', 'biweekly'
         createdAt: new Date().toISOString(),
       };
-      
       scheduleData.push(newItem);
-      
       // Update the plan
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         scheduleData: scheduleData 
       });
-      
       return res.status(201).json({
         message: "Study item added successfully",
         plan: updatedPlan,
@@ -5544,30 +4674,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Edit a study item
   app.patch('/api/study-plans/:id/items/:itemId', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const itemId = req.params.itemId;
       const { title, description, duration } = req.body;
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Parse scheduleData
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
-      
       // Find and update the item
       let itemFound = false;
       scheduleData = scheduleData.map((item: any) => {
@@ -5582,16 +4706,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         return item;
       });
-      
       if (!itemFound) {
         return res.status(404).json({ message: "Study item not found" });
       }
-      
       // Update the plan
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         scheduleData 
       });
-      
       return res.status(200).json({
         message: "Study item updated successfully",
         plan: updatedPlan
@@ -5600,49 +4721,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete a study item
   app.delete('/api/study-plans/:id/items/:itemId', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const itemId = req.params.itemId;
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Parse scheduleData
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
-      
       // Filter out the item
       const originalLength = scheduleData.length;
       scheduleData = scheduleData.filter((item: any) => item.id !== itemId);
-      
       if (scheduleData.length === originalLength) {
         return res.status(404).json({ message: "Study item not found" });
       }
-      
       // Calculate new completion percentage
       const totalItems = scheduleData.length;
       const completedItems = scheduleData.filter((item: any) => item.completed).length;
       const completedPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-      
       // Update the plan
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         scheduleData,
         completedPercentage,
         status: completedPercentage === 100 ? 'completed' : 'active'
       });
-      
       return res.status(200).json({
         message: "Study item deleted successfully",
         plan: updatedPlan
@@ -5651,29 +4762,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Complete a study plan item
   app.patch('/api/study-plans/:id/items/:itemId/complete', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const itemId = req.params.itemId;
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       // Check if plan belongs to the user
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Parse scheduleData from JSON if needed
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData;
-      
       // Find and update the item in scheduleData
       let itemFound = false;
       if (Array.isArray(scheduleData)) {
@@ -5685,16 +4790,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return item;
         });
       }
-      
       if (!itemFound) {
         return res.status(404).json({ message: "Study item not found" });
       }
-      
       // Calculate completion percentage
       const totalItems = scheduleData.length;
       const completedItems = scheduleData.filter((item: any) => item.completed).length;
       const completedPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-      
       // Update the study plan with the modified scheduleData and completion percentage
       const isCompleted = completedPercentage === 100;
       const updatedPlan = await storage.updateStudyPlan(planId, { 
@@ -5702,13 +4804,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedPercentage,
         status: isCompleted ? 'completed' : 'active'
       });
-      
       // GAMIFICATION: Award points for completing the item
       let gamificationStats = null;
       try {
         const { GamificationService } = await import('./services/gamification.service');
         gamificationStats = await GamificationService.awardXP(req.user?.id!, 'STUDY_PLAN_ITEM_COMPLETED');
-        
         // Add completion bonus if 100%
         if (isCompleted && plan.status !== 'completed') {
           gamificationStats = await GamificationService.awardXP(req.user?.id!, 'STUDY_PLAN_COMPLETED');
@@ -5716,7 +4816,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to award XP for study plan', err);
       }
-      
       return res.status(200).json({
         message: "Study item completed successfully",
         plan: updatedPlan,
@@ -5726,40 +4825,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Reschedule overdue tasks automatically
   app.post('/api/study-plans/:id/reschedule', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const { strategy } = req.body; // 'next-available', 'spread-evenly', 'compress'
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
-      
       const now = new Date();
       const incompleteTasks = scheduleData.filter((item: any) => !item.completed);
-      
       // Apply rescheduling strategy
       let rescheduledTasks = [];
-      
       if (strategy === 'next-available') {
         // Schedule all incomplete tasks starting tomorrow
         rescheduledTasks = incompleteTasks.map((task: any, index: number) => {
           const scheduledDate = new Date(now);
           scheduledDate.setDate(now.getDate() + index + 1);
           scheduledDate.setHours(9, 0, 0, 0);
-          
           return {
             ...task,
             scheduledDate: scheduledDate.toISOString(),
@@ -5771,12 +4861,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const endDate = plan.endDate ? new Date(plan.endDate) : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
         const daysAvailable = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         const interval = Math.max(1, Math.floor(daysAvailable / incompleteTasks.length));
-        
         rescheduledTasks = incompleteTasks.map((task: any, index: number) => {
           const scheduledDate = new Date(now);
           scheduledDate.setDate(now.getDate() + (index * interval) + 1);
           scheduledDate.setHours(9, 0, 0, 0);
-          
           return {
             ...task,
             scheduledDate: scheduledDate.toISOString(),
@@ -5790,11 +4878,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const dayOffset = Math.floor(index / tasksPerDay) + 1;
           const scheduledDate = new Date(now);
           scheduledDate.setDate(now.getDate() + dayOffset);
-          
           // Stagger times throughout the day
           const hour = 9 + (index % tasksPerDay) * 4; // 9 AM, 1 PM, etc.
           scheduledDate.setHours(hour, 0, 0, 0);
-          
           return {
             ...task,
             scheduledDate: scheduledDate.toISOString(),
@@ -5802,15 +4888,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         });
       }
-      
       // Merge rescheduled tasks back into schedule
       const completedTasks = scheduleData.filter((item: any) => item.completed);
       const updatedScheduleData = [...completedTasks, ...rescheduledTasks];
-      
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         scheduleData: updatedScheduleData 
       });
-      
       return res.status(200).json({
         message: "Study plan rescheduled successfully",
         plan: updatedPlan,
@@ -5821,23 +4904,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Toggle reminder settings for a study plan
   app.patch('/api/study-plans/:id/reminders', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const { enabled, reminderTime, reminderDays } = req.body;
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       // Update reminder settings (stored in scheduleData metadata or separate fields)
       // Add reminder metadata to the plan
       const reminderSettings = {
@@ -5845,16 +4923,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reminderTime: reminderTime || '09:00', // HH:MM format
         reminderDays: reminderDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       };
-      
       // Store in description as metadata (or extend schema to add reminder fields)
       const updatedDescription = plan.description 
         ? `${plan.description}\n\n[REMINDER_SETTINGS:${JSON.stringify(reminderSettings)}]`
         : `[REMINDER_SETTINGS:${JSON.stringify(reminderSettings)}]`;
-      
       const updatedPlan = await storage.updateStudyPlan(planId, { 
         description: updatedDescription 
       });
-      
       return res.status(200).json({
         message: "Reminder settings updated successfully",
         plan: updatedPlan,
@@ -5864,37 +4939,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Check prerequisites before starting a task
   app.get('/api/study-plans/:id/items/:itemId/can-start', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
       const itemId = req.params.itemId;
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
-      
       const item = scheduleData.find((task: any) => task.id === itemId);
-      
       if (!item) {
         return res.status(404).json({ message: "Study item not found" });
       }
-      
       // Check if all prerequisites are completed
       const prerequisites = item.prerequisites || [];
       const unmetPrerequisites = [];
-      
       for (const prereqId of prerequisites) {
         const prereqTask = scheduleData.find((task: any) => task.id === prereqId);
         if (prereqTask && !prereqTask.completed) {
@@ -5904,9 +4970,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
       const canStart = unmetPrerequisites.length === 0;
-      
       return res.status(200).json({
         canStart,
         unmetPrerequisites,
@@ -5918,38 +4982,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Get study plan analytics
   app.get('/api/study-plans/:id/analytics', jwtAuth, async (req: Request, res: Response) => {
     try {
       const planId = parseInt(req.params.id);
-      
       const plan = await storage.getStudyPlanById(planId);
-      
       if (!plan) {
         return res.status(404).json({ message: "Study plan not found" });
       }
-      
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
       let scheduleData = typeof plan.scheduleData === 'string' 
         ? JSON.parse(plan.scheduleData || '[]') 
         : plan.scheduleData || [];
-      
       const now = new Date();
       const totalTasks = scheduleData.length;
       const completedTasks = scheduleData.filter((item: any) => item.completed).length;
       const incompleteTasks = totalTasks - completedTasks;
-      
       // Calculate overdue tasks
       const overdueTasks = scheduleData.filter((item: any) => {
         if (item.completed) return false;
         if (!item.scheduledDate) return false;
         return new Date(item.scheduledDate) < now;
       }).length;
-      
       // Calculate upcoming tasks (next 7 days)
       const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const upcomingTasks = scheduleData.filter((item: any) => {
@@ -5958,39 +5014,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const scheduledDate = new Date(item.scheduledDate);
         return scheduledDate >= now && scheduledDate <= sevenDaysFromNow;
       }).length;
-      
       // Calculate total study time
       const totalStudyTime = scheduleData.reduce((sum: number, item: any) => sum + (item.duration || 0), 0);
       const completedStudyTime = scheduleData
         .filter((item: any) => item.completed)
         .reduce((sum: number, item: any) => sum + (item.duration || 0), 0);
-      
       // Calculate average completion rate per day
       const startDate = plan.startDate ? new Date(plan.startDate) : new Date();
       const daysSinceStart = Math.max(1, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
       const tasksPerDay = completedTasks / daysSinceStart;
-      
       // Estimate completion date
       let estimatedCompletionDate = null;
       if (tasksPerDay > 0 && incompleteTasks > 0) {
         const daysRemaining = Math.ceil(incompleteTasks / tasksPerDay);
         estimatedCompletionDate = new Date(now.getTime() + daysRemaining * 24 * 60 * 60 * 1000);
       }
-      
       // Task breakdown by type
       const tasksByType = scheduleData.reduce((acc: any, item: any) => {
         const type = item.type || 'learning';
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
-      
       // Task breakdown by difficulty
       const tasksByDifficulty = scheduleData.reduce((acc: any, item: any) => {
         const difficulty = item.difficulty || 'medium';
         acc[difficulty] = (acc[difficulty] || 0) + 1;
         return acc;
       }, {});
-      
       return res.status(200).json({
         analytics: {
           totalTasks,
@@ -6013,37 +5063,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // ===== User Stats Endpoints =====
-  
   // Get user stats
   app.get('/api/user-stats', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       let stats = await storage.getUserStats(userId);
-      
       if (!stats) {
         stats = await storage.updateUserStats(userId, {});
       }
-      
       // Override quizzesCompleted with actual undeleted quiz attempts count
       try {
         const quizStats = await storage.getQuizStatsByUserId(userId);
         if (quizStats && quizStats.totalAttempts !== undefined) {
           stats.quizzesCompleted = quizStats.totalAttempts;
         }
-        
         // Sync study time from quiz time spent (convert seconds to minutes)
         if (quizStats && quizStats.totalTimeSpent !== undefined) {
           stats.totalStudyTime = Math.round(quizStats.totalTimeSpent / 60);
         }
-        
         // Override documentsUploaded with actual summaries count
         const summaries = await storage.getSummariesByUserId(userId);
         if (summaries) {
           stats.documentsUploaded = summaries.length;
         }
-
         // Gamification: Sync historical XP if userStats.xpPoints is 0 but user has legacy points
         if (stats.xpPoints === 0) {
           const user = await storage.getUser(userId);
@@ -6059,30 +5102,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to sync stats for user-stats', err);
       }
-      
       return res.status(200).json({ stats });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Get personalized study recommendations
   app.get('/api/recommendations', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
-      
       // Get user stats
       let stats = await storage.getUserStats(userId);
       if (!stats) {
         stats = await storage.updateUserStats(userId, {});
       }
-      
       // Get recent quiz attempts (last 10)
       const quizAttempts = await storage.getQuizAttemptsByUserId(userId, 10);
-      
       // Import recommendation engine
       const { generateRecommendations, suggestStudyPlanAdjustments } = await import('./utils/studyRecommendations');
-      
       // Generate recommendations
       const recommendations = generateRecommendations(
         {
@@ -6104,7 +5141,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: attempt.createdAt,
         }))
       );
-      
       // Generate study plan adjustments
       const adjustments = suggestStudyPlanAdjustments(
         {
@@ -6126,7 +5162,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: attempt.createdAt,
         }))
       );
-      
       return res.status(200).json({ 
         recommendations,
         adjustments,
@@ -6143,43 +5178,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // ===== Profile Endpoints =====
-  
   // Get user profile
   app.get('/api/profile', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const user = await storage.getUser(userId);
-      
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       // Get user stats
       let stats = await storage.getUserStats(userId);
       if (!stats) {
         stats = await storage.updateUserStats(userId, {});
       }
-      
       // Override quizzesCompleted with actual undeleted quiz attempts count
       try {
         const quizStats = await storage.getQuizStatsByUserId(userId);
         if (quizStats && quizStats.totalAttempts !== undefined) {
           stats.quizzesCompleted = quizStats.totalAttempts;
         }
-        
         // Sync study time from quiz time spent (convert seconds to minutes)
         if (quizStats && quizStats.totalTimeSpent !== undefined) {
           stats.totalStudyTime = Math.round(quizStats.totalTimeSpent / 60);
         }
-        
         // Override documentsUploaded with actual summaries count
         const summaries = await storage.getSummariesByUserId(userId);
         if (summaries) {
           stats.documentsUploaded = summaries.length;
         }
-
         // Gamification: Sync historical XP if userStats.xpPoints is 0 but user has legacy points
         if (stats.xpPoints === 0 && user.totalPoints > 0) {
           const { GamificationService } = await import('./services/gamification.service');
@@ -6192,11 +5219,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error('Failed to sync stats for profile', err);
       }
-      
       // Don't return password
       const { password, verificationToken, verificationOtp, verificationTokenExpiry,
               resetToken, resetOtp, resetTokenExpiry, ...userProfile } = user;
-      
       return res.status(200).json({ 
         profile: userProfile,
         stats 
@@ -6205,13 +5230,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Update user profile
   app.patch('/api/profile', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const { fullName, preferredLanguage, profilePicture } = req.body;
-      
       // If profilePicture is being set to null, delete from Cloudinary
       if (profilePicture === null) {
         const currentUser = await storage.getUser(userId);
@@ -6224,21 +5247,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-      
       const updatedUser = await storage.updateUser(userId, {
         fullName,
         preferredLanguage,
         profilePicture: profilePicture === null ? '' : profilePicture,
       });
-      
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       // Don't return password or sensitive fields
       const { password, verificationToken, verificationOtp, verificationTokenExpiry,
               resetToken, resetOtp, resetTokenExpiry, ...userProfile } = updatedUser;
-      
       return res.status(200).json({
         message: "Profile updated successfully",
         profile: userProfile
@@ -6247,28 +5266,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   // Upload profile picture
   app.post('/api/profile/upload-picture', jwtAuth, profilePictureRateLimiter, imageUpload.single('profilePicture'), validateImageUpload, validateWithVirusScan, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
-      
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-
       // Validate file type
       const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
       if (!allowedMimeTypes.includes(req.file.mimetype)) {
         return res.status(400).json({ message: "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed." });
       }
-
       let profilePictureUrl: string;
       let storageType: 'cloudinary' | 'base64' = 'base64';
-
       // Import Cloudinary service
       const { cloudinaryService } = await import('./services/cloudinary');
-      
       // PRIORITY: Try Cloudinary FIRST (not as fallback)
       if (cloudinaryService.isAvailable()) {
         try {
@@ -6283,11 +5296,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
             }
           }
-
           // Upload to Cloudinary with retry logic
           profilePictureUrl = await cloudinaryService.uploadProfilePicture(req.file.buffer, userId);
           storageType = 'cloudinary';
-          
           Logger.info(LogCategory.SYSTEM, 'Profile picture uploaded to Cloudinary', { 
             userId, 
             url: profilePictureUrl,
@@ -6298,11 +5309,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             error: cloudinaryError,
             userId,
           });
-          
           // Fallback to base64 only if Cloudinary fails
           profilePictureUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
           storageType = 'base64';
-          
           Logger.warn(LogCategory.SYSTEM, 'Using base64 storage for profile picture (Cloudinary failed)', { 
             userId,
             fileSize: req.file.size,
@@ -6312,22 +5321,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Cloudinary not configured, use base64
         profilePictureUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
         storageType = 'base64';
-        
         Logger.info(LogCategory.SYSTEM, 'Using base64 storage for profile picture (Cloudinary not configured)', { 
           userId,
           fileSize: req.file.size,
         });
       }
-
       // Update user profile with the image URL
       const updatedUser = await storage.updateUser(userId, {
         profilePicture: profilePictureUrl,
       });
-
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
-
       return res.status(200).json({
         message: "Profile picture uploaded successfully",
         profilePictureUrl: profilePictureUrl,
@@ -6338,53 +5343,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Change password
   app.post('/api/profile/change-password', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const { currentPassword, newPassword } = req.body;
-      
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: "Current password and new password are required" });
       }
-      
       if (newPassword.length < 8) {
         return res.status(400).json({ message: "New password must be at least 8 characters" });
       }
-      
       const user = await storage.getUser(userId);
-      
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       // Verify current password
       const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
-      
       if (!isPasswordValid) {
         return res.status(401).json({ message: "Current password is incorrect" });
       }
-      
       // Hash new password
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      
       // Update password
       await storage.updateUser(userId, {
         password: hashedPassword,
       });
-      
       // Revoke all refresh tokens to logout from all devices
       await jwtService.revokeAllUserTokens(userId);
       Logger.info(LogCategory.AUTH, 'All user sessions revoked after password change', { userId });
-      
       // Send password changed email
       try {
         await emailService.sendPasswordChangedEmail(user.id, user.email, user.username);
       } catch (emailError) {
         // Email service already logs the error
       }
-      
       return res.status(200).json({ 
         message: "Password changed successfully. You have been logged out from all devices.",
         requiresLogin: true 
@@ -6393,19 +5386,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // ===== Settings Endpoints =====
-  
   // Get user settings (returns user preferences)
   app.get('/api/settings', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const user = await storage.getUser(userId);
-      
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       return res.status(200).json({
         settings: {
           preferredLanguage: user.preferredLanguage || 'en',
@@ -6418,21 +5407,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Update user settings
   app.patch('/api/settings', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const { preferredLanguage } = req.body;
-      
       const updatedUser = await storage.updateUser(userId, {
         preferredLanguage,
       });
-      
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       return res.status(200).json({
         message: "Settings updated successfully",
         settings: {
@@ -6443,33 +5428,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-  
   // Delete account
   app.delete('/api/settings/account', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
       const { password } = req.body;
-      
       if (!password) {
         return res.status(400).json({ message: "Password is required to delete account" });
       }
-      
       const user = await storage.getUser(userId);
-      
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
       // Verify password
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      
       if (!isPasswordValid) {
         return res.status(401).json({ message: "Password is incorrect" });
       }
-      
       // Delete user (cascade will delete all related data)
       await storage.deleteUser(userId);
-      
       // Clear JWT cookies
       res.clearCookie('accessToken', {
         httpOnly: true,
@@ -6477,86 +5454,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sameSite: 'lax',
         path: '/',
       });
-      
       res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
       });
-      
       return res.status(200).json({ message: "Account deleted successfully" });
     } catch (error) {
       return handleApiError(error, res);
     }
   });
-
   // Register quiz routes
   registerQuizRoutes(app);
-
   // Register leaderboard routes
   registerLeaderboardRoutes(app);
-  
   // Register shareable quiz routes
   registerShareableQuizRoutes(app);
-  
   // Register achievement routes
   registerAchievementRoutes(app);
-  
   // Register Quiz of the Day routes
   registerQuizOfTheDayRoutes(app);
-  
   // Register saved and favorite quiz routes
   registerSavedFavoriteQuizRoutes(app);
-  
   // Register contact routes
   app.use('/api/contact', contactRoutes);
-  
   // Register admin user management routes
   const adminUserRoutes = (await import('./routes/admin/user.routes')).default;
   app.use('/api/admin/users', adminUserRoutes);
-  
   // Register admin content management routes
   const adminContentRoutes = (await import('./routes/admin/content.routes')).default;
   app.use('/api/admin/content', adminContentRoutes);
-  
   // Register admin analytics routes
   const adminAnalyticsRoutes = (await import('./routes/admin/analytics.routes')).default;
   app.use('/api/admin/analytics', adminAnalyticsRoutes);
-  
   // Register admin email management routes
   const adminEmailRoutes = (await import('./routes/admin/email.routes')).default;
   app.use('/api/admin/messages', adminEmailRoutes);
-  
   // Register admin monitoring routes (logs and system endpoints)
   const adminMonitoringRoutes = (await import('./routes/admin/monitoring.routes')).default;
   app.use('/api/admin', adminMonitoringRoutes);
-  
   // Register admin error logging routes
   const adminErrorLogRoutes = (await import('./routes/admin/error-log.routes')).default;
   app.use('/api/admin/logs', adminErrorLogRoutes);
-  
   // Register admin security routes (password reset, login history, bulk operations)
   const adminSecurityRoutes = (await import('./routes/admin/security.routes')).default;
   app.use('/api/admin/security', adminSecurityRoutes);
-  
   // Register user security routes (email change, login history, account recovery)
   const userSecurityRoutes = (await import('./routes/user/security.routes')).default;
   app.use('/api/user/security', userSecurityRoutes);
-  
   // Admin endpoint to clear quiz cache
   app.post('/api/admin/clear-cache', jwtAuth, async (req: Request, res: Response) => {
     try {
       const userId = req.user?.id!;
-      
       // Only allow admin users (you can add role check here)
       // For now, any authenticated user can clear cache
-      
       const { quizCacheService } = require('./services/quiz-cache-service');
       quizCacheService.clear();
-      
-      console.log(`Cache cleared by user ${userId}`);
-      
       return res.status(200).json({
         success: true,
         message: 'Quiz cache cleared successfully',
@@ -6565,7 +5519,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return handleApiError(error, res);
     }
   });
-
   const httpServer = createServer(app);
   return httpServer;
 }

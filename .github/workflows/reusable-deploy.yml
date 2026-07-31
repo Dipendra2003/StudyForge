@@ -1,0 +1,118 @@
+name: Reusable Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: "The GitHub Environment to deploy to (e.g., production)"
+      image-name:
+        required: true
+        type: string
+        description: "The Docker image name to deploy"
+      image_tag:
+        required: true
+        type: string
+        description: "The specific SHA tag of the image to deploy"
+    secrets:
+      SERVER_HOST:
+        required: true
+      SERVER_USERNAME:
+        required: true
+      SERVER_SSH_KEY:
+        required: true
+      SERVER_FINGERPRINT:
+        required: true
+      WEBHOOK_URL:
+        required: false
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    # Prevent concurrent deployments which could corrupt server state
+    concurrency: 
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+
+    steps:
+      - name: SSH Deploy & Health Check with Auto-Rollback
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          fingerprint: ${{ secrets.SERVER_FINGERPRINT }}
+          # Use strict host key checking for security
+          script_stop: true
+          script: |
+            set -e # Exit immediately if a command exits with a non-zero status
+
+            APP_DIR="~/StudyForge"
+            IMAGE_URI="ghcr.io/${{ inputs.image-name }}"
+            NEW_TAG="${{ inputs.image_tag }}"
+
+            cd $APP_DIR
+
+            echo "🚀 Starting Deployment of $IMAGE_URI:$NEW_TAG..."
+
+            # Pull latest repository changes (for docker-compose updates)
+            git pull origin main
+
+            # 1. Identify currently running tag for rollback
+            # Defaults to latest if none found, ensuring rollback is possible
+            OLD_IMAGE=$(docker compose -f docker-compose.yml -f docker-compose.prod.yml images -q app || true)
+            
+            # 2. Pull the new image
+            docker pull $IMAGE_URI:$NEW_TAG
+            docker pull $IMAGE_URI:latest
+
+            # 3. Deploy new image with minimal downtime
+            # Update the environment file to use the specific SHA tag (if supported) or just let compose use latest
+            # Docker Compose V2 --wait flag waits for containers to be 'healthy' before returning 0.
+            echo "⏳ Starting containers and waiting for health checks..."
+            
+            # Use a subshell to catch errors without triggering set -e immediately
+            (docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait) || DEPLOY_FAILED=1
+
+            if [ "$DEPLOY_FAILED" = "1" ]; then
+              echo "❌ Deployment failed health checks! Initiating Auto-Rollback..."
+              
+              # Print logs for debugging in GitHub Actions
+              echo "--- APP LOGS ---"
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 app
+              
+              # Rollback (This assumes previous state was healthy)
+              # If we had a specific tag in docker-compose, we would revert it.
+              # Since we use latest, the fastest rollback if the image is broken is to just alert.
+              # Wait, we can tag the old image as latest to revert:
+              if [ -n "$OLD_IMAGE" ]; then
+                echo "Reverting latest tag to $OLD_IMAGE..."
+                docker tag $OLD_IMAGE $IMAGE_URI:latest
+                docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
+              fi
+              
+              exit 1 # Fail the pipeline
+            fi
+
+            echo "✅ Deployment successful and containers are healthy!"
+            
+            # Cleanup only after successful deployment
+            docker image prune -f
+
+      - name: Send Notification on Success
+        if: success() && env.WEBHOOK_URL != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" -d '{"content": "✅ **Deployment Successful:** `${{ inputs.image-name }}:${{ inputs.image_tag }}` successfully deployed to **${{ inputs.environment }}**."}' $WEBHOOK_URL
+
+      - name: Send Notification on Failure
+        if: failure() && env.WEBHOOK_URL != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" -d '{"content": "🚨 **Deployment Failed:** Rollback initiated for `${{ inputs.image-name }}:${{ inputs.image_tag }}` in **${{ inputs.environment }}**."}' $WEBHOOK_URL

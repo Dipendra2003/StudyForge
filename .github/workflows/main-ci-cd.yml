@@ -1,0 +1,50 @@
+name: Enterprise CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  trivy-security-scan:
+    name: Source Code Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  call-build:
+    name: Build Image
+    needs: trivy-security-scan
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      image-name: ${{ github.repository }}
+      push: ${{ github.event_name != 'pull_request' }}
+    secrets: inherit
+
+  call-deploy-production:
+    name: Deploy to Production
+    needs: call-build
+    # Only deploy on pushes to main, not on PRs
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: production
+      image-name: ${{ github.repository }}
+      image_tag: ${{ needs.call-build.outputs.image_tag }}
+    secrets: inherit

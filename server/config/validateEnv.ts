@@ -25,24 +25,24 @@ export function validateEnvironmentVariables(): EnvValidationResult {
   // Check for DATABASE_URL or individual PostgreSQL credentials
   const hasDatabaseUrl = !!process.env.DATABASE_URL;
   const hasMysqlCredentials = 
-    !!process.env.DATABASE_URL &&
-    !!process.env.DATABASE_URL &&
-    !!process.env.DATABASE_URL &&
-    !!process.env.DATABASE_URL &&
-    !!process.env.DATABASE_URL;
+    !!process.env.POSTGRES_USER &&
+    !!process.env.POSTGRES_PASSWORD &&
+    !!process.env.POSTGRES_DB &&
+    !!process.env.DB_HOST &&
+    !!process.env.DB_PORT;
 
   if (!hasDatabaseUrl && !hasMysqlCredentials) {
     errors.push(
       'Database configuration is missing. Please provide either:\n' +
       '  - DATABASE_URL (connection string), OR\n' +
-      '  - All PostgreSQL credentials (DATABASE_URL, DATABASE_URL, DATABASE_URL, DATABASE_URL, DATABASE_URL)'
+      '  - All PostgreSQL credentials (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DB_HOST, DB_PORT)'
     );
     
-    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
-    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
-    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
-    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
-    if (!process.env.DATABASE_URL) missingVars.push('DATABASE_URL');
+    if (!process.env.POSTGRES_USER) missingVars.push('POSTGRES_USER');
+    if (!process.env.POSTGRES_PASSWORD) missingVars.push('POSTGRES_PASSWORD');
+    if (!process.env.POSTGRES_DB) missingVars.push('POSTGRES_DB');
+    if (!process.env.DB_HOST) missingVars.push('DB_HOST');
+    if (!process.env.DB_PORT) missingVars.push('DB_PORT');
   }
 
   // Check for JWT_SECRET (Required for authentication)
