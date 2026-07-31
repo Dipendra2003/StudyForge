@@ -89,7 +89,7 @@
     "lucide-react": "^0.453.0",
     "mammoth": "^1.11.0",
     "memorystore": "^1.6.7",
-    "monaco-editor": "^0.55.1",
+    "monaco-editor": "^0.56.0",
     "multer": "^2.0.2",
     "nanoid": "^6.0.0",
     "node-cron": "^4.2.1",
