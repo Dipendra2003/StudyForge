@@ -104,6 +104,7 @@ export default function Flashcards() {
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
   const [isEditingCard, setIsEditingCard] = useState(false);
   const [addingToDeckCardId, setAddingToDeckCardId] = useState<number | null>(null);
+  const [queryAutoStarted, setQueryAutoStarted] = useState(false);
   
   const { toast } = useToast();
   
@@ -660,6 +661,26 @@ export default function Flashcards() {
       origin: { y: 0.6 }
     });
   };
+
+  // Auto-start AI generation if 'q' parameter is present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryTopic = params.get('q');
+    
+    if (queryTopic && !queryAutoStarted && !generateFlashcardMutation.isPending) {
+      setQueryAutoStarted(true);
+      setIsCreatingCard(true);
+      
+      // Wait for the dialog to open to set the input value
+      setTimeout(() => {
+        const topicInput = document.getElementById('topic') as HTMLInputElement;
+        if (topicInput) {
+          topicInput.value = queryTopic;
+        }
+        generateFlashcardMutation.mutate(queryTopic);
+      }, 500);
+    }
+  }, [queryAutoStarted, generateFlashcardMutation]);
 
   return (
     <DashboardLayout>
