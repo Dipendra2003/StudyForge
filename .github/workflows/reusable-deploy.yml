@@ -17,13 +17,13 @@ on:
         description: "The specific SHA tag of the image to deploy"
     secrets:
       SERVER_HOST:
-        required: true
+        required: false
       SERVER_USERNAME:
-        required: true
+        required: false
       SERVER_SSH_KEY:
-        required: true
+        required: false
       SERVER_FINGERPRINT:
-        required: true
+        required: false
       WEBHOOK_URL:
         required: false
 
