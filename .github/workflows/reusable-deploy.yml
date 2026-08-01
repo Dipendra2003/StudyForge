@@ -31,7 +31,6 @@ jobs:
   deploy:
     name: Deploy to ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
     # Prevent concurrent deployments which could corrupt server state
     concurrency: 
       group: deploy-${{ inputs.environment }}
