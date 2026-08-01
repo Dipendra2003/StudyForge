@@ -13,7 +13,7 @@ jobs:
       contents: write # Needed to create a release
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Generate Release Notes and Create Release
         uses: softprops/action-gh-release@v3
