@@ -188,7 +188,7 @@ export function errorHandler(
 
   // Handle Zod validation errors
   if (err instanceof ZodError) {
-    const validationError = fromZodError(err);
+    const validationError = fromZodError(err as any);
     const errorResponse: ErrorResponse = {
       success: false,
       message: "Validation error",
@@ -382,7 +382,7 @@ export function handleApiError(error: unknown, res: Response) {
   }
 
   if (error instanceof ZodError) {
-    const validationError = fromZodError(error);
+    const validationError = fromZodError(error as any);
     return res.status(400).json({ 
       message: "Validation error", 
       errors: validationError.details.map((detail: any) => ({
