@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Copy package files and install dependencies
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts && npm rebuild bcrypt
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --legacy-peer-deps && npm rebuild bcrypt
 
 # Source code is mounted as a volume (not copied)
 # This enables hot-reload with tsx watch and Vite HMR

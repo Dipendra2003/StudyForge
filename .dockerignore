@@ -45,8 +45,11 @@ Dockerfile.dev
 docker-compose*.yml
 .dockerignore
 
-# Misc
+# Misc & AI / CI/CD Tools
 *.tar.gz
 *.log
 .sessions
 attached_assets
+.github
+.gemini
+.agents

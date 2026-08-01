@@ -70,7 +70,7 @@
     "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
-    "date-fns": "^4.4.0",
+    "date-fns": "^3.6.0",
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",

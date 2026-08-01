@@ -22,7 +22,7 @@ COPY package.json package-lock.json ./
 
 # Install ALL dependencies (dev + prod) — needed for the build stage.
 # --ignore-scripts skips postinstall (tsc check) to speed up install.
-RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts --legacy-peer-deps
 
 # ---------------------------------------------------------------------------
 # Stage 2: Build Application
@@ -57,12 +57,12 @@ COPY package.json package-lock.json ./
 # bcrypt native addon needs build tools, so we install, build, then remove them
 # in a single layer to keep the image small.
 RUN --mount=type=cache,target=/root/.npm apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci --omit=dev --ignore-scripts \
+    && npm ci --omit=dev --ignore-scripts --legacy-peer-deps \
     && npm rebuild bcrypt \
     && apk del .build-deps
 
 # Install drizzle-kit locally so drizzle.config.ts can require() it during migrations.
-RUN npm install drizzle-kit
+RUN npm install drizzle-kit --legacy-peer-deps
 
 # Copy built application from build stage
 COPY --from=build /app/dist ./dist

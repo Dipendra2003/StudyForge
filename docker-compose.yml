@@ -18,8 +18,11 @@ services:
       redis:
         condition: service_healthy
     environment:
-      # Database — use Docker service name 'db', unless an external DATABASE_URL is provided in .env
-      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-studyforge}:${POSTGRES_PASSWORD:-studyforge_secret}@db:5432/${POSTGRES_DB:-studyforge}}
+      # Database — in Docker Compose, connect to internal service host 'db' with uniform 'postgres' user
+      DATABASE_URL: postgres://postgres:Postgremmudip76@db:5432/${POSTGRES_DB:-studyforge}
+      POSTGRES_USER: postgres
+      DB_HOST: db
+      DB_PORT: 5432
 
       # Redis — use Docker service name 'redis'
       REDIS_HOST: redis
@@ -93,13 +96,13 @@ services:
     image: postgres:16.6-alpine
     container_name: studyforge-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-studyforge}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studyforge_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-studyforge}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Postgremmudip76
+      POSTGRES_DB: studyforge
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studyforge} -d ${POSTGRES_DB:-studyforge}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d studyforge"]
       interval: 10s
       timeout: 5s
       retries: 5
