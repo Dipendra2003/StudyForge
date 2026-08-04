@@ -8,10 +8,11 @@ interface SaveQuizButtonProps {
   category: string;
   difficulty: string;
   questionCount: number;
+  questionTypes?: string[];
   disabled?: boolean;
 }
 
-export function SaveQuizButton({ category, difficulty, questionCount, disabled }: SaveQuizButtonProps) {
+export function SaveQuizButton({ category, difficulty, questionCount, questionTypes, disabled }: SaveQuizButtonProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -47,7 +48,7 @@ export function SaveQuizButton({ category, difficulty, questionCount, disabled }
         body: JSON.stringify({
           category,
           difficulty,
-          questionTypes: ["mcq"],
+          questionTypes: questionTypes || ["mcq"],
           questionCount,
           title: `${category} - ${difficulty}`,
           description: `${questionCount} questions`,

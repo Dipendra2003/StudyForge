@@ -71,10 +71,9 @@ async function createAdminUser() {
     }
 
     // Check if user already exists
-    const [existingUsers] = await connection.execute(
-      'SELECT * FROM users WHERE email = ? LIMIT 1',
-      [email]
-    ) as any;
+    const existingUsers = await connection`
+      SELECT * FROM users WHERE email = ${email} LIMIT 1
+    `;
 
     if (existingUsers.length > 0) {
       // User exists - ask if they want to promote to admin
@@ -94,10 +93,9 @@ async function createAdminUser() {
       
       if (promote.toLowerCase() === 'yes' || promote.toLowerCase() === 'y') {
         // Promote existing user to admin
-        await connection.execute(
-          'UPDATE users SET role = ?, updated_at = NOW() WHERE id = ?',
-          ['admin', user.id]
-        );
+        await connection`
+          UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = ${user.id}
+        `;
 
         console.log('\n✅ User promoted to admin successfully!');
         console.log(`Username: ${user.username}`);
@@ -128,10 +126,9 @@ async function createAdminUser() {
     }
 
     // Check if username is taken
-    const [existingUsername] = await connection.execute(
-      'SELECT * FROM users WHERE username = ? LIMIT 1',
-      [username]
-    ) as any;
+    const existingUsername = await connection`
+      SELECT * FROM users WHERE username = ${username} LIMIT 1
+    `;
 
     if (existingUsername.length > 0) {
       console.error('❌ Username already taken!');
@@ -169,11 +166,10 @@ async function createAdminUser() {
 
     // Create admin user
     console.log('👤 Creating admin user...');
-    await connection.execute(
-      `INSERT INTO users (username, email, password, full_name, role, is_active, email_verified, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'admin', 1, 1, NOW(), NOW())`,
-      [username, email, hashedPassword, fullName || null]
-    );
+    await connection`
+      INSERT INTO users (username, email, password, full_name, role, is_active, email_verified, created_at, updated_at)
+       VALUES (${username}, ${email}, ${hashedPassword}, ${fullName || null}, 'admin', true, true, NOW(), NOW())
+    `;
 
     console.log('\n✅ Admin user created successfully!\n');
     console.log('═══════════════════════════════════════');

@@ -105,7 +105,7 @@ export default function QuizMode() {
   const [completedQuizAttemptId, setCompletedQuizAttemptId] = useState<number | null>(null);
   
   // Session tracking - unique ID for hint tracking and progress (Req 13.2)
-  const [sessionId] = useState<string>(() => 
+  const [sessionId, setSessionId] = useState<string>(() => 
     activeSession ? activeSession.sessionId : `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
   );
   
@@ -158,7 +158,7 @@ export default function QuizMode() {
   const fetchQuestions = async (config: QuizConfig): Promise<Question[]> => {
     try {
       const params = new URLSearchParams({
-        category: config.category.toLowerCase(),
+        category: (config.category || config.topic || 'General Knowledge').toLowerCase(),
         difficulty: config.difficulty,
         types: config.questionTypes.join(','),
         limit: config.questionCount.toString(),
@@ -280,9 +280,25 @@ export default function QuizMode() {
 
       // Requirement 2.3: Shuffle questions for random order each attempt
       const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+
+      // Generate a brand new unique session ID for every fresh quiz attempt
+      const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      setSessionId(newSessionId);
+
+      // Purge any stale progress from localStorage before initializing
+      try {
+        localStorage.removeItem('active-quiz-metadata');
+        localStorage.removeItem(`quiz-progress-${sessionId}`);
+        localStorage.removeItem(`quiz-progress-${newSessionId}`);
+        if (shuffledQuestions[0]) {
+          localStorage.removeItem(`quiz-progress-${shuffledQuestions[0].id}-${shuffledQuestions.length}`);
+        }
+      } catch (e) {
+        console.error("Failed to clear previous session progress", e);
+      }
       
       // Initialize quiz state
-      setQuizConfig({ ...config, sessionId });
+      setQuizConfig({ ...config, sessionId: newSessionId });
       setQuizQuestions(shuffledQuestions);
       setIsQuizStarted(true);
       setShowResults(false);
@@ -291,9 +307,9 @@ export default function QuizMode() {
       // Save active session to localStorage to survive page refreshes
       try {
         localStorage.setItem('active-quiz-metadata', JSON.stringify({
-          quizConfig: { ...config, sessionId },
+          quizConfig: { ...config, sessionId: newSessionId },
           quizQuestions: shuffledQuestions,
-          sessionId
+          sessionId: newSessionId
         }));
       } catch (e) {
         console.error("Failed to save active quiz session", e);
@@ -615,6 +631,47 @@ export default function QuizMode() {
   };
 
   /**
+   * Handle quit quiz
+   * Allows user to exit the quiz before completing with a confirmation dialog
+   */
+  const handleQuitQuiz = () => {
+    // Clear active session from localStorage
+    try {
+      localStorage.removeItem('active-quiz-metadata');
+      if (quizConfig?.sessionId) {
+        localStorage.removeItem(`quiz-progress-${quizConfig.sessionId}`);
+      }
+      if (quizQuestions[0]) {
+        localStorage.removeItem(`quiz-progress-${quizQuestions[0].id}-${quizQuestions.length}`);
+      }
+    } catch (e) {
+      console.error("Failed to clear active quiz session", e);
+    }
+
+    // Reset all quiz state back to configuration screen
+    setShowResults(false);
+    setIsQuizStarted(false);
+    setQuizResults(null);
+    setQuizQuestions([]);
+    setUserAnswers({});
+    setQuestionAttempts({});
+    
+    // Clear QOTD state if applicable
+    if (isQOTD) {
+      setIsQOTD(false);
+      setQotdId(null);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('qotd');
+      window.history.replaceState({}, '', url.toString());
+    }
+    
+    toast({
+      title: "Quiz Exited",
+      description: "You have exited the quiz. You can start a new one anytime.",
+    });
+  };
+
+  /**
    * Handle view answers
    * Implements Requirement 6.6: View detailed answers option
    */
@@ -836,6 +893,7 @@ export default function QuizMode() {
                     config={quizConfig}
                     onComplete={handleQuizComplete}
                     onHintRequest={handleHintRequest}
+                    onQuit={handleQuitQuiz}
                   />
                 </motion.div>
               )}

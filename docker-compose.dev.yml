@@ -26,6 +26,7 @@ services:
       - ./postcss.config.js:/app/postcss.config.js
       - ./.env:/app/.env
       - ./migrations:/app/migrations
+      - ./scripts:/app/scripts
       - ./drizzle.config.ts:/app/drizzle.config.ts
       # Prevent node_modules from being overwritten by the mount
       - /app/node_modules

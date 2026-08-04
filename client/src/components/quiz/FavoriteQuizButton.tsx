@@ -8,10 +8,11 @@ interface FavoriteQuizButtonProps {
   category: string;
   difficulty: string;
   questionCount: number;
+  questionTypes?: string[];
   disabled?: boolean;
 }
 
-export function FavoriteQuizButton({ category, difficulty, questionCount, disabled }: FavoriteQuizButtonProps) {
+export function FavoriteQuizButton({ category, difficulty, questionCount, questionTypes, disabled }: FavoriteQuizButtonProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -41,7 +42,7 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, disabl
         body: JSON.stringify({
           category,
           difficulty,
-          questionTypes: ["mcq"],
+          questionTypes: questionTypes || ["mcq"],
           questionCount,
           title: `${category} - ${difficulty}`,
           description: `${questionCount} questions`,

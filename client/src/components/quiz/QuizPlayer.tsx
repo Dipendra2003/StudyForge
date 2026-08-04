@@ -32,7 +32,19 @@ import {
   SkipForward,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  X,
+  Maximize,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Question,
   QuestionType,
@@ -91,6 +103,7 @@ interface QuizPlayerProps {
   config: QuizConfig;
   onComplete: (results: QuizResults) => void;
   onHintRequest?: (questionId: number) => Promise<string>;
+  onQuit?: () => void;
 }
 
 interface QuestionAttempt {
@@ -106,6 +119,7 @@ export default function QuizPlayer({
   config,
   onComplete,
   onHintRequest,
+  onQuit,
 }: QuizPlayerProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, QuestionAttempt>>({});
@@ -124,6 +138,9 @@ export default function QuizPlayer({
   const [motivationType, setMotivationType] = useState<'success' | 'support' | 'periodic'>('success');
   const [currentStreak, setCurrentStreak] = useState(0);
   
+  // Quit confirmation dialog state
+  const [showQuitDialog, setShowQuitDialog] = useState(false);
+
   // Skip functionality
   const [skippedQuestions, setSkippedQuestions] = useState<Set<number>>(new Set());
   const [isReviewingSkipped, setIsReviewingSkipped] = useState(false);
@@ -160,8 +177,14 @@ export default function QuizPlayer({
       const savedStateStr = localStorage.getItem(storageKey);
       if (savedStateStr) {
         const savedState = JSON.parse(savedStateStr);
-        // Only load if questions match to avoid loading irrelevant state
-        if (savedState && savedState.questionsLength === questions.length) {
+        // Only load if question signature matches to avoid loading irrelevant state from previous attempts
+        const firstQuestionText = questions[0]?.question || '';
+        const isMatchingSignature = 
+          savedState && 
+          savedState.questionsLength === questions.length &&
+          (!savedState.firstQuestionText || savedState.firstQuestionText === firstQuestionText);
+
+        if (isMatchingSignature) {
           const loadedIndex = savedState.currentQuestionIndex || 0;
           const loadedAnswers = savedState.answers || {};
           
@@ -193,12 +216,15 @@ export default function QuizPlayer({
               description: "We've restored your progress from where you left off.",
             });
           }
+        } else if (savedState) {
+          // Disregard and clear stale progress from a different quiz
+          localStorage.removeItem(storageKey);
         }
       }
     } catch (e) {
       console.error("Failed to load quiz progress", e);
     }
-  }, [storageKey, questions.length, toast]);
+  }, [storageKey, questions, toast]);
 
   // Save state on change
   useEffect(() => {
@@ -207,6 +233,7 @@ export default function QuizPlayer({
       try {
         const stateToSave = {
           questionsLength: questions.length,
+          firstQuestionText: questions[0]?.question || '',
           currentQuestionIndex,
           answers,
           timeSpent,
@@ -236,6 +263,62 @@ export default function QuizPlayer({
     revealedCorrectAnswers
   ]);
   // --- End Auto-Save & Resume Logic ---
+
+  // --- Fullscreen Mode Logic ---
+  const quizContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Track whether we intentionally exited fullscreen (quiz complete/quit)
+  // to avoid showing the quit dialog in those cases
+  const intentionalFullscreenExitRef = useRef(false);
+
+  // Enter fullscreen on mount when fullscreenMode is enabled
+  useEffect(() => {
+    if (config.fullscreenMode) {
+      const enterFullscreen = async () => {
+        try {
+          if (!document.fullscreenElement && quizContainerRef.current) {
+            await quizContainerRef.current.requestFullscreen();
+            setIsFullscreen(true);
+          }
+        } catch (err) {
+          // Silently handle - user activation timer likely expired during AI question generation.
+          // The "Fullscreen Exam Mode" launch screen will cleanly guide user interaction.
+          console.log('User gesture required to enter fullscreen; displaying launch card.');
+        }
+      };
+      // Small delay to let the component mount and transition in
+      const timer = setTimeout(enterFullscreen, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [config.fullscreenMode]);
+
+  // Listen for fullscreen exit — show quit dialog if user pressed Esc/F11
+  useEffect(() => {
+    if (!config.fullscreenMode) return;
+
+    const handleFullscreenChange = () => {
+      const inFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(inFullscreen);
+      // If we left fullscreen AND it wasn't intentional (quiz complete/quit)
+      if (!inFullscreen && !intentionalFullscreenExitRef.current) {
+        setShowQuitDialog(true);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [config.fullscreenMode]);
+
+  // Helper: exit fullscreen cleanly (used by quiz completion and quit)
+  const exitFullscreen = useCallback(() => {
+    if (config.fullscreenMode && document.fullscreenElement) {
+      intentionalFullscreenExitRef.current = true;
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [config.fullscreenMode]);
+  // --- End Fullscreen Mode Logic ---
 
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
@@ -642,25 +725,26 @@ export default function QuizPlayer({
         [currentQuestion.id]: attempt,
       };
 
-      // Calculate final counts
-      const finalCorrectCount = isCorrect ? correctCount + 1 : correctCount;
-      const finalIncorrectCount = isCorrect ? incorrectCount : incorrectCount + 1;
-
       // Complete quiz with updated data
-      completeQuizWithData(updatedAnswers, finalCorrectCount, finalIncorrectCount);
+      completeQuizWithData(updatedAnswers);
     } else {
       // No current answer, just complete with existing data
-      completeQuizWithData(answers, correctCount, incorrectCount);
+      completeQuizWithData(answers);
     }
-  }, [currentAnswer, hasSubmitted, currentQuestion, questionStartTime, answers, correctCount, incorrectCount, checkAnswer]);
+  }, [currentAnswer, hasSubmitted, currentQuestion, questionStartTime, answers, checkAnswer]);
 
   // Complete quiz and calculate results
   const completeQuizWithData = (
     finalAnswers: Record<number, QuestionAttempt>,
-    finalCorrectCount: number,
-    finalIncorrectCount: number
   ) => {
     const totalQuestions = questions.length;
+    
+    // IMPORTANT: Derive counts from the actual answers map to prevent desync
+    // Previously used separate correctCount/incorrectCount state counters which
+    // could get out of sync with the answers record due to React's batched updates
+    const finalCorrectCount = Object.values(finalAnswers).filter(a => a.isCorrect).length;
+    const finalIncorrectCount = Object.values(finalAnswers).filter(a => !a.isCorrect).length;
+    
     const accuracy = totalQuestions > 0 ? (finalCorrectCount / totalQuestions) * 100 : 0;
     
     // Determine badge
@@ -686,9 +770,9 @@ export default function QuizPlayer({
     // Get a random motivational quote for the results
     const motivationalQuote = getRandomMotivationalQuote();
 
-    // Extract user answers from attempts
+    // Extract user answers from attempts — use finalAnswers param, NOT answers state
     const userAnswers: Record<number, any> = {};
-    Object.values(answers).forEach(attempt => {
+    Object.values(finalAnswers).forEach(attempt => {
       userAnswers[attempt.questionId] = attempt.userAnswer;
     });
 
@@ -709,7 +793,7 @@ export default function QuizPlayer({
         author: motivationalQuote.author,
       },
       userAnswers,
-      questionAttempts: answers,
+      questionAttempts: finalAnswers,
     };
 
     // Clear saved progress on completion
@@ -719,12 +803,15 @@ export default function QuizPlayer({
       console.error("Failed to clear quiz progress", e);
     }
 
+    // Exit fullscreen cleanly before showing results
+    exitFullscreen();
+
     onComplete(results);
   };
 
   // Handle quiz completion (called when user clicks finish)
   const handleQuizComplete = () => {
-    completeQuizWithData(answers, correctCount, incorrectCount);
+    completeQuizWithData(answers);
   };
 
   // Render question based on type
@@ -1372,11 +1459,77 @@ export default function QuizPlayer({
 
   return (
     <motion.div
+      ref={quizContainerRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-4 relative"
+      className={`space-y-4 relative transition-all duration-300 ${
+        isFullscreen 
+          ? "w-full min-h-screen bg-background p-4 md:py-12 md:px-8 overflow-y-auto" 
+          : ""
+      }`}
     >
+      {config.fullscreenMode && !isFullscreen ? (
+        <Card className="w-full max-w-2xl mx-auto my-8 border-2 border-primary/20 shadow-xl glass-card text-center overflow-hidden">
+          <div className="bg-primary/5 py-8 px-6 border-b border-border/50 flex flex-col items-center justify-center">
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 shadow-inner">
+              <Maximize className="h-8 w-8 animate-pulse" />
+            </div>
+            <CardTitle className="text-2xl md:text-3xl font-bold tracking-tight">
+              Fullscreen Exam Mode
+            </CardTitle>
+            <CardDescription className="text-sm md:text-base mt-2 max-w-md mx-auto">
+              This quiz requires full-screen focus mode for an optimal and uninterrupted test environment.
+            </CardDescription>
+          </div>
+          <CardContent className="py-6 px-6 space-y-4 text-left">
+            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg p-4 text-amber-900 dark:text-amber-200 text-sm space-y-2">
+              <p className="font-semibold flex items-center gap-2">
+                ⚠️ Proctoring & Focus Guidelines:
+              </p>
+              <ul className="list-disc list-inside space-y-1 pl-1 text-xs md:text-sm text-amber-800 dark:text-amber-300">
+                <li>Entering fullscreen hides sidebars and navigation to maximize focus.</li>
+                <li>Pressing <span className="font-semibold">Esc</span> or leaving full-screen mode will prompt to end your test.</li>
+                <li>Ensure you are ready before proceeding into the exam environment.</li>
+              </ul>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col sm:flex-row gap-3 justify-end bg-muted/20 px-6 py-4 border-t">
+            {onQuit && (
+              <Button
+                variant="outline"
+                onClick={onQuit}
+                className="w-full sm:w-auto"
+              >
+                Cancel & Return
+              </Button>
+            )}
+            <Button
+              size="lg"
+              onClick={async () => {
+                try {
+                  if (quizContainerRef.current) {
+                    await quizContainerRef.current.requestFullscreen();
+                    setIsFullscreen(true);
+                  }
+                } catch (err) {
+                  console.error('Could not enter fullscreen:', err);
+                  toast({
+                    title: "Fullscreen Error",
+                    description: "Your browser refused fullscreen permissions.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              className="w-full sm:w-auto font-semibold shadow-lg shadow-primary/20"
+            >
+              <Maximize className="mr-2 h-4 w-4" />
+              Enter Fullscreen & {Object.keys(answers).length > 0 ? "Resume Quiz" : "Start Quiz"}
+            </Button>
+          </CardFooter>
+        </Card>
+      ) : (
+        <>
       {/* Feedback Animation Overlay */}
       <AnimatePresence>
         {showFeedbackAnimation && (
@@ -1435,6 +1588,18 @@ export default function QuizPlayer({
           <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
             <div className="space-y-1 flex-1">
               <div className="flex items-center gap-2">
+                {/* Close/Exit Quiz Button */}
+                {onQuit && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowQuitDialog(true)}
+                    className="h-8 w-8 p-0 rounded-full hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400 transition-colors -ml-1 mr-1"
+                    title="Exit Quiz"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
                 <CardTitle className="text-lg md:text-xl">
                   Question {currentQuestionIndex + 1} of {questions.length}
                 </CardTitle>
@@ -1638,6 +1803,51 @@ export default function QuizPlayer({
         </CardFooter>
       </Card>
       </motion.div>
+        </>
+      )}
+
+      {/* Quit Quiz Confirmation Dialog */}
+      <AlertDialog open={showQuitDialog} onOpenChange={(open) => {
+        setShowQuitDialog(open);
+        // If dialog is being closed (user clicked Continue Quiz),
+        // re-enter fullscreen if fullscreen mode is enabled
+        if (!open && config.fullscreenMode && !document.fullscreenElement && quizContainerRef.current) {
+          quizContainerRef.current.requestFullscreen().catch(() => {});
+        }
+      }}>
+        <AlertDialogContent container={quizContainerRef.current}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Exit Quiz?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to exit this quiz? Your progress will be lost and the quiz will not be submitted.
+              <br />
+              <span className="font-medium mt-2 block">
+                You've answered {Object.keys(answers).length} of {questions.length} questions so far.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue Quiz</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                // Exit fullscreen before quitting
+                exitFullscreen();
+                // Clear saved progress
+                try {
+                  localStorage.removeItem(storageKey);
+                  localStorage.removeItem('active-quiz-metadata');
+                } catch (e) {
+                  console.error("Failed to clear quiz progress", e);
+                }
+                onQuit?.();
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Exit Quiz
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

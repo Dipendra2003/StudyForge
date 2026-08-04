@@ -32,6 +32,7 @@ import {
   Mic,
   AlertCircle,
   Settings2,
+  Maximize,
 } from "lucide-react";
 import { QuestionType } from "@/../../shared/quiz-types";
 import { SaveQuizButton } from "./SaveQuizButton";
@@ -47,6 +48,7 @@ export interface QuizConfig {
   sessionId?: string; // Optional session ID for tracking hints and progress
   topic?: string; // Optional specific topic for AI generation
   aiMode?: boolean; // Whether to use AI generation instead of database questions
+  fullscreenMode?: boolean; // Whether to enter fullscreen during quiz
 }
 
 interface QuizConfigurationPanelProps {
@@ -75,7 +77,7 @@ export default function QuizConfigurationPanel({
   disabled = false,
 }: QuizConfigurationPanelProps) {
   const [config, setConfig] = useState<QuizConfig>({
-    category: '', // Empty by default - user must select
+    category: availableCategories[0] || 'General Knowledge', // Default to valid category
     difficulty: 'medium', // Default to medium
     questionCount: 10,
     timedMode: false,
@@ -107,15 +109,10 @@ export default function QuizConfigurationPanel({
   useEffect(() => {
     const newErrors: string[] = [];
 
-    // Only validate if user has started configuring (category selected)
-    const hasStartedConfig = config.category !== '';
-
     // Validate question count is between 1 and 50 (Req 28.2)
-    if (config.questionCount < 1) {
+    if (!config.questionCount || config.questionCount < 1) {
       newErrors.push("Question count must be at least 1");
-    }
-
-    if (config.questionCount > 50) {
+    } else if (config.questionCount > 50) {
       newErrors.push("Question count cannot exceed 50");
     }
 
@@ -128,28 +125,23 @@ export default function QuizConfigurationPanel({
       newErrors.push("Time limit must be at least 30 seconds");
     }
 
-    // Only validate category/difficulty if user has started configuring
-    if (hasStartedConfig) {
-      // When AI mode is enabled, skip database question availability check (Req 28.2)
-      // Only validate AI mode requirements
-      if (config.aiMode) {
-        if (!config.category || config.category.trim() === '') {
-          newErrors.push("Category is required for AI question generation");
-        }
-        if (!config.difficulty) {
-          newErrors.push("Difficulty is required for AI question generation");
-        }
-        // Don't check availableCount at all when AI mode is enabled (Req 28.2, 28.4)
-      } else {
-        // Only validate against database count when AI mode is disabled (Req 28.4)
-        // Also check that the query has completed (not loading) before showing error
-        if (!isCountLoading && availableCount !== undefined && config.questionCount > availableCount) {
-          newErrors.push(`Only ${availableCount} questions available for selected filters`);
-        }
-        // Show error if no questions available in database mode
-        if (!isCountLoading && availableCount !== undefined && availableCount === 0) {
-          newErrors.push("No questions match your selected criteria. Please try different settings or enable AI mode.");
-        }
+    // Ensure either a category is selected or a topic is provided
+    if (!config.category && (!config.topic || config.topic.trim() === '')) {
+      newErrors.push("Please select a category or enter a custom topic");
+    }
+
+    if (config.aiMode) {
+      if (!config.difficulty) {
+        newErrors.push("Difficulty is required for AI question generation");
+      }
+    } else {
+      // Only validate against database count when AI mode is disabled (Req 28.4)
+      if (!isCountLoading && availableCount !== undefined && config.questionCount > availableCount && availableCount > 0) {
+        newErrors.push(`Only ${availableCount} questions available for selected filters`);
+      }
+      // Show error if no questions available in database mode
+      if (!isCountLoading && availableCount !== undefined && availableCount === 0) {
+        newErrors.push("No questions match your selected criteria. Please try different settings or enable AI mode.");
       }
     }
 
@@ -157,15 +149,11 @@ export default function QuizConfigurationPanel({
   }, [config, availableCount, isCountLoading]);
 
   const handleStartQuiz = () => {
-    // When AI mode is enabled, skip database question availability check (Req 28.2)
     if (config.aiMode) {
-      // Only check for validation errors, not database availability
       if (errors.length === 0) {
         onStartQuiz(config);
       }
     } else {
-      // For database mode, check both errors and availability
-      // Don't start if still loading count
       if (errors.length === 0 && !isCountLoading && availableCount && availableCount > 0) {
         onStartQuiz(config);
       }
@@ -178,6 +166,10 @@ export default function QuizConfigurationPanel({
 
   const toggleQuestionType = (type: QuestionType) => {
     setConfig(prev => {
+      // Don't allow unchecking the last remaining selected question type
+      if (prev.questionTypes.includes(type) && prev.questionTypes.length === 1) {
+        return prev;
+      }
       const types = prev.questionTypes.includes(type)
         ? prev.questionTypes.filter(t => t !== type)
         : [...prev.questionTypes, type];
@@ -186,7 +178,7 @@ export default function QuizConfigurationPanel({
   };
 
   // When AI mode is enabled, don't require database questions (Req 28.4)
-  const canStartQuiz = errors.length === 0 && !disabled && (config.aiMode || (availableCount && availableCount > 0));
+  const canStartQuiz = errors.length === 0 && !disabled && !!(config.category || config.topic) && (config.aiMode || (availableCount && availableCount > 0));
 
   return (
     <motion.div
@@ -310,8 +302,8 @@ export default function QuizConfigurationPanel({
             type="number"
             min={1}
             max={50}
-            value={config.questionCount}
-            onChange={(e) => updateConfig('questionCount', parseInt(e.target.value) || 1)}
+            value={config.questionCount || ''}
+            onChange={(e) => updateConfig('questionCount', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
             disabled={disabled}
           />
           <p className="text-xs text-muted-foreground">
@@ -383,8 +375,8 @@ export default function QuizConfigurationPanel({
                 type="number"
                 min={30}
                 max={3600}
-                value={config.timeLimit || 300}
-                onChange={(e) => updateConfig('timeLimit', parseInt(e.target.value) || 300)}
+                value={config.timeLimit || ''}
+                onChange={(e) => updateConfig('timeLimit', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
                 disabled={disabled}
               />
               <p className="text-xs text-muted-foreground">
@@ -414,6 +406,30 @@ export default function QuizConfigurationPanel({
             id="aiMode"
             checked={config.aiMode}
             onCheckedChange={(checked) => updateConfig('aiMode', checked)}
+            disabled={disabled}
+          />
+        </motion.div>
+
+        {/* Fullscreen Mode */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.9, duration: 0.4 }}
+          className="flex items-center justify-between"
+        >
+          <div className="space-y-0.5">
+            <Label htmlFor="fullscreenMode" className="flex items-center gap-2">
+              <Maximize className="h-4 w-4" />
+              Fullscreen Mode
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Enter fullscreen during quiz — exiting fullscreen will prompt to end the test
+            </p>
+          </div>
+          <Switch
+            id="fullscreenMode"
+            checked={config.fullscreenMode || false}
+            onCheckedChange={(checked) => updateConfig('fullscreenMode', checked)}
             disabled={disabled}
           />
         </motion.div>
@@ -465,6 +481,7 @@ export default function QuizConfigurationPanel({
             <span className="text-muted-foreground">Mode:</span>
             <span className="font-medium">
               {config.timedMode ? 'Timed' : 'Untimed'}
+              {config.fullscreenMode ? ' • Fullscreen' : ''}
             </span>
           </div>
         </motion.div>
@@ -500,12 +517,14 @@ export default function QuizConfigurationPanel({
             category={config.category}
             difficulty={config.difficulty}
             questionCount={config.questionCount}
+            questionTypes={config.questionTypes}
             disabled={disabled}
           />
           <FavoriteQuizButton
             category={config.category}
             difficulty={config.difficulty}
             questionCount={config.questionCount}
+            questionTypes={config.questionTypes}
             disabled={disabled}
           />
         </motion.div>
