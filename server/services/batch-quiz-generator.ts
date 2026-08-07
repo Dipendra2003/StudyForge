@@ -334,7 +334,7 @@ export class BatchQuizGenerator {
         prompt,
         {
           temperature: 0.7,
-          maxOutputTokens: 4096, // Larger output for batch
+          maxOutputTokens: 32768, // Massive token allowance for large proctored assessments (up to 50 Qs)
         },
         request.userId
       );

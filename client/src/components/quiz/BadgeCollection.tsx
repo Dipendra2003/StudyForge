@@ -259,7 +259,7 @@ export default function BadgeCollection({ userId }: BadgeCollectionProps) {
         setProgressData(progressResult.progress || []);
       }
     } catch (error) {
-      console.error('Error fetching achievements:', error);
+
       toast({
         variant: 'destructive',
         title: 'Error',

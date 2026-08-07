@@ -107,6 +107,6 @@ export const clearSessionAttachments = async (sessionId: string): Promise<void> 
       await deleteAttachment(attachment.id);
     }
   } catch (error) {
-    console.error("Failed to clear session attachments:", error);
+
   }
 };

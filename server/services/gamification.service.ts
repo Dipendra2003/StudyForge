@@ -11,7 +11,7 @@ export type GamificationAction =
   | 'STUDY_PLAN_COMPLETED';
 
 const XP_REWARDS: Record<GamificationAction, number> = {
-  QUIZ_OF_THE_DAY: 50,
+  QUIZ_OF_THE_DAY: 20, // 20 bonus + 30 base completion = 50 Total XP
   QUIZ_COMPLETED: 30,
   DOCUMENT_SUMMARIZED: 20,
   FLASHCARDS_GENERATED: 15,

@@ -59,7 +59,7 @@ export default function Settings() {
       const data = await response.json();
       setSettings(data.settings);
     } catch (error) {
-      console.error("Error fetching settings:", error);
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -88,7 +88,7 @@ export default function Settings() {
         description: "Settings updated successfully",
       });
     } catch (error) {
-      console.error("Error updating settings:", error);
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -169,7 +169,7 @@ export default function Settings() {
         navigate("/");
       }, 2000);
     } catch (error: any) {
-      console.error("Error deleting account:", error);
+
       toast({
         variant: "destructive",
         title: "Error",

@@ -74,7 +74,7 @@ export function ExportDialog({ children }: ExportDialogProps) {
 
       setIsOpen(false);
     } catch (error) {
-      console.error('Export error:', error);
+
       toast({
         title: "Export failed",
         description: "There was an error exporting your flashcards. Please try again.",

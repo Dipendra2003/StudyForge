@@ -224,6 +224,16 @@ export class AIQuotaService {
   getMaxQuizzesPerHour(): number {
     return this.config.maxQuizzesPerHour;
   }
+
+  /**
+   * Update quota configuration in real-time (Admin control)
+   * 
+   * Requirements: 1.1, 1.2
+   */
+  updateConfig(newConfig: Partial<QuotaConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+    Logger.info(LogCategory.AI, 'quota_config_updated', this.config);
+  }
 }
 
 // Export singleton instance with default configuration

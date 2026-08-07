@@ -247,7 +247,11 @@ Keep the explanation concise (2-3 sentences) and educational.`;
     }
 
     try {
-      const motivation = await geminiService.generateContent(prompt, { temperature: 0.8, maxOutputTokens: 100 });
+      // Use a 3-second timeout so the quiz UI stays responsive if the AI API experiences network delays or retries
+      const motivation = await Promise.race([
+        geminiService.generateContent(prompt, { temperature: 0.8, maxOutputTokens: 100 }),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Motivation request timed out')), 3000))
+      ]);
       return motivation.trim();
     } catch (error) {
       // Fallback to simple messages based on type

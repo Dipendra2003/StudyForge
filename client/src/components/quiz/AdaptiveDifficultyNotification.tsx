@@ -60,7 +60,7 @@ export function AdaptiveDifficultyNotification({
         }
       }
     } catch (error) {
-      console.error('Error fetching adaptive difficulty:', error);
+
     } finally {
       setIsLoading(false);
     }

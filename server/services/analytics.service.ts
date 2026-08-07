@@ -133,7 +133,7 @@ export class AnalyticsService {
         streakData,
       };
     } catch (error) {
-      console.error('Error getting user stats:', error);
+
       throw new Error('Failed to retrieve user statistics');
     }
   }
@@ -170,7 +170,7 @@ export class AnalyticsService {
 
       return insertId;
     } catch (error) {
-      console.error('Error recording quiz attempt:', error);
+
       throw new Error('Failed to record quiz attempt');
     }
   }
@@ -244,7 +244,7 @@ export class AnalyticsService {
 
       return trendData;
     } catch (error) {
-      console.error('Error calculating improvement trend:', error);
+
       throw new Error('Failed to calculate improvement trend');
     }
   }
@@ -284,7 +284,7 @@ export class AnalyticsService {
 
       return categoryPerformance;
     } catch (error) {
-      console.error('Error getting category performance:', error);
+
       throw new Error('Failed to retrieve category performance');
     }
   }
@@ -357,7 +357,7 @@ export class AnalyticsService {
         lastQuizDate: now,
       };
     } catch (error) {
-      console.error('Error updating streak:', error);
+
       throw new Error('Failed to update streak');
     }
   }
@@ -458,7 +458,7 @@ export class AnalyticsService {
         })
         .where(eq(userQuizStats.userId, attempt.userId));
     } catch (error) {
-      console.error('Error updating user stats:', error);
+
       throw error;
     }
   }

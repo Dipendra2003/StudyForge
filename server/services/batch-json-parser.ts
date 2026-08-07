@@ -224,6 +224,25 @@ export function parseBatchJson(response: string): unknown[] {
     parseAttempts.push(`Array extraction failed: ${(e as Error).message}`);
   }
 
+  // Step 6: Attempt truncated JSON recovery (if AI response hit token limit mid-array)
+  try {
+    const firstBracket = response.indexOf('[');
+    if (firstBracket !== -1) {
+      let lastBrace = response.lastIndexOf('}');
+      if (lastBrace > firstBracket) {
+        const truncatedSlice = response.substring(firstBracket, lastBrace + 1) + ']';
+        const sanitizedSlice = sanitizeJson(truncatedSlice);
+        const parsed = JSON.parse(sanitizedSlice);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+
+          return parsed;
+        }
+      }
+    }
+  } catch (e) {
+    parseAttempts.push(`Truncated JSON recovery failed: ${(e as Error).message}`);
+  }
+
   // All attempts failed
   throw new BatchJsonParseError(
     'Failed to parse JSON array from AI response after multiple attempts',

@@ -99,7 +99,7 @@ export function BulkGenerateDialog({
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("Generate error:", error);
+
     },
   });
 
@@ -132,7 +132,7 @@ export function BulkGenerateDialog({
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("Save error:", error);
+
     },
   });
 

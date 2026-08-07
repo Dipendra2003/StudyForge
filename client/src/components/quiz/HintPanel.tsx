@@ -64,7 +64,7 @@ export function HintPanel({ questionId, sessionId, onHintUsed, disabled }: HintP
         description: `This is hint #${data.attemptNumber}`,
       });
     } catch (error) {
-      console.error('Error requesting hint:', error);
+
       toast({
         title: "Error",
         description: "Failed to generate hint. Please try again.",

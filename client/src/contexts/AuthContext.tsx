@@ -40,28 +40,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        // Fetch user data after successful refresh
-        const userResponse = await fetch('/api/auth/me', {
-          credentials: 'include', // Use cookies for auth
-        });
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          const user = userData.user;
-          
-          if (user) {
-            setUser(user);
+        const data = await response.json();
+        // The refresh endpoint now returns user data directly, avoiding extra /api/auth/me round-trip
+        const userData = data.data?.user;
+        if (userData) {
+          setUser(userData);
+        } else {
+          // Fallback: fetch user data separately if not included in refresh response
+          const userResponse = await fetch('/api/auth/me', {
+            credentials: 'include',
+          });
+          if (userResponse.ok) {
+            const meData = await userResponse.json();
+            setUser(meData.user || null);
           } else {
             setUser(null);
           }
-        } else {
-          setUser(null);
         }
       } else {
         setUser(null);
       }
     } catch (error) {
-      console.error('[AuthContext] refreshAuth - Error:', error);
+
       setUser(null);
     }
   };
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshAuth();
       }
     } catch (error) {
-      console.error('[AuthContext] checkAuth - Error:', error);
+
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
     if (!response.ok) {
-      console.error('[AuthContext] Login failed:', result.message);
+
       throw new Error(result.message || 'Login failed');
     }
 
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'include',
       });
     } catch (error) {
-      console.error('Logout error:', error);
+
     } finally {
       setUser(null);
       // Clear all session storage items related to navigation

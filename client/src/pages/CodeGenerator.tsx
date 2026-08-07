@@ -545,7 +545,7 @@ export default function CodeGenerator() {
       });
       setCodeComplexity(data.complexity);
     } catch (error) {
-      console.error("Error analyzing complexity:", error);
+
       setCodeComplexity("Failed to analyze complexity");
       toast({
         title: "Analysis Failed",

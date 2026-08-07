@@ -222,7 +222,7 @@ export default function QuizPlayer({
         }
       }
     } catch (e) {
-      console.error("Failed to load quiz progress", e);
+
     }
   }, [storageKey, questions, toast]);
 
@@ -246,7 +246,7 @@ export default function QuizPlayer({
         };
         localStorage.setItem(storageKey, JSON.stringify(stateToSave));
       } catch (e) {
-        console.error("Failed to save quiz progress", e);
+
       }
     }
   }, [
@@ -283,7 +283,7 @@ export default function QuizPlayer({
         } catch (err) {
           // Silently handle - user activation timer likely expired during AI question generation.
           // The "Fullscreen Exam Mode" launch screen will cleanly guide user interaction.
-          console.log('User gesture required to enter fullscreen; displaying launch card.');
+
         }
       };
       // Small delay to let the component mount and transition in
@@ -629,6 +629,8 @@ export default function QuizPlayer({
         handleQuizComplete();
       }
     } else {
+      setCurrentAnswer(null);
+      currentAnswerRef.current = null;
       setCurrentQuestionIndex(prev => prev + 1);
     }
   };
@@ -645,6 +647,8 @@ export default function QuizPlayer({
     const firstSkippedIndex = questions.findIndex(q => skippedIds.includes(q.id));
     if (firstSkippedIndex !== -1) {
       setIsReviewingSkipped(true);
+      setCurrentAnswer(null);
+      currentAnswerRef.current = null;
       setCurrentQuestionIndex(firstSkippedIndex);
     } else {
       handleQuizComplete();
@@ -666,6 +670,8 @@ export default function QuizPlayer({
       if (remainingSkipped.length > 0) {
         const nextSkippedIndex = questions.findIndex(q => remainingSkipped.includes(q.id));
         if (nextSkippedIndex !== -1) {
+          setCurrentAnswer(null);
+          currentAnswerRef.current = null;
           setCurrentQuestionIndex(nextSkippedIndex);
           return;
         }
@@ -682,6 +688,8 @@ export default function QuizPlayer({
         handleQuizComplete();
       }
     } else {
+      setCurrentAnswer(null);
+      currentAnswerRef.current = null;
       setCurrentQuestionIndex(prev => prev + 1);
     }
   };
@@ -800,7 +808,7 @@ export default function QuizPlayer({
     try {
       localStorage.removeItem(storageKey);
     } catch (e) {
-      console.error("Failed to clear quiz progress", e);
+
     }
 
     // Exit fullscreen cleanly before showing results
@@ -838,7 +846,7 @@ export default function QuizPlayer({
   const renderMCQ = (question: Question) => {
     if (!isMCQData(question.questionData)) return null;
     const data = question.questionData as MCQData;
-    const userAnswer = currentAnswer as string | null;
+    const userAnswer = typeof currentAnswer === 'string' ? currentAnswer : null;
     
     // Get correct answer from revealed answers (only available after submission)
     const correctAnswer = revealedCorrectAnswers[question.id];
@@ -945,7 +953,7 @@ export default function QuizPlayer({
   const renderTrueFalse = (question: Question) => {
     if (!isTrueFalseData(question.questionData)) return null;
     const data = question.questionData as TrueFalseData;
-    const userAnswer = (currentAnswer as string) || undefined;
+    const userAnswer = typeof currentAnswer === 'string' ? currentAnswer : undefined;
     
     // Get correct answer from revealed answers (only available after submission)
     const correctAnswer = revealedCorrectAnswers[question.id];
@@ -1053,7 +1061,7 @@ export default function QuizPlayer({
   const renderFillBlank = (question: Question) => {
     if (!isFillBlankData(question.questionData)) return null;
     const data = question.questionData as FillBlankData;
-    const userAnswers = (currentAnswer as string[]) || [];
+    const userAnswers = (Array.isArray(currentAnswer) && typeof currentAnswer[0] !== 'number') ? (currentAnswer as string[]) : [];
     
     // Initialize empty array if currentAnswer is null
     if (currentAnswer === null) {
@@ -1068,7 +1076,7 @@ export default function QuizPlayer({
       <div className="space-y-4">
         <div className="space-y-3">
           {data.blanks.map((blank, index) => {
-            const userAns = userAnswers[index] || "";
+            const userAns = String(userAnswers[index] ?? "");
             const correctAns = correctAnswers ? correctAnswers[index] : undefined;
             const isCorrect = hasSubmitted && correctAns &&
               userAns.trim().toLowerCase() === correctAns.trim().toLowerCase();
@@ -1163,7 +1171,7 @@ export default function QuizPlayer({
     const data = question.questionData as MatchingData;
     
     // Initialize user matches if not set
-    const userMatches = (currentAnswer as Record<string, string>) || {};
+    const userMatches = (currentAnswer && typeof currentAnswer === 'object' && !Array.isArray(currentAnswer)) ? (currentAnswer as Record<string, string>) : {};
     
     if (currentAnswer === null) {
       const initialMatches: Record<string, string> = {};
@@ -1298,7 +1306,7 @@ export default function QuizPlayer({
     const data = question.questionData as RearrangeData;
     
     // Initialize user order if not set (indices 0, 1, 2, ...)
-    const userOrder = (currentAnswer as number[]) || data.items.map((_, idx) => idx);
+    const userOrder = (Array.isArray(currentAnswer) && (currentAnswer.length === 0 || typeof currentAnswer[0] === 'number')) ? (currentAnswer as number[]) : data.items.map((_, idx) => idx);
     
     if (currentAnswer === null) {
       const initialOrder = data.items.map((_, idx) => idx);
@@ -1513,7 +1521,7 @@ export default function QuizPlayer({
                     setIsFullscreen(true);
                   }
                 } catch (err) {
-                  console.error('Could not enter fullscreen:', err);
+
                   toast({
                     title: "Fullscreen Error",
                     description: "Your browser refused fullscreen permissions.",
@@ -1837,7 +1845,7 @@ export default function QuizPlayer({
                   localStorage.removeItem(storageKey);
                   localStorage.removeItem('active-quiz-metadata');
                 } catch (e) {
-                  console.error("Failed to clear quiz progress", e);
+
                 }
                 onQuit?.();
               }}

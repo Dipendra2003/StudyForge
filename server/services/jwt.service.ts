@@ -6,6 +6,9 @@
 import jwt from 'jsonwebtoken';
 import { Logger, LogCategory } from '../utils/logger';
 import { storage } from '../storage';
+import { db } from '../db';
+import { refreshTokens } from '../../shared/schema';
+import { eq, gt, and, count } from 'drizzle-orm';
 
 export interface JWTPayload {
   userId: number;
@@ -282,11 +285,12 @@ export class JWTService {
    */
   async getActiveSessionCount(userId: number): Promise<number> {
     try {
-      // Note: This is a placeholder implementation
-      // In a production environment, you would query the database for active tokens
-      // For now, we'll return 0 as the storage interface doesn't have this method yet
-      Logger.debug(LogCategory.SECURITY, 'Active session count requested', { userId });
-      return 0;
+      const [{ value }] = await db
+        .select({ value: count() })
+        .from(refreshTokens)
+        .where(and(eq(refreshTokens.userId, userId), gt(refreshTokens.expiresAt, new Date())));
+      Logger.debug(LogCategory.SECURITY, 'Active session count requested', { userId, sessions: value });
+      return value;
     } catch (error) {
       Logger.error(LogCategory.SECURITY, 'Failed to get active session count', error as Error);
       return 0;

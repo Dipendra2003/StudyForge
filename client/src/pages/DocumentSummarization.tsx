@@ -102,7 +102,7 @@ export default function DocumentSummarization() {
         description: "There was an error saving your document. Please try again.",
         variant: "destructive",
       });
-      console.error("Save error:", error);
+
     },
   });
 
@@ -141,8 +141,7 @@ export default function DocumentSummarization() {
       });
     },
     onError: (error: any) => {
-      console.error("Summarization error:", error);
-      
+
       // Extract error message from response
       const errorMessage = (error?.response?.data?.error || error?.message || "").toLowerCase();
       const errorTitle = error?.response?.data?.message || "Error generating summary";
@@ -212,7 +211,7 @@ export default function DocumentSummarization() {
         description: "There was an error deleting the summary. Please try again.",
         variant: "destructive",
       });
-      console.error("Delete error:", error);
+
     },
   });
 
@@ -466,7 +465,7 @@ export default function DocumentSummarization() {
         description: `Extracted ${text.length} characters from ${file.name}`,
       });
     } catch (error) {
-      console.error('Upload error:', error);
+
       toast({
         title: "Upload failed",
         description: error instanceof Error ? error.message : "There was an error reading your file.",

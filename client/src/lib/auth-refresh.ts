@@ -12,7 +12,7 @@ export async function refreshAuthToken(): Promise<boolean> {
     })
       .then((res) => res.ok)
       .catch((err) => {
-        console.error('Failed to refresh token network error:', err);
+
         return false;
       })
       .finally(() => {

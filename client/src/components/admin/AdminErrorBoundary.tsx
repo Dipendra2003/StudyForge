@@ -30,7 +30,7 @@ export class AdminErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log error to console in development
     if (process.env.NODE_ENV === 'development') {
-      console.error('AdminErrorBoundary caught an error:', error, errorInfo);
+
     }
 
     this.setState({
@@ -54,7 +54,7 @@ export class AdminErrorBoundary extends Component<Props, State> {
       });
     } catch (logError) {
       // Silently fail if logging fails - don't want to cause more errors
-      console.error('Failed to log error to backend:', logError);
+
     }
   }
 

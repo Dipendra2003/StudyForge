@@ -67,7 +67,7 @@ export default function MessageActionBar({
           type: newLikedState ? 'like' : 'unlike',
         });
       } catch (error) {
-        console.error('Failed to save feedback:', error);
+
       }
     }
 
@@ -95,7 +95,7 @@ export default function MessageActionBar({
           type: newDislikedState ? 'dislike' : 'undislike',
         });
       } catch (error) {
-        console.error('Failed to save feedback:', error);
+
       }
     }
 
@@ -522,7 +522,7 @@ export default function MessageActionBar({
         description: "Message downloaded as PDF file",
       });
     } catch (error) {
-      console.error('PDF download error:', error);
+
       toast({
         title: "PDF Download Failed",
         description: "Could not generate PDF. Please try TXT format.",
@@ -811,7 +811,7 @@ export default function MessageActionBar({
         description: "Message downloaded as DOCX file",
       });
     } catch (error) {
-      console.error('DOCX download error:', error);
+
       toast({
         title: "DOCX Download Failed",
         description: "Could not generate DOCX. Please try TXT format.",
@@ -877,7 +877,7 @@ export default function MessageActionBar({
         throw new Error('Failed to submit report');
       }
     } catch (error) {
-      console.error('Report error:', error);
+
       toast({
         title: "Report submitted",
         description: "Your report has been recorded. Thank you for helping us improve.",
@@ -908,7 +908,7 @@ export default function MessageActionBar({
         throw new Error('Failed to save message');
       }
     } catch (error) {
-      console.error('Save error:', error);
+
       toast({
         title: "Save feature coming soon",
         description: "We're working on the save functionality",

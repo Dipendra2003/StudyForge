@@ -69,7 +69,7 @@ const extractAction = (content: string) => {
       const cleanContent = content.replace(/<ACTION>[\s\S]*?<\/ACTION>/g, '').trim();
       return { cleanContent, action };
     } catch (e) {
-      console.error("Failed to parse action JSON", e);
+
     }
   }
   return { cleanContent: content, action: null };
@@ -468,7 +468,7 @@ export default function Chat() {
             await saveAttachmentLocally(sessionId, file);
           }
         } catch (e) {
-          console.error("Failed to save to indexedDB", e);
+
         }
       }
       

@@ -32,7 +32,7 @@ export class EmailService {
   private initializeTransporter(): void {
     // Validate configuration first
     if (!this.validateConfiguration()) {
-      console.warn('[EmailService] Email service not configured. Email features will be disabled.');
+
       this.isConfigured = false;
       return;
     }
@@ -49,7 +49,7 @@ export class EmailService {
       });
       this.isConfigured = true;
     } catch (error) {
-      console.error('[EmailService] Failed to initialize email service:', error);
+
       this.isConfigured = false;
       this.transporter = null;
     }
@@ -72,7 +72,7 @@ export class EmailService {
     ];
     const missingVars = requiredVars.filter(varName => !process.env[varName]);
     if (missingVars.length > 0) {
-      console.warn('[EmailService] Missing required environment variables:', missingVars.join(', '));
+
       return false;
     }
     return true;
@@ -129,8 +129,8 @@ export class EmailService {
     } catch (error) {
       // If there's an error checking idempotency, log it but allow the email to proceed
       // This ensures that database issues don't prevent critical emails from being sent
-      console.error('[EmailService] Error checking idempotency:', error);
-      console.warn('[EmailService] Proceeding with email send despite idempotency check failure');
+
+
       return false;
     }
   }
@@ -177,7 +177,7 @@ export class EmailService {
       );
     } catch (error) {
       // Log the error but don't throw - we don't want logging failures to break email sending
-      console.error('[EmailService] Failed to record email log:', error);
+
       console.error('[EmailService] Email details:', {
         userId,
         emailType,
@@ -229,7 +229,7 @@ export class EmailService {
         text,
       });
     } catch (error) {
-      console.error('[EmailService] Failed to send email:', error);
+
       throw error;
     }
   }
@@ -480,7 +480,7 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
     const emailType = 'contact_notification';
     const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL;
     if (!adminEmail) {
-      console.warn('[EmailService] Admin email not configured, skipping contact notification');
+
       return;
     }
     // Get email template
@@ -495,7 +495,7 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
       // Record failed send
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.recordEmailSent(userId || null, emailType, adminEmail, emailSubject, 'failed', errorMessage);
-      console.error('[EmailService] Failed to send contact notification:', error);
+
       // Don't throw error - contact form should still work even if email fails
     }
   }
@@ -525,7 +525,7 @@ View your study planner: ${process.env.APP_URL || 'http://localhost:5000'}/study
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.recordEmailSent(userId, emailType, email, subject, 'failed', errorMessage);
-      console.error('[EmailService] Failed to send study plan email:', error);
+
       // Don't throw - reminders should not break the system
     }
   }
@@ -817,6 +817,58 @@ This is an automated security alert from StudyForge.
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.recordEmailSent(null, emailType, email, subject, 'failed', errorMessage);
       // Don't throw - this is a notification email
+    }
+  }
+
+  public async sendAdminDirectReply(
+    email: string,
+    subject: string,
+    content: string
+  ): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <div style="background: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h2>StudyForge Support Reply</h2>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border: 1px solid #eee; border-radius: 0 0 8px 8px;">
+          <p style="white-space: pre-wrap; line-height: 1.6;">${content}</p>
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
+          <p style="font-size: 12px; color: #666;">Thank you for getting in touch with us. If you have any further questions, simply reply to this ticket.</p>
+        </div>
+      </div>
+    `;
+    try {
+      await this.sendEmail(email, subject, html, content);
+      await this.recordEmailSent(null, 'admin_direct_reply', email, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(null, 'admin_direct_reply', email, subject, 'failed', errorMessage);
+    }
+  }
+
+  public async sendBroadcastEmail(
+    email: string,
+    subject: string,
+    content: string
+  ): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <div style="background: #6366f1; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h2>StudyForge Community Announcement</h2>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+          <div style="white-space: pre-wrap; line-height: 1.7; color: #334155;">${content}</div>
+          <hr style="margin: 30px 0 20px; border: none; border-top: 1px solid #e2e8f0;" />
+          <p style="font-size: 12px; color: #94a3b8; text-align: center;">You received this announcement as a valued student of StudyForge.</p>
+        </div>
+      </div>
+    `;
+    try {
+      await this.sendEmail(email, subject, html, content);
+      await this.recordEmailSent(null, 'broadcast_announcement', email, subject, 'sent');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.recordEmailSent(null, 'broadcast_announcement', email, subject, 'failed', errorMessage);
     }
   }
 }

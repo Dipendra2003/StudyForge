@@ -91,7 +91,7 @@ export function DeckManagement({ onStudyDeck }: DeckManagementProps) {
         description: "There was an error creating your deck. Please try again.",
         variant: "destructive",
       });
-      console.error("Create deck error:", error);
+
     },
   });
 
@@ -121,7 +121,7 @@ export function DeckManagement({ onStudyDeck }: DeckManagementProps) {
         description: "There was an error updating your deck. Please try again.",
         variant: "destructive",
       });
-      console.error("Update deck error:", error);
+
     },
   });
 
@@ -146,7 +146,7 @@ export function DeckManagement({ onStudyDeck }: DeckManagementProps) {
         description: "There was an error deleting your deck. Please try again.",
         variant: "destructive",
       });
-      console.error("Delete deck error:", error);
+
     },
   });
 

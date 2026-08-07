@@ -1,4 +1,5 @@
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
+import { fetchWithAuth } from '@/lib/api';
 
 // Types
 export interface PaginationOptions {
@@ -24,7 +25,7 @@ export interface LogQueryOptions extends PaginationOptions {
   status?: string;
 }
 
-export type ContentType = 'quizzes' | 'flashcards' | 'documents' | 'questions';
+export type ContentType = 'quizzes' | 'flashcards' | 'documents' | 'questions' | 'flagged' | 'chat' | 'code-snippets' | 'study-plans';
 export type LogType = 'security' | 'email' | 'errors' | 'api-usage';
 
 // Helper function to build query string
@@ -39,18 +40,20 @@ function buildQueryString(params: Record<string, any>): string {
   return queryString ? `?${queryString}` : '';
 }
 
-// Fetch helper with credentials
-async function fetchAdmin<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    credentials: 'include',
-  });
+// Fetch helper with automatic JWT Authorization token & credentials
+async function fetchAdmin<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetchWithAuth(url, options as any);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(error.message || 'Request failed');
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return response.json().catch(() => ({} as T));
 }
 
 // User Management Hooks

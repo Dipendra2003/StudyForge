@@ -63,7 +63,7 @@ export default function SharedQuiz() {
       try {
         parsedQuestionsData = JSON.parse(parsedQuestionsData);
       } catch (e) {
-        console.error("Failed to parse questionsData:", e);
+
         parsedQuestionsData = [];
       }
     }
@@ -122,7 +122,7 @@ export default function SharedQuiz() {
       // 3. Mark as completed to show leaderboard
       setQuizCompleted(true);
     } catch (err) {
-      console.error("Error completing shared quiz:", err);
+
       // Still show completed state even if save failed, so user isn't stuck
       setQuizCompleted(true);
     }

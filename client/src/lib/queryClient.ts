@@ -90,7 +90,7 @@ export async function apiRequest<T = any>(
       response = await fetch(url, requestOptions);
     } else {
       // If refresh fails, we could potentially redirect to login or trigger an event
-      console.error('Authentication expired, please log in again.');
+
     }
   }
 
@@ -113,15 +113,6 @@ export async function apiRequest<T = any>(
     error.status = response.status;
     error.code = errorCode;
     error.response = errorData;
-    
-    console.error('API Request Error:', {
-      url,
-      method,
-      status: response.status,
-      message: errorMessage,
-      code: errorCode,
-      data: errorData
-    });
     
     throw error;
   }

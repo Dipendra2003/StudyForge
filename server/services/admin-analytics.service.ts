@@ -11,9 +11,10 @@ import {
   chatHistory, 
   questions, 
   flashcards, 
-  documents 
+  documents,
+  aiUsageLogs
 } from '../../shared/schema';
-import { count, sql, gte, desc } from 'drizzle-orm';
+import { count, sql, gte, desc, sum } from 'drizzle-orm';
 import { analyticsCacheService } from './analytics-cache.service';
 import { Logger, LogCategory } from '../utils/logger';
 
@@ -139,33 +140,33 @@ class AdminAnalyticsService {
         return cached;
       }
 
-      let dateFormat: string;
+      let dateExpr = sql<string>`to_char(${users.createdAt}, 'YYYY-MM-DD')`;
       let limit: number;
 
       switch (period) {
         case 'day':
-          dateFormat = '%Y-%m-%d';
+          dateExpr = sql<string>`to_char(${users.createdAt}, 'YYYY-MM-DD')`;
           limit = 30; // Last 30 days
           break;
         case 'week':
-          dateFormat = '%Y-%u'; // Year-Week
+          dateExpr = sql<string>`to_char(${users.createdAt}, 'IYYY-IW')`; // Year-Week (ISO)
           limit = 12; // Last 12 weeks
           break;
         case 'month':
-          dateFormat = '%Y-%m';
+          dateExpr = sql<string>`to_char(${users.createdAt}, 'YYYY-MM')`;
           limit = 12; // Last 12 months
           break;
       }
 
-      // Query database with date grouping
+      // Query database with PostgreSQL date grouping
       const growthData = await db
         .select({
-          date: sql<string>`DATE_FORMAT(${users.createdAt}, ${dateFormat})`,
+          date: dateExpr,
           count: count(),
         })
         .from(users)
-        .groupBy(sql`DATE_FORMAT(${users.createdAt}, ${dateFormat})`)
-        .orderBy(sql`DATE_FORMAT(${users.createdAt}, ${dateFormat})`)
+        .groupBy(dateExpr)
+        .orderBy(dateExpr)
         .limit(limit);
 
       const result: GrowthData[] = growthData.map((row: { date: string; count: number }) => {
@@ -280,18 +281,32 @@ class AdminAnalyticsService {
         return cached;
       }
 
-      // Count total AI requests (chat history messages)
-      const [{ value: totalRequests }] = await db
+      // Query real usage logs from aiUsageLogs table
+      const usageResult = await db
+        .select({
+          totalRequests: count(aiUsageLogs.id),
+          totalTokens: sum(aiUsageLogs.tokensUsed),
+          avgResponseTime: sql<number>`AVG(${aiUsageLogs.durationMs})`,
+        })
+        .from(aiUsageLogs);
+
+      // Also check legacy chat history messages for historical count
+      const [{ value: chatRequests }] = await db
         .select({ value: count() })
         .from(chatHistory);
 
-      // For now, return placeholder values for tokens and quota
-      // These would be tracked in a separate AI usage tracking table in production
+      const loggedRequests = Number(usageResult[0]?.totalRequests) || 0;
+      const totalRequests = Math.max(loggedRequests, chatRequests);
+      const tokensConsumed = Number(usageResult[0]?.totalTokens) || 0;
+      const averageResponseTime = Math.round(Number(usageResult[0]?.avgResponseTime) || 0);
+      const totalQuota = 2000000;
+      const quotaRemaining = Math.max(0, totalQuota - tokensConsumed);
+
       const stats: AIUsageStats = {
         totalRequests,
-        tokensConsumed: 0, // Would come from AI quota tracking
-        quotaRemaining: 0, // Would come from AI quota service
-        averageResponseTime: 0, // Would be tracked per request
+        tokensConsumed,
+        quotaRemaining,
+        averageResponseTime,
       };
 
       // Cache result

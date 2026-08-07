@@ -21,7 +21,7 @@ interface LoginHistoryRecord {
   createdAt: Date;
 }
 
-interface SuspiciousActivityAlert {
+export interface SuspiciousActivityAlert {
   userId: number;
   alertType: string;
   description: string;
@@ -34,7 +34,7 @@ class AdminSecurityService {
    * Admin-initiated password reset for a user
    * Generates a secure temporary password and sends it via email
    */
-  async resetUserPassword(adminId: number, userId: number): Promise<void> {
+  async resetUserPassword(adminId: number, userId: number): Promise<string> {
     try {
       // Get user details
       const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -70,6 +70,7 @@ class AdminSecurityService {
       });
 
       Logger.info(LogCategory.SECURITY, `Admin ${adminId} reset password for user ${userId}`);
+      return tempPassword;
     } catch (error) {
       Logger.error(LogCategory.SECURITY, 'Admin password reset failed', error as Error);
       throw new Error('Failed to reset user password');
@@ -101,15 +102,50 @@ class AdminSecurityService {
   }
 
   /**
-   * Detect suspicious activity patterns for a user
+   * Detect suspicious activity patterns and admin security interventions for a user
    */
   async detectSuspiciousActivity(userId: number): Promise<SuspiciousActivityAlert[]> {
     const alerts: SuspiciousActivityAlert[] = [];
     const now = new Date();
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     try {
+      // Check for admin sent security alerts or recent password resets in audit logs
+      const adminActions = await db
+        .select()
+        .from(securityAuditLogs)
+        .where(
+          and(
+            eq(securityAuditLogs.userId, userId),
+            sql`${securityAuditLogs.action} IN ('security_alert_sent', 'admin_password_reset')`,
+            gte(securityAuditLogs.createdAt, last30Days)
+          )
+        )
+        .orderBy(desc(securityAuditLogs.createdAt));
+
+      for (const log of adminActions) {
+        if (log.action === 'security_alert_sent') {
+          const details = (log.details as any) || {};
+          alerts.push({
+            userId,
+            alertType: details.alertType || 'Admin Security Alert',
+            description: details.description || 'Security notification issued by administrator.',
+            severity: (details.severity === 'high' || details.severity === 'low') ? details.severity : 'medium',
+            metadata: { timestamp: log.createdAt, adminSent: true }
+          });
+        } else if (log.action === 'admin_password_reset') {
+          alerts.push({
+            userId,
+            alertType: 'Administrative Password Reset',
+            description: 'Account credentials were reset by an administrator.',
+            severity: 'medium',
+            metadata: { timestamp: log.createdAt }
+          });
+        }
+      }
+
       // Check for multiple failed login attempts
       const failedLogins = await db
         .select()
@@ -180,17 +216,29 @@ class AdminSecurityService {
   }
 
   /**
-   * Send security alert email to user
+   * Send security alert email to user and record in audit log
    */
   async sendSecurityAlert(userId: number, alerts: SuspiciousActivityAlert[]): Promise<void> {
     try {
       const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       
-      if (!user || !user.email) {
+      if (!user) {
         return;
       }
 
-      await emailService.sendSuspiciousActivityAlert(user.email, user.username, alerts);
+      for (const alert of alerts) {
+        await db.insert(securityAuditLogs).values({
+          userId: userId,
+          action: 'security_alert_sent',
+          status: 'success',
+          details: { alertType: alert.alertType, description: alert.description, severity: alert.severity },
+          createdAt: new Date()
+        });
+      }
+
+      if (user.email) {
+        await emailService.sendSuspiciousActivityAlert(user.email, user.username, alerts);
+      }
 
       Logger.info(LogCategory.SECURITY, `Security alert sent to user ${userId}`);
     } catch (error) {

@@ -41,7 +41,7 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
         credentials: 'include',
       });
     } else {
-      console.error('Authentication expired, please log in again.');
+
     }
   }
 
@@ -106,7 +106,7 @@ export async function apiPostFormData(
         credentials: 'include',
       });
     } else {
-      console.error('Authentication expired, please log in again.');
+
     }
   }
 

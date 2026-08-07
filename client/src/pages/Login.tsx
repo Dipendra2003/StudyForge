@@ -26,11 +26,13 @@ export default function Login() {
       let redirectPath;
       
       if (user.role === 'admin') {
-        // Admin users should go to admin panel
-        redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/admin';
+        // Admin users should go to admin panel. If stored redirect is not an admin route, default to '/admin'
+        const storedRedirect = sessionStorage.getItem('redirectAfterLogin');
+        redirectPath = (storedRedirect && storedRedirect.startsWith('/admin')) ? storedRedirect : '/admin';
       } else {
-        // Regular users always go to dashboard after login (ignore lastVisitedPage)
-        redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/dashboard';
+        // Regular users always go to dashboard or intended non-admin route after login
+        const storedRedirect = sessionStorage.getItem('redirectAfterLogin');
+        redirectPath = (storedRedirect && !storedRedirect.startsWith('/admin')) ? storedRedirect : '/dashboard';
       }
       
       // Clear the redirect flags

@@ -121,6 +121,8 @@ interface ErrorResponse {
   relatedResource?: string;
 }
 
+import { Logger, LogCategory } from '../utils/logger';
+
 /**
  * Centralized error handler middleware
  * Catches all errors, logs them with appropriate context, and returns user-friendly messages
@@ -132,8 +134,6 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  // Import Logger dynamically to avoid circular dependencies
-  const { Logger, LogCategory } = require('../utils/logger');
 
   // Determine if this is an operational error (expected) or programming error (unexpected)
   const isOperational = err instanceof AppError && err.isOperational;
@@ -141,7 +141,7 @@ export function errorHandler(
   // Log error with appropriate context
   // Never expose sensitive information in logs
   const logContext = {
-    method: req.method,
+    httpMethod: req.method,
     path: req.path,
     userId: (req as any).user?.id,
     ipAddress: req.ip || req.socket.remoteAddress,

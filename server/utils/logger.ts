@@ -142,9 +142,7 @@ function outputLog(logMessage: string, level: LogLevel): void {
       console.warn(logMessage);
       break;
     case LogLevel.DEBUG:
-      if (process.env.NODE_ENV === 'development') {
-        console.log(logMessage);
-      }
+      // Removed console.log in development to prevent console spam
       break;
     case LogLevel.INFO:
     default:

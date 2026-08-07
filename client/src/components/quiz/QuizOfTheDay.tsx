@@ -119,7 +119,7 @@ export function QuizOfTheDay() {
       setQuizOfTheDay(data.quizOfTheDay);
       setStats(data.stats);
     } catch (error) {
-      console.error("Error fetching Quiz of the Day:", error);
+
       // Only show toast for non-auth errors
       if (error instanceof Error && !error.message.includes('401')) {
         toast({

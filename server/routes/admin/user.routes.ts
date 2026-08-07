@@ -375,4 +375,62 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+/**
+ * POST /api/admin/users/:id/revoke-sessions
+ * Revoke all active refresh tokens and force-kick user out of active sessions
+ */
+router.post('/:id/revoke-sessions', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      res.status(400).json({ success: false, message: 'Invalid user ID' });
+      return;
+    }
+    await adminUserService.revokeUserSessions(userId, req.user!.id, req.user!.username);
+    res.json({ success: true, message: 'All active sessions revoked and user force-kicked successfully.' });
+  } catch (error) {
+    Logger.error(LogCategory.ADMIN, 'Failed to revoke sessions', error as Error);
+    res.status(500).json({ success: false, message: 'Failed to revoke user sessions' });
+  }
+});
+
+/**
+ * PATCH /api/admin/users/:id/gamification
+ * Adjust user XP, total points, and level for moderation or dispute resolutions
+ */
+router.patch('/:id/gamification', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { points = 0, level = 1 } = req.body;
+    if (isNaN(userId)) {
+      res.status(400).json({ success: false, message: 'Invalid user ID' });
+      return;
+    }
+    await adminUserService.updateUserGamification(userId, parseInt(points), parseInt(level), req.user!.id, req.user!.username);
+    res.json({ success: true, message: 'User gamification stats updated.' });
+  } catch (error) {
+    Logger.error(LogCategory.ADMIN, 'Failed to update gamification stats', error as Error);
+    res.status(500).json({ success: false, message: 'Failed to update gamification stats' });
+  }
+});
+
+/**
+ * POST /api/admin/users/:id/reset-recovery-questions
+ * Reset a student's security questions to re-enable account recovery enrollment
+ */
+router.post('/:id/reset-recovery-questions', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      res.status(400).json({ success: false, message: 'Invalid user ID' });
+      return;
+    }
+    await adminUserService.resetRecoveryQuestions(userId, req.user!.id, req.user!.username);
+    res.json({ success: true, message: 'Recovery questions reset to unlock re-enrollment.' });
+  } catch (error) {
+    Logger.error(LogCategory.ADMIN, 'Failed to reset recovery questions', error as Error);
+    res.status(500).json({ success: false, message: 'Failed to reset recovery questions' });
+  }
+});
+
 export default router;

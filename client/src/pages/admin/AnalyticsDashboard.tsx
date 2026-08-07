@@ -48,33 +48,25 @@ interface MetricCardProps {
 function MetricCard({ title, value, icon: Icon, iconColor, loading }: MetricCardProps) {
   if (loading) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardDescription className="flex items-center gap-2">
-            <Skeleton className="h-4 w-4" />
-            <Skeleton className="h-4 w-24" />
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-8 w-16" />
-        </CardContent>
+      <Card className="rounded-2xl border-border/70 p-3 sm:p-4 space-y-2 bg-card">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <Skeleton className="h-7 w-16" />
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="flex items-center gap-2">
-          <Icon className={`h-4 w-4 ${iconColor}`} />
-          {title}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className={`text-3xl font-bold ${iconColor}`}>
-          {value}
-        </div>
-      </CardContent>
+    <Card className="rounded-2xl border-border/70 p-3 sm:p-4 bg-card shadow-xs transition-all hover:border-primary/30 flex flex-col justify-between">
+      <div className="flex items-center justify-between gap-1.5 mb-1">
+        <span className="text-[11px] sm:text-xs font-extrabold text-muted-foreground truncate">{title}</span>
+        <Icon className={`h-4 w-4 shrink-0 ${iconColor}`} />
+      </div>
+      <div className={`text-xl sm:text-2xl font-black ${iconColor}`}>
+        {value}
+      </div>
     </Card>
   );
 }
@@ -163,13 +155,13 @@ export default function AnalyticsDashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header with export button */}
-      <div className="flex items-center justify-between">
+    <div className="flex-1 flex flex-col min-h-0 h-[calc(100vh-5rem)] sm:h-[calc(100vh-6rem)] md:h-[calc(100vh-6.5rem)] -m-4 sm:-m-6 md:-m-8 p-4 sm:p-6 md:p-8 bg-background overflow-hidden space-y-4">
+      {/* Header with export button - Pinned Top */}
+      <div className="flex-shrink-0 flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            System metrics and performance statistics
+          <h2 className="text-xl sm:text-2xl font-black text-foreground">Analytics & Economics Deck</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-medium">
+            Real-time system metrics, user growth curves, and LLM token economics
           </p>
         </div>
         <Button
@@ -178,14 +170,15 @@ export default function AnalyticsDashboard() {
           onClick={handleExport}
           disabled={loadingTotalUsers || loadingActiveUsers}
           title="Export analytics to CSV"
+          className="font-extrabold shadow-xs"
         >
-          <Download className="h-4 w-4 mr-2" />
+          <Download className="h-4 w-4 mr-2 text-primary" />
           Export CSV
         </Button>
       </div>
 
-      {/* Metric Cards - Requirements 12.1, 12.2, 12.3, 12.4, 12.5 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      {/* Pinned Metric KPI Cards Deck - Requirements 12.1, 12.2, 12.3, 12.4, 12.5 */}
+      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <MetricCard
           title="Total Users"
           value={(totalUsers as any)?.data?.total ?? 0}
@@ -223,9 +216,11 @@ export default function AnalyticsDashboard() {
         />
       </div>
 
-      {/* AI Usage Details Card - Requirement 12.5 */}
-      <Card>
-        <CardHeader>
+      {/* Scrollable Chart & Deep Telemetry Content Area */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1 pb-6">
+        {/* AI Usage Details Card - Requirement 12.5 */}
+        <Card className="rounded-2xl border-border/80 shadow-xs">
+          <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Cpu className="h-5 w-5 text-pink-500" />
             AI Usage Statistics
@@ -354,6 +349,7 @@ export default function AnalyticsDashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

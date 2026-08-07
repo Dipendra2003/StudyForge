@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { ContentType } from './useAdminQuery';
+import { fetchWithAuth } from '@/lib/api';
 
 // Types
 interface UserUpdates {
@@ -17,26 +18,29 @@ interface MessageStatusUpdate {
   status: 'pending' | 'read' | 'resolved';
 }
 
-// Fetch helper with credentials
+// Fetch helper with automatic JWT Authorization token & credentials
 async function fetchAdmin<T>(
   url: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetchWithAuth(url, {
     ...options,
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
-    },
-  });
+    } as any,
+  } as any);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(error.message || 'Request failed');
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return response.json().catch(() => ({} as T));
 }
 
 // User Management Mutations
@@ -176,6 +180,63 @@ export function useUpdateContent() {
   });
 }
 
+export function useCreateContent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ type, data }: { type: string; data: any }) =>
+      fetchAdmin(`/api/admin/content/${type}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', variables.type] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-quizzes'] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-quizzes'] });
+      toast({
+        title: 'Content Created!',
+        description: 'New study resource successfully published to repository.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Creation Failed',
+        description: error.message || 'Failed to create study content. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useSeedQuizzes() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      fetchAdmin(`/api/admin/content/quizzes/seed`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', 'quizzes'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-quizzes'] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-quizzes'] });
+      toast({
+        title: 'Sample Quizzes Populated!',
+        description: 'Successfully seeded comprehensive proctored evaluation sets into PostgreSQL.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Population Failed',
+        description: error.message || 'Failed to populate sample quizzes.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
 export function useDeleteContent() {
   const queryClient = useQueryClient();
 
@@ -187,6 +248,8 @@ export function useDeleteContent() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'content', variables.type] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'content', 'flagged'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-quizzes'] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-quizzes'] });
       toast({
         title: 'Success',
         description: 'Content deleted successfully.',
@@ -196,6 +259,42 @@ export function useDeleteContent() {
       toast({
         title: 'Deletion Failed',
         description: error.message || 'Failed to delete content. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useBulkDeleteContent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ type, ids }: { type: ContentType; ids: number[] }) => {
+      await Promise.all(
+        ids.map(id =>
+          fetchAdmin(`/api/admin/content/${type}/${id}`, {
+            method: 'DELETE',
+          })
+        )
+      );
+      return ids.length;
+    },
+    onSuccess: (count, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', variables.type] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', 'flagged'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'content', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['saved-quizzes'] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-quizzes'] });
+      toast({
+        title: 'Bulk Deletion Complete',
+        description: `Successfully removed ${count} selected assets from the repository and synchronized student feeds.`,
+        variant: 'default',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Bulk Deletion Failed',
+        description: error.message || 'Failed to remove some assets. Please try again.',
         variant: 'destructive',
       });
     },

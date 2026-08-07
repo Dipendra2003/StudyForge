@@ -97,81 +97,74 @@ export function validateEnvironmentVariables(): EnvValidationResult {
  * This should be called at application startup before any other initialization
  */
 export function validateEnvOrExit(): void {
-  console.log('🔍 Validating environment variables...\n');
 
   const result = validateEnvironmentVariables();
 
   if (!result.isValid) {
-    console.error('❌ Environment validation failed!\n');
-    console.error('Missing required environment variables:\n');
-    
+
+
     result.errors.forEach(error => {
-      console.error(`  ${error}\n`);
+
     });
 
-    console.error('Please check your .env file and ensure all required variables are set.');
-    console.error('See .env.example for reference.\n');
-    
+
     process.exit(1);
   }
 
   // Display warnings if any
   if (result.warnings.length > 0) {
-    console.log('⚠️  Configuration Warnings:\n');
+
     result.warnings.forEach(warning => {
-      console.log(`  ${warning}\n`);
+
     });
   }
 
-  console.log('✅ Environment variables validated successfully\n');
 }
 
 /**
  * Logs the current environment configuration (without sensitive values)
  */
 export function logEnvironmentConfig(): void {
-  console.log('📋 Environment Configuration:');
-  console.log(`  - Node Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  - API Port: ${process.env.API_PORT || '5000'}`);
-  console.log(`  - App URL: ${process.env.APP_URL || 'http://localhost:5000'}`);
-  
+
+
+
+
   // Database config
   if (process.env.DATABASE_URL) {
-    console.log('  - Database: Connected via DATABASE_URL');
+
   } else {
-    console.log(`  - Database: PostgreSQL at ${process.env.DATABASE_URL}:${process.env.DATABASE_URL}`);
-    console.log(`  - Database Name: ${process.env.DATABASE_URL}`);
+
+
   }
   
   // JWT config
   if (process.env.JWT_SECRET) {
     const secretLength = process.env.JWT_SECRET.length;
-    console.log(`  - JWT Secret: Configured (${secretLength} characters)`);
-    console.log(`  - JWT Access Token Expiry: ${process.env.JWT_ACCESS_EXPIRY || '15m'}`);
-    console.log(`  - JWT Refresh Token Expiry: ${process.env.JWT_REFRESH_EXPIRY || '7d'}`);
+
+
+
   }
   
   // Gemini config
   const apiKey = process.env.GEMINI_API_KEY || '';
   if (apiKey) {
     const maskedKey = apiKey.substring(0, 7) + '...' + apiKey.substring(apiKey.length - 4);
-    console.log(`  - Gemini API Key: ${maskedKey}`);
+
   }
   
   // Email config
   if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    console.log(`  - Email Service: Configured (${process.env.SMTP_HOST})`);
-    console.log(`  - Email From: ${process.env.SMTP_FROM_NAME || 'StudyForge'} <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`);
+
+
   } else {
-    console.log('  - Email Service: Not configured (email features disabled)');
+
   }
   
   // Security config
-  console.log(`  - BCrypt Rounds: ${process.env.BCRYPT_ROUNDS || '12'}`);
-  console.log(`  - Verification Token Expiry: ${process.env.TOKEN_EXPIRY_HOURS_VERIFICATION || '24'} hours`);
-  console.log(`  - Reset Token Expiry: ${process.env.TOKEN_EXPIRY_HOURS_RESET || '1'} hour`);
-  console.log(`  - Rate Limit Window: ${process.env.RATE_LIMIT_WINDOW_MS || '900000'}ms`);
-  console.log(`  - Rate Limit Max Requests: ${process.env.RATE_LIMIT_MAX_REQUESTS || '5'}`);
-  
-  console.log('');
+
+
+
+
+
+
 }

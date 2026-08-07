@@ -294,7 +294,7 @@ export default function QuizMode() {
           localStorage.removeItem(`quiz-progress-${shuffledQuestions[0].id}-${shuffledQuestions.length}`);
         }
       } catch (e) {
-        console.error("Failed to clear previous session progress", e);
+
       }
       
       // Initialize quiz state
@@ -312,7 +312,7 @@ export default function QuizMode() {
           sessionId: newSessionId
         }));
       } catch (e) {
-        console.error("Failed to save active quiz session", e);
+
       }
       
       toast({
@@ -451,7 +451,7 @@ export default function QuizMode() {
     try {
       localStorage.removeItem('active-quiz-metadata');
     } catch (e) {
-      console.error("Failed to clear active quiz session", e);
+
     }
     
     // Requirement 8.6 & 19.2: Save quiz attempt to database
@@ -539,28 +539,26 @@ export default function QuizMode() {
               } : null);
             }
           } catch (qotdError: any) {
-            console.error('Failed to complete QOTD:', qotdError);
-            
+
             // If already completed today, show info message instead of error
             if (qotdError?.message?.includes('already completed') || qotdError?.status === 400) {
               // Don't show error for retry attempts
             } else {
               // Show error for other issues
-              console.error('QOTD completion error:', qotdError);
+
             }
           }
         }
       } catch (error: any) {
-        console.error('Failed to save quiz attempt:', error);
-        
+
         // Provide more detailed error message
         let errorMessage = "Quiz completed but failed to save. Your progress may not be recorded.";
         if (error?.message) {
-          console.error('Error details:', error.message);
+
           errorMessage = `Failed to save: ${error.message}`;
         }
         if (error?.response) {
-          console.error('Server response:', error.response);
+
         }
         
         toast({
@@ -620,7 +618,7 @@ export default function QuizMode() {
           localStorage.removeItem(`quiz-progress-${quizConfig.sessionId}`);
         }
       } catch (e) {
-        console.error("Failed to clear active quiz session", e);
+
       }
       
       toast({
@@ -645,7 +643,7 @@ export default function QuizMode() {
         localStorage.removeItem(`quiz-progress-${quizQuestions[0].id}-${quizQuestions.length}`);
       }
     } catch (e) {
-      console.error("Failed to clear active quiz session", e);
+
     }
 
     // Reset all quiz state back to configuration screen
@@ -745,7 +743,7 @@ export default function QuizMode() {
             }
           })
           .catch((error) => {
-            console.error('Failed to save quiz attempt:', error);
+
             toast({
               title: "Share unavailable",
               description: "Unable to generate share link. Please try again later.",

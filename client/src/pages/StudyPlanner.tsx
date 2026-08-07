@@ -169,7 +169,7 @@ export default function StudyPlanner() {
       refetch();
     },
     onError: (error: any) => {
-      console.error("Create study plan error:", error);
+
       toast({
         title: "Error creating study plan",
         description: error?.message || "There was an error creating your study plan. Please try again.",
@@ -227,7 +227,7 @@ export default function StudyPlanner() {
         description: "There was an error generating your study plan. Please try again.",
         variant: "destructive",
       });
-      console.error("Generate study plan error:", error);
+
     },
   });
 

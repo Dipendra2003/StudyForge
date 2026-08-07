@@ -1,22 +1,26 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './use-toast';
+import { fetchWithAuth } from '@/lib/api';
 
 async function fetchAdmin(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
+  const response = await fetchWithAuth(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
-    },
-    credentials: 'include',
-  });
+    } as any,
+  } as any);
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(error.message || 'Request failed');
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return {};
+  }
+
+  return response.json().catch(() => ({}));
 }
 
 // Admin Security Mutations
@@ -28,10 +32,12 @@ export function useResetUserPassword() {
       fetchAdmin(`/api/admin/security/reset-password/${userId}`, {
         method: 'POST',
       }),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      const tempPass = data?.data?.tempPassword;
       toast({
-        title: 'Success',
-        description: 'Password reset successfully. Temporary password sent to user.',
+        title: 'Password Reset Successful',
+        description: tempPass ? `Temporary password generated: ${tempPass}` : 'Password reset successfully. Temporary password sent to user.',
+        duration: 10000,
       });
     },
     onError: (error: Error) => {
@@ -45,17 +51,27 @@ export function useResetUserPassword() {
 }
 
 export function useSendSecurityAlert() {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (userId: number) =>
-      fetchAdmin(`/api/admin/security/send-alert/${userId}`, {
+    mutationFn: (params: number | { userId: number; alertType?: string; message?: string; severity?: string }) => {
+      const userId = typeof params === 'number' ? params : params.userId;
+      const body = typeof params === 'number' ? undefined : JSON.stringify({
+        alertType: params.alertType,
+        message: params.message,
+        severity: params.severity,
+      });
+      return fetchAdmin(`/api/admin/security/send-alert/${userId}`, {
         method: 'POST',
-      }),
-    onSuccess: () => {
+        body,
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'suspicious-activity'] });
       toast({
-        title: 'Success',
-        description: 'Security alert sent to user.',
+        title: 'Security Alert Transmitted',
+        description: data?.message || 'Security alert transmitted and recorded to audit file.',
       });
     },
     onError: (error: Error) => {

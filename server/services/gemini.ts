@@ -1,6 +1,9 @@
 import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import crypto from 'crypto';
 import { AIError, AIErrorCode } from '../utils/ai-errors';
+import { db } from '../db/index';
+import { aiUsageLogs } from '../../shared/schema';
+import { adminSettingsService } from './admin-settings.service';
 
 /**
  * Chat message interface compatible with Gemini API
@@ -168,7 +171,7 @@ class CacheManager {
       action,
       metadata,
     };
-    console.log(JSON.stringify(logEntry));
+
   }
 }
 
@@ -284,7 +287,7 @@ class RetryHandler {
         stack: error.stack,
       },
     };
-    console.error(JSON.stringify(logEntry));
+
   }
 }
 
@@ -296,8 +299,8 @@ export class GeminiService {
   private model: GenerativeModel;
   private cacheManager: CacheManager;
   private retryHandler: RetryHandler;
-  private readonly modelName: string = 'gemini-3.1-flash-lite-preview';
-  private readonly fallbackModelName: string = 'gemini-2.5-flash';
+  private modelName: string = 'gemini-3.1-flash-lite-preview';
+  private fallbackModelName: string = 'gemini-2.5-flash';
   private readonly supportsSystemInstruction: boolean = true; // Gemini models support system instructions
   private readonly defaultTemperature: number = 0.7;
   private readonly defaultMaxTokens: number = 4096; // Increased for comprehensive technical answers
@@ -351,6 +354,44 @@ export class GeminiService {
   }
 
   /**
+   * Dynamically sync active models from AdminSettingsService before generation
+   */
+  private async syncActiveModels(): Promise<void> {
+    try {
+      const active = await adminSettingsService.getActiveAiModels();
+      let modelChanged = false;
+      if (active.primary && active.primary !== this.modelName) {
+        this.modelName = active.primary;
+        modelChanged = true;
+      }
+      if (active.fallback && active.fallback !== this.fallbackModelName) {
+        this.fallbackModelName = active.fallback;
+      }
+      if (modelChanged && this.client) {
+        const modelConfig: any = {
+          model: this.modelName,
+          generationConfig: {
+            temperature: this.defaultTemperature,
+            maxOutputTokens: this.defaultMaxTokens,
+          },
+          safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+          ],
+        };
+        if (this.supportsSystemInstruction) {
+          modelConfig.systemInstruction = "You are Jadoo, an AI study assistant for StudyForge. Your identity is Jadoo. When asked who you are, identify yourself as Jadoo. You can answer questions about any topic including AI models (ChatGPT, Gemini, Claude, etc.), technology, and all academic subjects. Your purpose is to help students learn about any educational topic they're curious about. Always answer concisely and directly. If a user asks for the output of a code snippet or a direct question, provide ONLY the output or direct answer without any long, unwanted explanations unless they explicitly ask for an explanation.";
+        }
+        this.model = this.client.getGenerativeModel(modelConfig);
+      }
+    } catch (err) {
+      // Keep existing model defaults if DB/service is unready
+    }
+  }
+
+  /**
    * Core method for generating content with error handling and caching
    */
   async generateContent(
@@ -358,6 +399,7 @@ export class GeminiService {
     options: GenerationOptions = {},
     userId?: number
   ): Promise<string> {
+    await this.syncActiveModels();
     // Validate input
     if (!prompt || prompt.trim().length === 0) {
       throw new Error('Prompt cannot be empty');
@@ -378,6 +420,7 @@ export class GeminiService {
 
     // Generate content with retry logic
     const startTime = Date.now();
+    let actualModel = this.modelName;
     const response = await this.retryHandler.executeWithRetry(
       async () => {
         try {
@@ -402,7 +445,8 @@ export class GeminiService {
           return text;
         } catch (error: any) {
           if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
-            console.warn(`[GEMINI] Primary model failed with 503 in generateContent. Falling back to ${this.fallbackModelName}`);
+
+            actualModel = this.fallbackModelName;
             const fallbackModel = this.client.getGenerativeModel({
               model: this.fallbackModelName,
               generationConfig: {
@@ -434,12 +478,13 @@ export class GeminiService {
 
     const duration = Date.now() - startTime;
 
-    // Log successful generation
+    // Log successful generation with actual model tracked for admin economics
     this.log('INFO', 'generate_content', userId, duration, {
       promptLength: prompt.length,
       responseLength: response.length,
       temperature,
       maxOutputTokens,
+      modelUsed: actualModel,
     });
 
     // Cache the response
@@ -456,6 +501,7 @@ export class GeminiService {
     options: GenerationOptions = {},
     userId?: number
   ): Promise<string> {
+    await this.syncActiveModels();
     // Convert messages to Gemini format
     const geminiMessages = messages
       .filter(msg => msg.role !== 'system')
@@ -505,7 +551,7 @@ export class GeminiService {
               return result.response.text();
             } catch (error: any) {
               if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
-                console.warn(`[GEMINI] Primary model failed with 503 in generateChatResponse. Falling back to ${this.fallbackModelName}`);
+
                 const fallbackModel = this.client.getGenerativeModel({
                   model: this.fallbackModelName,
                   generationConfig: {
@@ -561,7 +607,7 @@ export class GeminiService {
           text = result.response.text();
         } catch (error: any) {
           if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
-            console.warn(`[GEMINI] Primary model failed with 503 in multi-turn generateChatResponse. Falling back to ${this.fallbackModelName}`);
+
             const fallbackModel = this.client.getGenerativeModel({
               model: this.fallbackModelName,
               generationConfig: {
@@ -1705,7 +1751,23 @@ IMPORTANT:
       duration,
       metadata,
     };
-    console.log(JSON.stringify(logEntry));
+
+    // Asynchronously persist AI metrics into ai_usage_logs for Admin token economics tracking
+    if (duration && duration > 0) {
+      const promptChars = metadata?.promptLength || metadata?.inputLength || 200;
+      const responseChars = metadata?.responseLength || metadata?.outputLength || 300;
+      const estimatedTokens = Math.max(10, Math.ceil((promptChars + responseChars) / 4));
+      
+      db.insert(aiUsageLogs).values({
+        userId: userId || null,
+        endpoint: action,
+        model: metadata?.modelUsed || this.modelName || 'gemini-3.1-flash-lite-preview',
+        tokensUsed: estimatedTokens,
+        durationMs: Math.round(duration),
+      }).catch((err: any) => {
+
+      });
+    }
   }
 
   /**
@@ -1716,6 +1778,7 @@ IMPORTANT:
     options: GenerationOptions = {},
     userId?: number
   ): AsyncGenerator<string, void, unknown> {
+    await this.syncActiveModels();
     // Convert messages to Gemini format
     const geminiMessages = messages
       .filter(msg => msg.role !== 'system')
@@ -1760,7 +1823,7 @@ IMPORTANT:
         resultStream = await model.generateContentStream(parts);
       } catch (error: any) {
         if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
-          console.warn(`[GEMINI] Primary model failed with 503. Falling back to ${this.fallbackModelName}`);
+
           const fallbackModel = this.client.getGenerativeModel({
             model: this.fallbackModelName,
             generationConfig: {
@@ -1811,7 +1874,7 @@ IMPORTANT:
       resultStream = await chat.sendMessageStream(lastMessage.parts);
     } catch (error: any) {
       if (error?.message?.includes('503') || error?.message?.toLowerCase().includes('unavailable') || error?.message?.toLowerCase().includes('overloaded')) {
-        console.warn(`[GEMINI] Primary model failed with 503. Falling back to ${this.fallbackModelName}`);
+
         const fallbackModel = this.client.getGenerativeModel({
           model: this.fallbackModelName,
           generationConfig: {

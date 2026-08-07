@@ -11,7 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminProvider } from "@/contexts/AdminContext";
 
-// Pages
+// Pages - Eagerly loaded for instant navigation (0ms delay when switching pages)
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -34,22 +34,25 @@ import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Help from "@/pages/Help";
 import Contact from "@/pages/Contact";
-import AuthDebug from "@/pages/AuthDebug";
+
 import MediaGallery from "@/pages/MediaGallery";
+import Home from "@/pages/Home";
 
-// Admin Pages - Lazy loaded for performance optimization (Requirement 18.3)
-const AdminRoute = lazy(() => import("@/components/admin/AdminRoute"));
-const AdminLayout = lazy(() => import("@/components/admin/AdminLayout"));
-const AdminErrorBoundary = lazy(() => import("@/components/admin/AdminErrorBoundary").then(module => ({ default: module.AdminErrorBoundary })));
-const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
-const UserManagement = lazy(() => import("@/pages/admin/UserManagement"));
-const ContentManagement = lazy(() => import("@/pages/admin/ContentManagement"));
-const AnalyticsDashboard = lazy(() => import("@/pages/admin/AnalyticsDashboard"));
-const SystemMonitoring = lazy(() => import("@/pages/admin/SystemMonitoring"));
-const EmailManagement = lazy(() => import("@/pages/admin/EmailManagement"));
+// Admin Pages - Eagerly loaded
+import AdminRoute from "@/components/admin/AdminRoute";
+import AdminLayout from "@/components/admin/AdminLayout";
+import { AdminErrorBoundary } from "@/components/admin/AdminErrorBoundary";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import UserManagement from "@/pages/admin/UserManagement";
+import ContentManagement from "@/pages/admin/ContentManagement";
+import AnalyticsDashboard from "@/pages/admin/AnalyticsDashboard";
+import SystemMonitoring from "@/pages/admin/SystemMonitoring";
+import EmailManagement from "@/pages/admin/EmailManagement";
+import AdminProfile from "@/pages/admin/AdminProfile";
+import AdminSettings from "@/pages/admin/AdminSettings";
 
-// Loading component for lazy-loaded admin components
-function AdminLoadingFallback() {
+// Shared loading fallback for all lazy-loaded pages
+function PageLoadingFallback() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -57,11 +60,8 @@ function AdminLoadingFallback() {
   );
 }
 
-// Auth context is now imported from @/contexts/AuthContext
-
-// HomePage component to redirect users based on authentication status
-// Import the Home page (landing page)
-import Home from "@/pages/Home";
+// Admin-specific loading fallback
+const AdminLoadingFallback = PageLoadingFallback;
 
 function HomePage() {
   return <Home />;
@@ -223,6 +223,36 @@ function Router() {
           </Suspense>
         )}
       </Route>
+      <Route path="/admin/profile">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <AdminProfile />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
+      <Route path="/admin/settings">
+        {() => (
+          <Suspense fallback={<AdminLoadingFallback />}>
+            <AdminRoute>
+              <AdminProvider>
+                <AdminErrorBoundary>
+                  <AdminLayout>
+                    <AdminSettings />
+                  </AdminLayout>
+                </AdminErrorBoundary>
+              </AdminProvider>
+            </AdminRoute>
+          </Suspense>
+        )}
+      </Route>
       
       <Route path="/help" component={Help} />
       <Route path="/about" component={About} />
@@ -230,7 +260,7 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/contact" component={Contact} />
-      <Route path="/auth-debug" component={AuthDebug} />
+
       <Route path="/" component={HomePage} />
     </Switch>
   );
@@ -270,7 +300,9 @@ function App() {
           <DynamicBackground />
           <AuthProvider>
             {showWelcomeModal && <WelcomeModal onClose={handleCloseWelcomeModal} />}
-            <Router />
+            <Suspense fallback={<PageLoadingFallback />}>
+              <Router />
+            </Suspense>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

@@ -38,7 +38,7 @@ import {
   favoriteQuizzes,
 } from "@shared/schema";
 import { db } from "./db/index";
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, or, inArray, desc, count } from "drizzle-orm";
 
 /**
  * Helper function to safely convert insertId to number
@@ -1120,7 +1120,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUser, Table: users, ID:', id, 'Error:', error);
+
       throw new Error('Failed to fetch user from database');
     }
   }
@@ -1134,7 +1134,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUserByUsername, Table: users, Username:', username, 'Error:', error);
+
       throw new Error('Failed to fetch user by username');
     }
   }
@@ -1148,7 +1148,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUserByEmail, Table: users, Email:', email, 'Error:', error);
+
       throw new Error('Failed to fetch user by email');
     }
   }
@@ -1162,7 +1162,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUserByVerificationToken, Table: users, Error:', error);
+
       throw new Error('Failed to fetch user by verification token');
     }
   }
@@ -1176,7 +1176,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUserByVerificationOtp, Table: users, Error:', error);
+
       throw new Error('Failed to fetch user by verification OTP');
     }
   }
@@ -1190,7 +1190,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUserByResetToken, Table: users, Error:', error);
+
       throw new Error('Failed to fetch user by reset token');
     }
   }
@@ -1204,7 +1204,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-      console.error('[DB Error] Operation: getUserByResetOtp, Table: users, Error:', error);
+
       throw new Error('Failed to fetch user by reset OTP');
     }
   }
@@ -1224,7 +1224,7 @@ export class DatabaseStorage implements IStorage {
       // Fetch the created user
       return await this.getUser(toNumberId(user.id)) as User;
     } catch (error) {
-      console.error('[DB Error] Operation: createUser, Table: users, Username:', insertUser.username, 'Error:', error);
+
       throw new Error('Failed to create user');
     }
   }
@@ -1242,7 +1242,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getUser(id);
     } catch (error) {
-      console.error('[DB Error] Operation: updateUser, Table: users, UserID:', id, 'Error:', error);
+
       throw new Error('Failed to update user');
     }
   }
@@ -1252,7 +1252,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(users).where(eq(users.id, id));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteUser, Table: users, UserID:', id, 'Error:', error);
+
       throw new Error('Failed to delete user');
     }
   }
@@ -1272,7 +1272,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getDocumentById(toNumberId(document.id)) as Document;
     } catch (error) {
-      console.error('[DB Error] Operation: createDocument, Table: documents, UserID:', insertDocument.userId, 'Error:', error);
+
       throw new Error('Failed to create document');
     }
   }
@@ -1286,7 +1286,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return document;
     } catch (error) {
-      console.error('[DB Error] Operation: getDocumentById, Table: documents, ID:', id, 'Error:', error);
+
       throw new Error('Failed to fetch document');
     }
   }
@@ -1318,7 +1318,7 @@ export class DatabaseStorage implements IStorage {
         totalPages,
       };
     } catch (error) {
-      console.error('[DB Error] Operation: getDocumentsByUserId, Table: documents, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch documents');
     }
   }
@@ -1336,7 +1336,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getDocumentById(id);
     } catch (error) {
-      console.error('[DB Error] Operation: updateDocument, Table: documents, ID:', id, 'Error:', error);
+
       throw new Error('Failed to update document');
     }
   }
@@ -1348,7 +1348,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(documents.id, id));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteDocument, Table: documents, ID:', id, 'Error:', error);
+
       return false;
     }
   }
@@ -1367,7 +1367,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getFlashcardById(toNumberId(flashcard.id)) as Flashcard;
     } catch (error) {
-      console.error('[DB Error] Operation: createFlashcard, Table: flashcards, UserID:', insertFlashcard.userId, 'Error:', error);
+
       throw new Error('Failed to create flashcard');
     }
   }
@@ -1381,7 +1381,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return flashcard;
     } catch (error) {
-      console.error('[DB Error] Operation: getFlashcardById, Table: flashcards, ID:', id, 'Error:', error);
+
       throw new Error('Failed to fetch flashcard');
     }
   }
@@ -1413,7 +1413,7 @@ export class DatabaseStorage implements IStorage {
         totalPages,
       };
     } catch (error) {
-      console.error('[DB Error] Operation: getFlashcardsByUserId, Table: flashcards, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch flashcards');
     }
   }
@@ -1427,7 +1427,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(flashcards.createdAt));
       return cards;
     } catch (error) {
-      console.error('[DB Error] Operation: getFlashcardsByDocumentId, Table: flashcards, DocumentID:', documentId, 'Error:', error);
+
       throw new Error('Failed to fetch flashcards');
     }
   }
@@ -1441,7 +1441,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getFlashcardById(id);
     } catch (error) {
-      console.error('[DB Error] Operation: updateFlashcard, Table: flashcards, ID:', id, 'Error:', error);
+
       throw new Error('Failed to update flashcard');
     }
   }
@@ -1453,7 +1453,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(flashcards.id, id));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteFlashcard, Table: flashcards, ID:', id, 'Error:', error);
+
       return false;
     }
   }
@@ -1475,7 +1475,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getMcqById(toNumberId(mcq.id)) as Mcq;
     } catch (error) {
-      console.error('[DB Error] Operation: createMcq, Table: mcqs, UserID:', insertMcq.userId, 'Error:', error);
+
       throw new Error('Failed to create MCQ');
     }
   }
@@ -1489,7 +1489,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return mcq;
     } catch (error) {
-      console.error('[DB Error] Operation: getMcqById, Table: mcqs, ID:', id, 'Error:', error);
+
       throw new Error('Failed to fetch MCQ');
     }
   }
@@ -1521,7 +1521,7 @@ export class DatabaseStorage implements IStorage {
         totalPages,
       };
     } catch (error) {
-      console.error('[DB Error] Operation: getMcqsByUserId, Table: mcqs, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch MCQs');
     }
   }
@@ -1535,7 +1535,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(mcqs.createdAt));
       return mcqList;
     } catch (error) {
-      console.error('[DB Error] Operation: getMcqsByDocumentId, Table: mcqs, DocumentID:', documentId, 'Error:', error);
+
       throw new Error('Failed to fetch MCQs');
     }
   }
@@ -1549,7 +1549,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(mcqs.createdAt));
       return mcqList;
     } catch (error) {
-      console.error('[DB Error] Operation: getMcqsByDifficulty, Table: mcqs, UserID:', userId, 'Difficulty:', difficulty, 'Error:', error);
+
       throw new Error('Failed to fetch MCQs by difficulty');
     }
   }
@@ -1563,7 +1563,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getMcqById(id);
     } catch (error) {
-      console.error('[DB Error] Operation: updateMcq, Table: mcqs, ID:', id, 'Error:', error);
+
       throw new Error('Failed to update MCQ');
     }
   }
@@ -1575,7 +1575,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(mcqs.id, id));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteMcq, Table: mcqs, ID:', id, 'Error:', error);
+
       return false;
     }
   }
@@ -1595,7 +1595,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getCodeSnippetById(toNumberId(snippet.id)) as CodeSnippet;
     } catch (error) {
-      console.error('[DB Error] Operation: createCodeSnippet, Table: codeSnippets, UserID:', insertSnippet.userId, 'Error:', error);
+
       throw new Error('Failed to create code snippet');
     }
   }
@@ -1609,7 +1609,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return snippet;
     } catch (error) {
-      console.error('[DB Error] Operation: getCodeSnippetById, Table: codeSnippets, ID:', id, 'Error:', error);
+
       throw new Error('Failed to fetch code snippet');
     }
   }
@@ -1641,7 +1641,7 @@ export class DatabaseStorage implements IStorage {
         totalPages,
       };
     } catch (error) {
-      console.error('[DB Error] Operation: getCodeSnippetsByUserId, Table: codeSnippets, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch code snippets');
     }
   }
@@ -1659,7 +1659,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getCodeSnippetById(id);
     } catch (error) {
-      console.error('[DB Error] Operation: updateCodeSnippet, Table: codeSnippets, ID:', id, 'Error:', error);
+
       throw new Error('Failed to update code snippet');
     }
   }
@@ -1671,7 +1671,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(codeSnippets.id, id));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteCodeSnippet, Table: codeSnippets, ID:', id, 'Error:', error);
+
       return false;
     }
   }
@@ -1693,7 +1693,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getChatHistoryById(toNumberId(history.id)) as ChatHistory;
     } catch (error) {
-      console.error('Error creating chat history:', error);
+
       throw new Error('Failed to create chat history');
     }
   }
@@ -1707,7 +1707,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return history;
     } catch (error) {
-      console.error(`Error fetching chat history ${id}:`, error);
+
       throw new Error('Failed to fetch chat history');
     }
   }
@@ -1730,7 +1730,7 @@ export class DatabaseStorage implements IStorage {
       
       return histories.map((h: any) => ({ ...h, messages: [] })) as ChatHistory[];
     } catch (error) {
-      console.error(`Error fetching chat histories for user ${userId}:`, error);
+
       throw new Error('Failed to fetch chat histories');
     }
   }
@@ -1765,7 +1765,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getChatHistoryById(id);
     } catch (error) {
-      console.error(`Error updating chat history ${id}:`, error);
+
       throw new Error('Failed to update chat history');
     }
   }
@@ -1782,7 +1782,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getChatHistoryById(id);
     } catch (error) {
-      console.error(`Error updating chat history subject ${id}:`, error);
+
       throw new Error('Failed to update chat history subject');
     }
   }
@@ -1793,7 +1793,7 @@ export class DatabaseStorage implements IStorage {
         .delete(chatHistory)
         .where(eq(chatHistory.id, id));
     } catch (error) {
-      console.error(`Error deleting chat history ${id}:`, error);
+
       throw new Error('Failed to delete chat history');
     }
   }
@@ -1813,7 +1813,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getStudyPlanById(toNumberId(plan.id)) as StudyPlan;
     } catch (error) {
-      console.error('Error creating study plan:', error);
+
       throw new Error('Failed to create study plan');
     }
   }
@@ -1827,7 +1827,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return plan;
     } catch (error) {
-      console.error(`Error fetching study plan ${id}:`, error);
+
       throw new Error('Failed to fetch study plan');
     }
   }
@@ -1841,7 +1841,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(studyPlans.createdAt));
       return plans;
     } catch (error) {
-      console.error(`Error fetching study plans for user ${userId}:`, error);
+
       throw new Error('Failed to fetch study plans');
     }
   }
@@ -1859,7 +1859,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getStudyPlanById(id);
     } catch (error) {
-      console.error(`Error updating study plan ${id}:`, error);
+
       throw new Error('Failed to update study plan');
     }
   }
@@ -1871,7 +1871,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(studyPlans.id, id));
       return true;
     } catch (error) {
-      console.error(`Error deleting study plan ${id}:`, error);
+
       return false;
     }
   }
@@ -1886,7 +1886,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return stats;
     } catch (error) {
-      console.error(`Error fetching user stats for user ${userId}:`, error);
+
       throw new Error('Failed to fetch user stats');
     }
   }
@@ -1937,7 +1937,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getUserStats(userId);
     } catch (error) {
-      console.error(`Error updating user stats for user ${userId}:`, error);
+
       throw new Error('Failed to update user stats');
     }
   }
@@ -1957,7 +1957,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getSummaryById(toNumberId(summary.id)) as Summary;
     } catch (error) {
-      console.error('Error creating summary:', error);
+
       throw new Error('Failed to create summary');
     }
   }
@@ -1971,7 +1971,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return summary;
     } catch (error) {
-      console.error(`Error fetching summary ${id}:`, error);
+
       throw new Error('Failed to fetch summary');
     }
   }
@@ -1985,7 +1985,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(summaries.createdAt));
       return summaryList;
     } catch (error) {
-      console.error(`Error fetching summaries for user ${userId}:`, error);
+
       throw new Error('Failed to fetch summaries');
     }
   }
@@ -1999,7 +1999,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(summaries.createdAt));
       return summaryList;
     } catch (error) {
-      console.error(`Error fetching summaries for document ${documentId}:`, error);
+
       throw new Error('Failed to fetch summaries');
     }
   }
@@ -2017,7 +2017,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getSummaryById(id);
     } catch (error) {
-      console.error(`Error updating summary ${id}:`, error);
+
       throw new Error('Failed to update summary');
     }
   }
@@ -2029,7 +2029,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(summaries.id, id));
       return true;
     } catch (error) {
-      console.error(`Error deleting summary ${id}:`, error);
+
       return false;
     }
   }
@@ -2049,7 +2049,7 @@ export class DatabaseStorage implements IStorage {
       
       return { id: toNumberId(attempt.id), ...attemptData, createdAt: now };
     } catch (error) {
-      console.error('Error creating quiz attempt:', error);
+
       throw new Error('Failed to create quiz attempt');
     }
   }
@@ -2065,7 +2065,7 @@ export class DatabaseStorage implements IStorage {
         .limit(limit);
       return attempts;
     } catch (error) {
-      console.error(`Error fetching quiz attempts for user ${userId}:`, error);
+
       throw new Error('Failed to fetch quiz attempts');
     }
   }
@@ -2172,7 +2172,7 @@ export class DatabaseStorage implements IStorage {
         improvementTrend
       };
     } catch (error) {
-      console.error(`Error calculating quiz stats for user ${userId}:`, error);
+
       throw new Error('Failed to calculate quiz stats');
     }
   }
@@ -2192,7 +2192,7 @@ export class DatabaseStorage implements IStorage {
       
       return { id: toNumberId(newFeedback.id), ...feedbackData, createdAt: now };
     } catch (error) {
-      console.error('Error creating feedback:', error);
+
       throw new Error('Failed to create feedback');
     }
   }
@@ -2207,7 +2207,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return result;
     } catch (error) {
-      console.error(`Error fetching feedback for message ${messageId}:`, error);
+
       throw new Error('Failed to fetch feedback');
     }
   }
@@ -2228,7 +2228,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getDeckById(toNumberId(deck.id));
     } catch (error) {
-      console.error('[DB Error] Operation: createDeck, Table: flashcard_decks, UserID:', insertDeck.userId, 'Error:', error);
+
       throw new Error('Failed to create deck');
     }
   }
@@ -2243,7 +2243,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return deck;
     } catch (error) {
-      console.error('[DB Error] Operation: getDeckById, Table: flashcard_decks, ID:', id, 'Error:', error);
+
       throw new Error('Failed to fetch deck');
     }
   }
@@ -2258,7 +2258,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(flashcardDecks.createdAt));
       return decks;
     } catch (error) {
-      console.error('[DB Error] Operation: getDecksByUserId, Table: flashcard_decks, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch decks');
     }
   }
@@ -2277,7 +2277,7 @@ export class DatabaseStorage implements IStorage {
       
       return await this.getDeckById(id);
     } catch (error) {
-      console.error('[DB Error] Operation: updateDeck, Table: flashcard_decks, ID:', id, 'Error:', error);
+
       throw new Error('Failed to update deck');
     }
   }
@@ -2290,7 +2290,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(flashcardDecks.id, id));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteDeck, Table: flashcard_decks, ID:', id, 'Error:', error);
+
       return false;
     }
   }
@@ -2317,7 +2317,7 @@ export class DatabaseStorage implements IStorage {
       
       return flashcardList;
     } catch (error) {
-      console.error('[DB Error] Operation: getFlashcardsByDeckId, Table: deck_flashcards, DeckID:', deckId, 'Error:', error);
+
       throw new Error('Failed to fetch flashcards by deck');
     }
   }
@@ -2353,8 +2353,7 @@ export class DatabaseStorage implements IStorage {
       
       return { deckId, flashcardId, position, addedAt: now };
     } catch (error: any) {
-      console.error('[DB Error] Operation: addCardToDeck, Table: deck_flashcards, DeckID:', deckId, 'FlashcardID:', flashcardId, 'Error:', error);
-      
+
       // Return more specific error message
       if (error.message === 'Card already exists in this deck') {
         throw error;
@@ -2376,7 +2375,7 @@ export class DatabaseStorage implements IStorage {
       
       return results.map((r: { deckId: number }) => r.deckId);
     } catch (error) {
-      console.error('[DB Error] Operation: getDeckIdsForFlashcard, Table: deck_flashcards, FlashcardID:', flashcardId, 'Error:', error);
+
       throw new Error('Failed to get deck IDs for flashcard');
     }
   }
@@ -2394,7 +2393,7 @@ export class DatabaseStorage implements IStorage {
       
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: removeCardFromDeck, Table: deck_flashcards, DeckID:', deckId, 'FlashcardID:', flashcardId, 'Error:', error);
+
       return false;
     }
   }
@@ -2415,7 +2414,7 @@ export class DatabaseStorage implements IStorage {
       
       return refreshToken;
     } catch (error) {
-      console.error('[DB Error] Operation: createRefreshToken, Table: refresh_tokens, Error:', error);
+
       throw new Error('Failed to create refresh token');
     }
   }
@@ -2429,7 +2428,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return refreshToken;
     } catch (error) {
-      console.error('[DB Error] Operation: getRefreshToken, Table: refresh_tokens, Error:', error);
+
       throw new Error('Failed to fetch refresh token');
     }
   }
@@ -2441,7 +2440,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(refreshTokens.token, token));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteRefreshToken, Table: refresh_tokens, Error:', error);
+
       return false;
     }
   }
@@ -2453,7 +2452,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(refreshTokens.userId, userId));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: deleteAllUserRefreshTokens, Table: refresh_tokens, UserID:', userId, 'Error:', error);
+
       return false;
     }
   }
@@ -2475,7 +2474,7 @@ export class DatabaseStorage implements IStorage {
       
       return emailLog;
     } catch (error) {
-      console.error('[DB Error] Operation: createEmailLog, Table: email_logs, Error:', error);
+
       throw new Error('Failed to create email log');
     }
   }
@@ -2497,7 +2496,7 @@ export class DatabaseStorage implements IStorage {
       // Filter by time in JavaScript since Drizzle doesn't have a direct >= operator for dates
       return logs.filter((log: EmailLog) => log.sentAt >= cutoffTime);
     } catch (error) {
-      console.error('[DB Error] Operation: getRecentEmailLogs, Table: email_logs, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch recent email logs');
     }
   }
@@ -2519,7 +2518,7 @@ export class DatabaseStorage implements IStorage {
       
       return auditLog;
     } catch (error) {
-      console.error('[DB Error] Operation: createSecurityAuditLog, Table: security_audit_logs, Error:', error);
+
       throw new Error('Failed to create security audit log');
     }
   }
@@ -2538,7 +2537,7 @@ export class DatabaseStorage implements IStorage {
       
       return await query;
     } catch (error) {
-      console.error('[DB Error] Operation: getSecurityAuditLogsByUser, Table: security_audit_logs, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch security audit logs');
     }
   }
@@ -2554,6 +2553,10 @@ export class DatabaseStorage implements IStorage {
           difficulty: quizData.difficulty,
           questionTypes: quizData.questionTypes,
           questionCount: quizData.questionCount,
+          timedMode: quizData.timedMode !== undefined ? Boolean(quizData.timedMode) : false,
+          timeLimit: quizData.timeLimit !== undefined ? Number(quizData.timeLimit) : 300,
+          aiMode: quizData.aiMode !== undefined ? Boolean(quizData.aiMode) : true,
+          fullscreenMode: quizData.fullscreenMode !== undefined ? Boolean(quizData.fullscreenMode) : false,
           title: quizData.title || null,
           description: quizData.description || null,
         })
@@ -2561,20 +2564,33 @@ export class DatabaseStorage implements IStorage {
       
       return savedQuiz;
     } catch (error) {
-      console.error('[DB Error] Operation: saveQuiz, Table: saved_quizzes, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to save quiz');
     }
   }
 
   async getSavedQuizzes(userId: number): Promise<any[]> {
     try {
-      return await db
+      // Fetch admin user IDs so students also see official study sets and proctored assessments
+      const adminUsers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(or(eq(users.role, 'admin'), eq(users.role, 'superadmin' as any)));
+      const adminIds = adminUsers.map((u: { id: number }) => u.id);
+      const targetUserIds = Array.from(new Set([userId, ...adminIds]));
+
+      const quizzes = await db
         .select()
         .from(savedQuizzes)
-        .where(eq(savedQuizzes.userId, userId))
+        .where(inArray(savedQuizzes.userId, targetUserIds))
         .orderBy(desc(savedQuizzes.savedAt));
+
+      return quizzes.map((q: any) => ({
+        ...q,
+        isOfficial: adminIds.includes(q.userId) && q.userId !== userId,
+      }));
     } catch (error) {
-      console.error('[DB Error] Operation: getSavedQuizzes, Table: saved_quizzes, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch saved quizzes');
     }
   }
@@ -2586,7 +2602,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(savedQuizzes.id, quizId), eq(savedQuizzes.userId, userId)));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: removeSavedQuiz, Table: saved_quizzes, QuizID:', quizId, 'Error:', error);
+
       throw new Error('Failed to remove saved quiz');
     }
   }
@@ -2602,6 +2618,10 @@ export class DatabaseStorage implements IStorage {
           difficulty: quizData.difficulty,
           questionTypes: quizData.questionTypes,
           questionCount: quizData.questionCount,
+          timedMode: quizData.timedMode !== undefined ? Boolean(quizData.timedMode) : false,
+          timeLimit: quizData.timeLimit !== undefined ? Number(quizData.timeLimit) : 300,
+          aiMode: quizData.aiMode !== undefined ? Boolean(quizData.aiMode) : true,
+          fullscreenMode: quizData.fullscreenMode !== undefined ? Boolean(quizData.fullscreenMode) : false,
           title: quizData.title || null,
           description: quizData.description || null,
         })
@@ -2609,7 +2629,7 @@ export class DatabaseStorage implements IStorage {
       
       return favoriteQuiz;
     } catch (error) {
-      console.error('[DB Error] Operation: favoriteQuiz, Table: favorite_quizzes, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to favorite quiz');
     }
   }
@@ -2622,7 +2642,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(favoriteQuizzes.userId, userId))
         .orderBy(desc(favoriteQuizzes.favoritedAt));
     } catch (error) {
-      console.error('[DB Error] Operation: getFavoriteQuizzes, Table: favorite_quizzes, UserID:', userId, 'Error:', error);
+
       throw new Error('Failed to fetch favorite quizzes');
     }
   }
@@ -2634,7 +2654,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(favoriteQuizzes.id, quizId), eq(favoriteQuizzes.userId, userId)));
       return true;
     } catch (error) {
-      console.error('[DB Error] Operation: removeFavoriteQuiz, Table: favorite_quizzes, QuizID:', quizId, 'Error:', error);
+
       throw new Error('Failed to remove favorite quiz');
     }
   }
@@ -2655,7 +2675,7 @@ export class DatabaseStorage implements IStorage {
       
       return !!result;
     } catch (error) {
-      console.error('[DB Error] Operation: isFavoriteQuiz, Table: favorite_quizzes, UserID:', userId, 'Error:', error);
+
       return false;
     }
   }
@@ -2667,5 +2687,5 @@ export let storage: IStorage = new MemStorage();
 // Function to initialize PostgreSQL storage after database connection is established
 export function initializeStorage() {
   storage = new DatabaseStorage();
-  console.log('DatabaseStorage initialized');
+
 }

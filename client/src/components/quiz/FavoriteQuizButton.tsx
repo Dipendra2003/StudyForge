@@ -58,7 +58,7 @@ export function FavoriteQuizButton({ category, difficulty, questionCount, questi
       });
     },
     onError: (error: any) => {
-      console.error('Failed to favorite quiz:', error);
+
       // Handle already favorited case
       if (error.status === 409) {
         toast({

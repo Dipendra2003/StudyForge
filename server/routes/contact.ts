@@ -44,7 +44,7 @@ router.post('/', async (req: Request, res: Response) => {
       validatedData.message,
       userId || undefined
     ).catch(error => {
-      console.error('Failed to send contact notification email:', error);
+
       // Don't fail the request if email fails
     });
 
@@ -65,7 +65,6 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    console.error('Contact form submission error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to send message. Please try again later.',

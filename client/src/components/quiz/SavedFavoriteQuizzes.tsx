@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bookmark, Heart, Trash2, Play, Loader2 } from "lucide-react";
+import { Bookmark, Heart, Trash2, Play, Loader2, Lock, Clock, Sparkles, Database, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SavedQuiz {
@@ -14,6 +14,11 @@ interface SavedQuiz {
   difficulty: string;
   questionTypes: string[];
   questionCount: number;
+  timedMode?: boolean;
+  timeLimit?: number;
+  aiMode?: boolean;
+  fullscreenMode?: boolean;
+  isOfficial?: boolean;
   title?: string;
   description?: string;
   savedAt: string;
@@ -25,6 +30,11 @@ interface FavoriteQuiz {
   difficulty: string;
   questionTypes: string[];
   questionCount: number;
+  timedMode?: boolean;
+  timeLimit?: number;
+  aiMode?: boolean;
+  fullscreenMode?: boolean;
+  isOfficial?: boolean;
   title?: string;
   description?: string;
   favoritedAt: string;
@@ -46,6 +56,9 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
       const data = await apiRequest<{ quizzes: SavedQuiz[] }>("/api/quiz/saved");
       return data.quizzes || [];
     },
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch favorite quizzes
@@ -55,6 +68,9 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
       const data = await apiRequest<{ quizzes: FavoriteQuiz[] }>("/api/quiz/favorites");
       return data.quizzes || [];
     },
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   // Remove saved quiz mutation
@@ -110,8 +126,10 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
         difficulty: quiz.difficulty,
         questionTypes: quiz.questionTypes,
         questionCount: quiz.questionCount,
-        timedMode: false,
-        aiMode: true, // Enable AI mode by default for saved quizzes
+        timedMode: quiz.timedMode !== undefined ? quiz.timedMode : false,
+        timeLimit: quiz.timeLimit || 300,
+        aiMode: quiz.aiMode !== undefined ? quiz.aiMode : true,
+        fullscreenMode: quiz.fullscreenMode !== undefined ? quiz.fullscreenMode : false,
       });
     }
   };
@@ -134,64 +152,87 @@ export function SavedFavoriteQuizzes({ onStartQuiz }: SavedFavoriteQuizzesProps)
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
       >
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className={`hover:shadow-lg transition-all ${quiz.isOfficial ? 'border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-background shadow-md' : ''}`}>
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <CardTitle className="text-lg flex items-center gap-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 space-y-1">
+                {quiz.isOfficial && (
+                  <Badge variant="outline" className="text-[10px] font-black px-2 py-0.5 bg-indigo-600 text-white border-none flex items-center gap-1 w-fit shadow-2xs mb-1">
+                    <ShieldCheck className="w-3 h-3" /> OFFICIAL STUDYFORGE EXAM SET
+                  </Badge>
+                )}
+                <CardTitle className="text-lg font-black flex items-center gap-2 text-foreground">
                   {isSaved ? (
-                    <Bookmark className="h-5 w-5 text-primary" />
+                    <Bookmark className="h-5 w-5 text-primary shrink-0" />
                   ) : (
-                    <Heart className="h-5 w-5 text-red-500 fill-red-500" />
+                    <Heart className="h-5 w-5 text-red-500 fill-red-500 shrink-0" />
                   )}
-                  {quiz.title || `${quiz.category} Quiz`}
+                  <span>{quiz.title || `${quiz.category} Quiz`}</span>
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  {quiz.description || `${quiz.questionCount} questions`}
+                <CardDescription className="text-xs font-semibold text-muted-foreground mt-1 line-clamp-2">
+                  {quiz.description || `${quiz.questionCount} questions assessment on ${quiz.category}`}
                 </CardDescription>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  if (isSaved) {
-                    removeSavedMutation.mutate(quiz.id);
-                  } else {
-                    removeFavoriteMutation.mutate(quiz.id);
-                  }
-                }}
-                disabled={isRemoving}
-              >
-                {isRemoving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
+              {!quiz.isOfficial && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 hover:bg-red-500/10 hover:text-red-600 rounded-xl"
+                  onClick={() => {
+                    if (isSaved) {
+                      removeSavedMutation.mutate(quiz.id);
+                    } else {
+                      removeFavoriteMutation.mutate(quiz.id);
+                    }
+                  }}
+                  disabled={isRemoving}
+                  title="Remove study set"
+                >
+                  {isRemoving ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" />
+                  )}
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Badge className={difficultyColors[quiz.difficulty as keyof typeof difficultyColors]}>
+            <div className="space-y-3.5">
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <Badge className={`${difficultyColors[quiz.difficulty as keyof typeof difficultyColors]} font-extrabold text-[11px] uppercase`}>
                   {quiz.difficulty}
                 </Badge>
-                <Badge variant="outline">{quiz.category}</Badge>
-                <Badge variant="secondary">{quiz.questionCount} questions</Badge>
+                <Badge variant="outline" className="font-bold text-[11px] bg-background/60">{quiz.category}</Badge>
+                <Badge variant="secondary" className="font-extrabold text-[11px] bg-primary/10 text-primary">{quiz.questionCount} questions</Badge>
+                {quiz.fullscreenMode && (
+                  <Badge variant="outline" className="text-[10px] font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 flex items-center gap-1 shadow-2xs">
+                    <Lock className="w-3 h-3" /> STRICT PROCTORING
+                  </Badge>
+                )}
+                {quiz.timedMode && (
+                  <Badge variant="outline" className="text-[10px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 flex items-center gap-1 shadow-2xs">
+                    <Clock className="w-3 h-3" /> {Math.floor((quiz.timeLimit || 300) / 60)}m TIMED
+                  </Badge>
+                )}
+                <Badge variant="outline" className={`text-[10px] font-black border flex items-center gap-1 shadow-2xs ${quiz.aiMode !== false ? 'bg-sky-500/10 text-sky-600 border-sky-500/30' : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'}`}>
+                  {quiz.aiMode !== false ? <Sparkles className="w-3 h-3" /> : <Database className="w-3 h-3" />}
+                  {quiz.aiMode !== false ? 'AI SYNTHESIS' : 'VERIFIED DB BANK'}
+                </Badge>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {quiz.questionTypes.map((type, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
-                    {type}
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {quiz.questionTypes && (Array.isArray(quiz.questionTypes) ? quiz.questionTypes : [quiz.questionTypes]).map((type, index) => (
+                  <Badge key={index} variant="secondary" className="text-[10px] font-mono font-bold bg-muted/60 px-2 py-0.5">
+                    {type === 'mcq' || type === 'MCQ' ? '⚡ Multiple Choice' : type === 'short_answer' ? '📝 Short Answer' : `📌 ${type}`}
                   </Badge>
                 ))}
               </div>
               <Button
-                className="w-full"
+                className={`w-full rounded-xl font-black shadow-md h-10 ${quiz.isOfficial || quiz.fullscreenMode ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white hover:opacity-95 shadow-indigo-500/20' : ''}`}
                 onClick={() => handleStartQuiz(quiz)}
               >
-                <Play className="mr-2 h-4 w-4" />
-                Start Quiz
+                <Play className="mr-2 h-4 w-4 fill-current" />
+                {quiz.fullscreenMode ? 'Launch Proctored Assessment' : 'Start Assessment'}
               </Button>
             </div>
           </CardContent>

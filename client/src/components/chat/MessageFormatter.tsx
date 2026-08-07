@@ -14,7 +14,7 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
     } catch (err) {
-      console.error('Failed to copy code:', err);
+
     }
   };
 
@@ -316,7 +316,7 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
         setCopiedIndex(-2); // Use -2 for diagram copy
         setTimeout(() => setCopiedIndex(null), 2000);
       } catch (err) {
-        console.error('Failed to copy diagram:', err);
+
       }
     };
 
@@ -383,7 +383,7 @@ const MessageFormatter = memo(({ content }: MessageFormatterProps) => {
         setCopiedIndex(-1); // Use -1 for table copy
         setTimeout(() => setCopiedIndex(null), 2000);
       } catch (err) {
-        console.error('Failed to copy table:', err);
+
       }
     };
 

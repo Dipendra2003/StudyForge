@@ -1215,12 +1215,23 @@ export async function refreshHandler(req: Request, res: Response): Promise<void>
       },
     });
 
-    // Return new access token
+    // Return new access token with user data (avoids extra /api/auth/me round-trip)
     res.status(200).json({
       success: true,
       message: 'Token refreshed successfully',
       data: {
         accessToken,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          emailVerified: user.emailVerified,
+          isActive: user.isActive,
+          createdAt: user.createdAt,
+          mediaRetentionDays: user.mediaRetentionDays,
+        },
       },
     });
   } catch (error) {

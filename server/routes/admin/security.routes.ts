@@ -35,11 +35,12 @@ router.post('/reset-password/:userId', async (req: Request, res: Response): Prom
       return;
     }
 
-    await adminSecurityService.resetUserPassword(adminId, userId);
+    const tempPassword = await adminSecurityService.resetUserPassword(adminId, userId);
 
     res.json({
       success: true,
-      message: 'Password reset successfully. Temporary password sent to user email.',
+      message: 'Password reset successfully. Temporary password generated and notification sent.',
+      data: { tempPassword }
     });
   } catch (error) {
     Logger.error(LogCategory.ADMIN, 'Failed to reset user password', error as Error);
@@ -135,16 +136,34 @@ router.post('/send-alert/:userId', async (req: Request, res: Response): Promise<
       return;
     }
 
-    const alerts = await adminSecurityService.detectSuspiciousActivity(userId);
-    
-    if (alerts.length > 0) {
-      await adminSecurityService.sendSecurityAlert(userId, alerts);
+    let alerts: any[] = [];
+    if (req.body && req.body.message) {
+      alerts = [{
+        userId,
+        alertType: req.body.alertType || 'Admin Security Notification',
+        description: req.body.message,
+        severity: (req.body.severity === 'high' || req.body.severity === 'low') ? req.body.severity : 'medium',
+        metadata: { adminSent: true, timestamp: new Date() }
+      }];
+    } else {
+      alerts = await adminSecurityService.detectSuspiciousActivity(userId);
+      if (alerts.length === 0) {
+        alerts = [{
+          userId,
+          alertType: 'System Security Audit',
+          description: 'Routine account security compliance review initiated by administrator.',
+          severity: 'low',
+          metadata: { routineCheck: true, timestamp: new Date() }
+        }];
+      }
     }
+
+    await adminSecurityService.sendSecurityAlert(userId, alerts);
 
     res.json({
       success: true,
-      message: alerts.length > 0 ? 'Security alert sent' : 'No suspicious activity detected',
-      data: { alertCount: alerts.length },
+      message: `Security alert transmitted and logged (${alerts.length} item${alerts.length !== 1 ? 's' : ''})`,
+      data: { alertCount: alerts.length, alerts },
     });
   } catch (error) {
     Logger.error(LogCategory.ADMIN, 'Failed to send security alert', error as Error);

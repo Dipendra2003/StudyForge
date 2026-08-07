@@ -20,7 +20,8 @@ const connectPostgres = async () => {
     const queryClient = postgres(databaseUrl, { 
       max: process.env.DB_CONNECTION_LIMIT ? parseInt(process.env.DB_CONNECTION_LIMIT) : (process.env.NODE_ENV === 'production' ? 50 : 10),
       idle_timeout: process.env.DB_IDLE_TIMEOUT_SECONDS ? parseInt(process.env.DB_IDLE_TIMEOUT_SECONDS) : 60,
-      connect_timeout: process.env.DB_CONNECT_TIMEOUT_SECONDS ? parseInt(process.env.DB_CONNECT_TIMEOUT_SECONDS) : 10
+      connect_timeout: process.env.DB_CONNECT_TIMEOUT_SECONDS ? parseInt(process.env.DB_CONNECT_TIMEOUT_SECONDS) : 10,
+      onnotice: () => {} // Suppress noisy postgres schema verification notices
     });
     
     log('PostgreSQL connection established successfully', 'database');
@@ -43,6 +44,65 @@ export const getPoolStats = () => {
     queuedRequests: 0,
     connectionLimit: process.env.DB_CONNECTION_LIMIT ? parseInt(process.env.DB_CONNECTION_LIMIT) : (process.env.NODE_ENV === 'production' ? 50 : 10),
   };
+};
+
+// Function to ensure critical admin and monitoring database schema tables exist
+export const ensureDatabaseSchema = async (client: any) => {
+  if (!client) {
+    log('Cannot ensure database schema: PostgreSQL client not established', 'database');
+    return;
+  }
+  try {
+    log('Verifying and ensuring critical database tables exist...', 'database');
+
+    await client`
+      CREATE TABLE IF NOT EXISTS "ai_usage_logs" (
+        "id" serial PRIMARY KEY,
+        "user_id" integer,
+        "endpoint" varchar(100) NOT NULL,
+        "model" varchar(100) NOT NULL,
+        "tokens_used" integer DEFAULT 0 NOT NULL,
+        "duration_ms" integer DEFAULT 0 NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS "ai_usage_logs_user_id_idx" ON "ai_usage_logs" ("user_id")`;
+    await client`CREATE INDEX IF NOT EXISTS "ai_usage_logs_created_at_idx" ON "ai_usage_logs" ("created_at")`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS "content_flags" (
+        "id" serial PRIMARY KEY,
+        "user_id" integer NOT NULL,
+        "content_type" varchar(50) NOT NULL,
+        "content_id" integer NOT NULL,
+        "reason" varchar(255) NOT NULL,
+        "status" varchar(20) DEFAULT 'pending' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS "content_flags_type_idx" ON "content_flags" ("content_type")`;
+    await client`CREATE INDEX IF NOT EXISTS "content_flags_id_idx" ON "content_flags" ("content_id")`;
+    await client`CREATE INDEX IF NOT EXISTS "content_flags_status_idx" ON "content_flags" ("status")`;
+
+    await client`
+      CREATE TABLE IF NOT EXISTS "system_settings" (
+        "id" serial PRIMARY KEY,
+        "ai_model" varchar(100) DEFAULT 'gemini-3.1-flash-lite-preview' NOT NULL,
+        "fallback_ai_model" varchar(100) DEFAULT 'gemini-2.5-flash' NOT NULL,
+        "token_budget" integer DEFAULT 500000 NOT NULL,
+        "auto_quarantine" boolean DEFAULT true NOT NULL,
+        "toxicity_threshold" varchar(20) DEFAULT '0.85' NOT NULL,
+        "maintenance_mode" boolean DEFAULT false NOT NULL,
+        "jwt_strict_rotation" boolean DEFAULT true NOT NULL,
+        "sender_email" varchar(100) DEFAULT 'notifications@studyforge.edu' NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      )
+    `;
+
+    log('Critical database tables verified and initialized successfully.', 'database');
+  } catch (error) {
+    log(`Database schema auto-creation error: ${error}`, 'database');
+  }
 };
 
 // Function to verify database indexes
@@ -100,6 +160,7 @@ export const initializeDatabases = async () => {
       db = drizzle(pgConnection);
       log('PostgreSQL connection established successfully', 'database');
       
+      await ensureDatabaseSchema(pgConnection);
       await verifyIndexes();
     } catch (error) {
       log(`PostgreSQL connection error: ${error}`, 'database');

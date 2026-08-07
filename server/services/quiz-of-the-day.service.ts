@@ -35,7 +35,7 @@ export interface QuizOfTheDayCompletion {
 }
 
 export class QuizOfTheDayService {
-  private static readonly BONUS_POINTS = 50;
+  private static readonly BONUS_POINTS = 20; // 20 bonus + 30 base completion = 50 Total XP
   private static readonly TRENDING_DAYS_THRESHOLD = 7; // Look at last 7 days for trending
   private static readonly MIN_ATTEMPTS_FOR_TRENDING = 10; // Minimum attempts to be considered trending
   private static readonly QUESTION_COUNT = 10; // Number of questions in Quiz of the Day

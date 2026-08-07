@@ -84,7 +84,7 @@ export function AddToDeckDialog({ open, onOpenChange, flashcardId, onSuccess }: 
         description: errorMessage,
         variant: "destructive",
       });
-      console.error("Add to deck error:", error);
+
     },
   });
 

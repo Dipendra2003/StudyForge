@@ -93,7 +93,7 @@ export default function Profile() {
       });
       setPreviewImage(data.profile.profilePicture || "");
     } catch (error) {
-      console.error("Error fetching profile:", error);
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -128,7 +128,7 @@ export default function Profile() {
         description: "Profile updated successfully",
       });
     } catch (error) {
-      console.error("Error updating profile:", error);
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -192,7 +192,7 @@ export default function Profile() {
         description: "Profile picture updated successfully",
       });
     } catch (error) {
-      console.error("Error uploading image:", error);
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -228,7 +228,7 @@ export default function Profile() {
         description: "Profile picture removed successfully",
       });
     } catch (error) {
-      console.error("Error deleting profile picture:", error);
+
       toast({
         variant: "destructive",
         title: "Error",

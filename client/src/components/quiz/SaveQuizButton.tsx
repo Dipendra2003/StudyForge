@@ -64,7 +64,7 @@ export function SaveQuizButton({ category, difficulty, questionCount, questionTy
       });
     },
     onError: (error: any) => {
-      console.error('Failed to save quiz:', error);
+
       toast({
         variant: "destructive",
         title: "Error",

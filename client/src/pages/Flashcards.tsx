@@ -274,7 +274,7 @@ export default function Flashcards() {
           setUserStats(data.stats);
         }
       } catch (error) {
-        console.error("Error fetching user stats:", error);
+
       }
     };
     
@@ -314,7 +314,7 @@ export default function Flashcards() {
       })
         .then(res => res.json())
         .then(data => setUserStats(data.stats))
-        .catch(console.error);
+        .catch(() => {});
       
       refetch();
       goToNextCard();
@@ -325,7 +325,7 @@ export default function Flashcards() {
         description: "Failed to record your review. Please try again.",
         variant: "destructive",
       });
-      console.error("Review error:", error);
+
     },
   });
 
@@ -451,7 +451,7 @@ export default function Flashcards() {
         description: "There was an error creating your flashcard. Please try again.",
         variant: "destructive",
       });
-      console.error("Create flashcard error:", error);
+
     },
   });
 
@@ -481,7 +481,7 @@ export default function Flashcards() {
         description: "There was an error updating your flashcard. Please try again.",
         variant: "destructive",
       });
-      console.error("Update flashcard error:", error);
+
     },
   });
 
@@ -505,7 +505,7 @@ export default function Flashcards() {
         description: "There was an error deleting your flashcard. Please try again.",
         variant: "destructive",
       });
-      console.error("Delete flashcard error:", error);
+
     },
   });
 
@@ -538,7 +538,7 @@ export default function Flashcards() {
         description: "There was an error generating your flashcard. Please try again.",
         variant: "destructive",
       });
-      console.error("Generate flashcard error:", error);
+
     },
   });
 

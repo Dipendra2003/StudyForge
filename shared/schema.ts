@@ -118,6 +118,39 @@ export const securityAuditLogs = pgTable("security_audit_logs", {
   }
 });
 
+// AI Usage tracking logs for token consumption and performance monitoring
+export const aiUsageLogs = pgTable("ai_usage_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
+  endpoint: varchar("endpoint", { length: 100 }).notNull(),
+  model: varchar("model", { length: 100 }).notNull(),
+  tokensUsed: integer("tokens_used").default(0).notNull(),
+  durationMs: integer("duration_ms").default(0).notNull(),
+  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("ai_usage_logs_user_id_idx").on(table.userId),
+    createdAtIdx: index("ai_usage_logs_created_at_idx").on(table.createdAt),
+  }
+});
+
+// Universal content flagging for admin moderation
+export const contentFlags = pgTable("content_flags", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  contentType: varchar("content_type", { length: 50 }).notNull(),
+  contentId: integer("content_id").notNull(),
+  reason: varchar("reason", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    contentTypeIdx: index("content_flags_type_idx").on(table.contentType),
+    contentIdIdx: index("content_flags_id_idx").on(table.contentId),
+    statusIdx: index("content_flags_status_idx").on(table.status),
+  }
+});
+
 // Study Sessions and Notes
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
@@ -581,6 +614,10 @@ export const savedQuizzes = pgTable("saved_quizzes", {
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
   questionCount: integer("question_count").notNull(),
+  timedMode: boolean("timed_mode").default(false),
+  timeLimit: integer("time_limit").default(300), // Time limit in seconds
+  aiMode: boolean("ai_mode").default(true), // AI dynamic generation vs static DB question bank
+  fullscreenMode: boolean("fullscreen_mode").default(false), // Proctored fullscreen exam mode
   title: varchar("title", { length: 255 }),
   description: text("description"),
   savedAt: timestamp("saved_at").defaultNow().notNull(),
@@ -600,6 +637,10 @@ export const favoriteQuizzes = pgTable("favorite_quizzes", {
   difficulty: varchar("difficulty", { length: 10 }).notNull(),
   questionTypes: json("question_types").notNull(), // Array of question types
   questionCount: integer("question_count").notNull(),
+  timedMode: boolean("timed_mode").default(false),
+  timeLimit: integer("time_limit").default(300),
+  aiMode: boolean("ai_mode").default(true),
+  fullscreenMode: boolean("fullscreen_mode").default(false),
   title: varchar("title", { length: 255 }),
   description: text("description"),
   favoritedAt: timestamp("favorited_at").defaultNow().notNull(),
@@ -689,6 +730,22 @@ export const insertSecurityAuditLogSchema = createInsertSchema(securityAuditLogs
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),
   details: z.any().optional(),
+});
+
+export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs, {
+  userId: z.number().optional(),
+  endpoint: z.string(),
+  model: z.string(),
+  tokensUsed: z.number().default(0),
+  durationMs: z.number().default(0),
+});
+
+export const insertContentFlagSchema = createInsertSchema(contentFlags, {
+  userId: z.number(),
+  contentType: z.string(),
+  contentId: z.number(),
+  reason: z.string(),
+  status: z.enum(["pending", "dismissed", "actioned"]).default("pending"),
 });
 
 // Waitlist insertion schema removed
@@ -983,6 +1040,12 @@ export type EmailLog = typeof emailLogs.$inferSelect;
 export type InsertSecurityAuditLog = z.infer<typeof insertSecurityAuditLogSchema>;
 export type SecurityAuditLog = typeof securityAuditLogs.$inferSelect;
 
+export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+
+export type InsertContentFlag = z.infer<typeof insertContentFlagSchema>;
+export type ContentFlag = typeof contentFlags.$inferSelect;
+
 export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
 export type ContactMessage = typeof contactMessages.$inferSelect;
 
@@ -1082,3 +1145,21 @@ export const insertFavoriteQuizSchema = createInsertSchema(favoriteQuizzes, {
   title: z.string().optional(),
   description: z.string().optional(),
 });
+
+// System Settings table for Enterprise Admin Configuration & Gemini AI Model Routing
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  aiModel: varchar("ai_model", { length: 100 }).default("gemini-3.1-flash-lite-preview").notNull(),
+  fallbackAiModel: varchar("fallback_ai_model", { length: 100 }).default("gemini-2.5-flash").notNull(),
+  tokenBudget: integer("token_budget").default(500000).notNull(),
+  autoQuarantine: boolean("auto_quarantine").default(true).notNull(),
+  toxicityThreshold: varchar("toxicity_threshold", { length: 20 }).default("0.85").notNull(),
+  maintenanceMode: boolean("maintenance_mode").default(false).notNull(),
+  jwtStrictRotation: boolean("jwt_strict_rotation").default(true).notNull(),
+  senderEmail: varchar("sender_email", { length: 100 }).default("notifications@studyforge.edu").notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull(),
+});
+
+export const insertSystemSettingsSchema = createInsertSchema(systemSettings);
+export type InsertSystemSettings = z.infer<typeof insertSystemSettingsSchema>;
+export type SystemSettings = typeof systemSettings.$inferSelect;

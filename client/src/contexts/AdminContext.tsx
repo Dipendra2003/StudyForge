@@ -38,11 +38,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
     if (!user) {
       toast({
-        title: 'Access Denied',
+        title: 'Authentication Required',
         description: 'Please log in to access the admin panel.',
         variant: 'destructive',
       });
-      setLocation('/');
+      sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+      setLocation('/login');
       return;
     }
 

@@ -5,10 +5,11 @@
  */
 
 import { db } from '../db/index';
-import { users, refreshTokens, quizAttempts, securityAuditLogs, documents, flashcards, mcqs, questions } from '../../shared/schema';
+import { users, refreshTokens, quizAttempts, securityAuditLogs, documents, flashcards, mcqs, questions, userStats, chatHistory, codeSnippets, studyPlans } from '../../shared/schema';
 import { eq, or, like, desc, count, and, gte, lte, sql } from 'drizzle-orm';
 import { storage } from '../storage';
 import { auditLogService } from './audit-log.service';
+import { jwtService } from './jwt.service';
 import { Logger, LogCategory } from '../utils/logger';
 import type { User } from '../../shared/schema';
 
@@ -75,6 +76,14 @@ interface UserActivity {
   loginHistory: LoginRecord[];
   quizAttempts: QuizAttemptSummary[];
   contentCreated: ContentSummary;
+  activeSessionsCount?: number;
+  gamification?: {
+    totalPoints?: number;
+    xpPoints?: number;
+    level?: number;
+    streakDays?: number;
+    longestStreak?: number;
+  };
 }
 
 interface LoginRecord {
@@ -97,6 +106,9 @@ interface ContentSummary {
   flashcards: number;
   documents: number;
   questions: number;
+  chatMessages?: number;
+  codeSnippets?: number;
+  studyPlans?: number;
 }
 
 class AdminUserService {
@@ -396,17 +408,47 @@ class AdminUserService {
         .from(questions)
         .where(eq(questions.userId, userId));
 
+      const [chatCount] = await db
+        .select({ value: count() })
+        .from(chatHistory)
+        .where(eq(chatHistory.userId, userId));
+
+      const [codeCount] = await db
+        .select({ value: count() })
+        .from(codeSnippets)
+        .where(eq(codeSnippets.userId, userId));
+
+      const [planCount] = await db
+        .select({ value: count() })
+        .from(studyPlans)
+        .where(eq(studyPlans.userId, userId));
+
+      const activeSessionsCount = await jwtService.getActiveSessionCount(userId);
+      const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId));
+      const [userInfo] = await db.select({ totalPoints: users.totalPoints }).from(users).where(eq(users.id, userId));
+
       const contentCreated: ContentSummary = {
         quizzes: quizAttemptsCount.value,
         flashcards: flashcardsCount.value,
         documents: documentsCount.value,
         questions: questionsCount.value,
+        chatMessages: chatCount?.value || 0,
+        codeSnippets: codeCount?.value || 0,
+        studyPlans: planCount?.value || 0,
       };
 
       return {
         loginHistory,
         quizAttempts: quizAttemptsList,
         contentCreated,
+        activeSessionsCount,
+        gamification: {
+          totalPoints: userInfo?.totalPoints || 0,
+          xpPoints: stats?.xpPoints || 0,
+          level: stats?.level || 1,
+          streakDays: stats?.streakDays || 0,
+          longestStreak: stats?.longestStreak || 0,
+        },
       };
     } catch (error) {
       Logger.error(LogCategory.DATABASE, 'Failed to get user activity', error as Error);
@@ -583,6 +625,68 @@ class AdminUserService {
       Logger.error(LogCategory.ADMIN, 'Failed to delete user', error as Error);
       throw error;
     }
+  }
+
+  async unlockUser(userId: number, adminId: number, adminUsername: string): Promise<User | undefined> {
+    try {
+      // Re-activate user account
+      return await this.updateUser(
+        userId,
+        { role: 'user' }, // Reset role if needed or simply re-enable
+        adminId,
+        adminUsername
+      );
+    } catch (error) {
+      Logger.error(LogCategory.DATABASE, 'Failed to unlock user', error as Error);
+      throw error;
+    }
+  }
+
+  async revokeUserSessions(userId: number, adminId: number, adminUsername: string): Promise<void> {
+    await jwtService.revokeAllUserTokens(userId);
+    await auditLogService.logAdminAction({
+      adminId,
+      action: 'session_revoke',
+      targetType: 'user',
+      targetId: userId,
+      details: { adminId, adminUsername, targetType: 'user' as const, targetId: userId, reason: 'Revoked all refresh tokens and forced active session eviction' },
+    });
+    Logger.info(LogCategory.ADMIN, `Revoked active sessions for user ${userId}`);
+  }
+
+  async updateUserGamification(userId: number, totalPoints: number, level: number, adminId: number, adminUsername: string): Promise<void> {
+    await db.update(users).set({ totalPoints }).where(eq(users.id, userId));
+    const [existingStats] = await db.select().from(userStats).where(eq(userStats.userId, userId));
+    if (existingStats) {
+      await db.update(userStats).set({ xpPoints: totalPoints, level }).where(eq(userStats.userId, userId));
+    } else {
+      await db.insert(userStats).values({ userId, xpPoints: totalPoints, level });
+    }
+    await auditLogService.logAdminAction({
+      adminId,
+      action: 'gamification_update',
+      targetType: 'user',
+      targetId: userId,
+      details: { adminId, adminUsername, targetType: 'user' as const, targetId: userId, totalPoints, level },
+    });
+    Logger.info(LogCategory.ADMIN, `Updated gamification points (${totalPoints}, lvl ${level}) for user ${userId}`);
+  }
+
+  async resetRecoveryQuestions(userId: number, adminId: number, adminUsername: string): Promise<void> {
+    await db.update(users).set({
+      securityQuestion1: null,
+      securityAnswer1: null,
+      securityQuestion2: null,
+      securityAnswer2: null,
+    }).where(eq(users.id, userId));
+    await auditLogService.logAdminAction({
+      adminId,
+      action: 'recovery_reset',
+      targetType: 'user',
+      targetId: userId,
+      details: { adminId, adminUsername, targetType: 'user' as const, targetId: userId, reason: 'Reset security recovery questions to unlock recovery enrollment' },
+    });
+    Logger.info(LogCategory.ADMIN, `Reset security recovery questions for user ${userId}`);
   }
 }
 

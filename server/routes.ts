@@ -1305,7 +1305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const result = await geminiService.summarizeText(textToSummarize, maxLength, req.user?.id);
         summary = result.summary;
       } catch (error) {
-        console.error("Error generating summary:", error);
+
         return res.status(500).json({ message: "Failed to generate summary" });
       }
       // If documentId was provided, update the document with the summary
@@ -1403,7 +1403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           keywordsCount: summaryResult.keywords?.length || 0,
         });
       } catch (error: any) {
-        console.error("Error generating summary:", error);
+
         Logger.error(LogCategory.API, 'Summary generation failed', error as Error, {
           userId,
           textLength: textToSummarize.length,
@@ -1468,7 +1468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         gamificationStats = await GamificationService.awardXP(userId, 'DOCUMENT_SUMMARIZED');
       } catch (err) {
-        console.error('Failed to award XP for summary', err);
+
       }
       // Return the saved summary
       return res.status(201).json({
@@ -1494,7 +1494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       return res.status(200).json({ complexity: analysis });
     } catch (error) {
-      console.error("Error analyzing complexity:", error);
+
       return res.status(500).json({ message: "Failed to analyze complexity" });
     }
   });
@@ -1578,7 +1578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         await GamificationService.revokeXP(summary.userId, 'DOCUMENT_SUMMARIZED');
       } catch (err) {
-        console.error('Failed to revoke XP on summary delete', err);
+
       }
       return res.status(200).json({ message: "Summary deleted successfully" });
     } catch (error) {
@@ -1588,16 +1588,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== AI Chat Endpoints =====
   const chatUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    limits: { 
+      fileSize: 20 * 1024 * 1024, // 20MB limit for files
+      fieldSize: 50 * 1024 * 1024 // 50MB limit for text fields (important for documentContext)
+    },
     fileFilter: (_req, file, cb) => {
       const allowedTypes = [
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-        'application/pdf'
+        'application/pdf', 'application/x-pdf', 'application/acrobat',
+        'text/plain', 'text/csv'
       ];
-      if (allowedTypes.includes(file.mimetype)) {
+      // Be more forgiving with mimetypes
+      if (allowedTypes.includes(file.mimetype) || file.mimetype.includes('pdf')) {
         cb(null, true);
       } else {
-        cb(new Error('Invalid file type. Only images and PDFs are allowed.'));
+        // Just reject the file instead of throwing an error that crashes the middleware chain
+        cb(null, false);
       }
     }
   });
@@ -1637,12 +1643,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           } catch (err) {
-            console.error("Error uploading attachment to Cloudinary:", err);
+
           }
           // Process for Gemini context
           if (file.mimetype === 'application/pdf') {
             try {
-              console.log(`[PDF] Processing PDF attachment: ${file.originalname} (${file.buffer.length} bytes)`);
+
               // We removed pdf-parse here because it fails on scanned image PDFs and poisons the documentContext 
               // with garbage text. Instead, we rely entirely on Gemini 1.5's native multimodal PDF support.
               inlineData.push({
@@ -1651,7 +1657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 fileUrl: fileUrl || undefined
               } as any);
             } catch (err) {
-              console.error("Error parsing PDF:", err);
+
             }
           } else if (file.mimetype.startsWith('image/')) {
             inlineData.push({
@@ -1713,7 +1719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Truncate messages and add summary
           processedMessages = truncateWithSummary(messages, 10, summary);
         } catch (error) {
-          console.error("Error summarizing conversation:", error);
+
           // If summarization fails, just use recent messages
           processedMessages = messages.slice(-15);
         }
@@ -1722,8 +1728,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiMessages = processedMessages.map((msg: ChatMessage) => {
         let cleanInlineData = undefined;
         if (msg.inlineData) {
-          // Filter out empty data placeholders so Gemini doesn't complain
-          const filtered = msg.inlineData.filter((data: any) => data.data !== '');
+          // Filter out empty data placeholders and strip fileUrl so Gemini doesn't complain
+          const filtered = msg.inlineData
+            .filter((data: any) => data.data !== '')
+            .map((data: any) => ({ data: data.data, mimeType: data.mimeType }));
           if (filtered.length > 0) {
             cleanInlineData = filtered;
           }
@@ -1852,7 +1860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         } catch (error) {
-          console.error("Error generating AI stream response:", error);
+
           const errorMsg = "I'm sorry, I encountered an error processing your request. Please try again.";
           aiResponseContent += errorMsg;
           res.write(`data: ${JSON.stringify({ content: errorMsg })}\n\n`);
@@ -1872,7 +1880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
       } catch (error) {
-        console.error("Error generating AI response:", error);
+
         aiResponseContent = "I'm sorry, I encountered an error processing your request. Please try again.";
       }
       const aiResponse = {
@@ -2014,7 +2022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 expires_at: Math.floor(Date.now() / 1000) + 300 // 5 min expiry
               });
             } catch (downloadErr) {
-              console.error('[PROXY] Failed to generate private download URL:', downloadErr);
+
               // Fallback to signed URL
               targetUrl = cloudinary.url(publicId, {
                 secure: true,
@@ -2065,7 +2073,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 res.status(redirectStream.statusCode || 200);
                 redirectStream.pipe(res);
               }).on('error', (err) => {
-                console.error('[PROXY] Redirect error:', err);
+
                 if (!res.headersSent) res.status(500).json({ message: "Failed to load media" });
               });
               return;
@@ -2087,12 +2095,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(stream.statusCode || 200);
           // Handle proxy errors safely
           stream.on('error', (err) => {
-            console.error('[PROXY] Error streaming media from Cloudinary:', err);
+
             if (!res.headersSent) res.status(500).end();
           });
           stream.pipe(res);
         }).on('error', (err) => {
-          console.error('HTTPS Get Error:', err);
+
           if (!res.headersSent) {
             res.status(500).json({ message: "Failed to load media" });
           }
@@ -2102,7 +2110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.redirect(attachment.fileUrl);
       }
     } catch (error) {
-      console.error("Media proxy error:", error);
+
       return res.status(500).json({ message: "Failed to load media" });
     }
   });
@@ -2145,7 +2153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await cloudinaryService.deleteImage(publicId);
           }
         } catch (err) {
-          console.error("Error deleting from Cloudinary:", err);
+
           // Proceed with DB deletion even if Cloudinary fails
         }
       }
@@ -2238,11 +2246,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (typeof messageIndex === 'number' && messageIndex > 0) {
         contextMessages = messages.slice(0, messageIndex);
       }
-      // Prepare messages for Gemini
-      const apiMessages = contextMessages.map((msg: ChatMessage) => ({
-        role: msg.role as "user" | "assistant" | "system",
-        content: msg.content
-      }));
+      // Prepare messages for Gemini, preserving inlineData (PDFs/Images)
+      const apiMessages = contextMessages.map((msg: ChatMessage) => {
+        let cleanInlineData = undefined;
+        if (msg.inlineData) {
+          // Filter out empty data placeholders and strip fileUrl so Gemini doesn't complain
+          const filtered = (msg.inlineData as any[])
+            .filter((data: any) => data.data !== '')
+            .map((data: any) => ({ data: data.data, mimeType: data.mimeType }));
+          if (filtered.length > 0) {
+            cleanInlineData = filtered;
+          }
+        }
+        return {
+          role: msg.role as "user" | "assistant" | "system",
+          content: msg.content,
+          ...(cleanInlineData ? { inlineData: cleanInlineData } : {})
+        };
+      });
       // Get user info for personalization
       const user = await storage.getUser(userId);
       const userStats = await storage.getUserStats(userId);
@@ -2314,7 +2335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         aiResponseContent = await geminiService.generateChatResponse(apiMessages, { maxOutputTokens: 8192 }, userId);
       } catch (error) {
-        console.error("Error generating AI response:", error);
+
         aiResponseContent = "I'm sorry, I encountered an error processing your request. Please try again.";
       }
       const aiResponse = {
@@ -2508,7 +2529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         await GamificationService.revokeXP(flashcard.userId, 'FLASHCARDS_GENERATED');
       } catch (err) {
-        console.error('Failed to revoke XP on flashcard delete', err);
+
       }
       return res.status(200).json({ message: "Flashcard deleted successfully" });
     } catch (error) {
@@ -2528,7 +2549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         flashcardData = await geminiService.generateFlashcard(topic, context, req.user?.id);
       } catch (error) {
-        console.error("Error generating flashcard:", error);
+
         return res.status(500).json({ message: "Failed to generate flashcard" });
       }
       return res.status(200).json({
@@ -2767,7 +2788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         gamificationStats = await GamificationService.awardXP(userId, 'FLASHCARDS_GENERATED');
       } catch (err) {
-        console.error('Failed to award XP for flashcards', err);
+
       }
       return res.status(200).json({
         message: `Successfully generated ${flashcardsData.length} flashcards`,
@@ -3062,7 +3083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         mcqData = await geminiService.generateMCQ(topic, difficulty || 'medium', context, req.user?.id);
       } catch (error) {
-        console.error("Error generating MCQ:", error);
+
         return res.status(500).json({ message: "Failed to generate MCQ" });
       }
       // Transform the response to match the frontend format
@@ -3090,7 +3111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.id;
       // Validate required fields
       if (!userId) {
-        console.error('Quiz attempt save failed: No user ID');
+
         return res.status(401).json({ 
           success: false,
           message: "Authentication required" 
@@ -3133,7 +3154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }));
           }
         } catch (fetchError) {
-          console.error('Failed to fetch full question data:', fetchError);
+
           // Continue with original data if fetch fails
         }
       }
@@ -3169,7 +3190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
           await db.insert(questionAttempts).values(questionAttemptsToInsert);
         } catch (qaError) {
-          console.error('Failed to save question attempts:', qaError);
+
           // Don't fail the whole request if question attempts fail
         }
       } else {
@@ -3189,7 +3210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           difficulty: difficulty || 'medium',
         });
       } catch (achievementError) {
-        console.error('Failed to check achievements:', achievementError);
+
         // Don't fail the request if achievements fail
       }
       // Award Gamification XP
@@ -3198,7 +3219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         gamificationStats = await GamificationService.awardXP(userId, 'QUIZ_COMPLETED');
       } catch (err) {
-        console.error('Failed to award XP for quiz completion', err);
+
       }
       return res.status(201).json({
         success: true,
@@ -3209,7 +3230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gamification: gamificationStats
       });
     } catch (error: any) {
-      console.error('Error saving quiz attempt:', error);
+
       // Return detailed error response
       return res.status(500).json({
         success: false,
@@ -3336,7 +3357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         await GamificationService.revokeXP(userId, 'QUIZ_COMPLETED');
       } catch (err) {
-        console.error('Failed to revoke XP on quiz attempt delete', err);
+
       }
       return res.status(200).json({
         success: true,
@@ -3435,10 +3456,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Use the fixed question for validation
               question.correctAnswer = fixed.correctAnswer;
             } catch (updateError) {
-              console.error('Failed to update question:', updateError);
+
             }
           } else {
-            console.error('Could not auto-fix question - manual review needed');
+
           }
         }
       }
@@ -3710,7 +3731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             difficulty: quizDifficulty
           });
         } catch (error) {
-          console.error(`Error generating question ${i + 1}:`, error);
+
         }
       }
       if (questions.length === 0) {
@@ -3836,7 +3857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .where(eq(quizSessions.sessionId, sessionId));
           }
         } catch (sessionError) {
-          console.error('Error updating session hint count:', sessionError);
+
           // Don't fail the request if session update fails
         }
       }
@@ -3845,7 +3866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         attemptNumber: hintAttempt
       });
     } catch (error) {
-      console.error('Error generating hint:', error);
+
       return handleApiError(error, res);
     }
   });
@@ -4160,7 +4181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId
         );
       } catch (error) {
-        console.error("Error generating code:", error);
+
         codeResponse = {
           code: `// Error generating code for ${codeData.language}\n// Please try again later`,
           explanation: "There was an error generating the code. Please try a different problem or language.",
@@ -4203,7 +4224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         gamificationStats = await GamificationService.awardXP(userId, 'CODE_GENERATED');
       } catch (err) {
-        console.error('Failed to award XP for code generation', err);
+
       }
       return res.status(200).json({
         message: "Code generated successfully",
@@ -4318,7 +4339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { GamificationService } = await import('./services/gamification.service');
         await GamificationService.revokeXP(userId, 'CODE_GENERATED');
       } catch (err) {
-        console.error('Failed to revoke XP on code snippet delete', err);
+
       }
       return res.status(200).json({
         message: "Code snippet deleted successfully"
@@ -4401,7 +4422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cpuTime: result.cpuTime,
       });
     } catch (error) {
-      console.error("Code execution error:", error);
+
       return handleApiError(error, res);
     }
   });
@@ -4536,7 +4557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preferences // Pass user preferences for intelligent scheduling
         );
       } catch (error) {
-        console.error("Error generating study plan:", error);
+
         return res.status(500).json({ message: "Failed to generate study plan" });
       }
       // Calculate scheduled dates for each item
@@ -4595,7 +4616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.user?.id
         );
       } catch (error) {
-        console.error("Error generating study items:", error);
+
         return res.status(500).json({ message: "Failed to generate study items" });
       }
       // Update the plan with the generated items
@@ -4814,7 +4835,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           gamificationStats = await GamificationService.awardXP(req.user?.id!, 'STUDY_PLAN_COMPLETED');
         }
       } catch (err) {
-        console.error('Failed to award XP for study plan', err);
+
       }
       return res.status(200).json({
         message: "Study item completed successfully",
@@ -5100,7 +5121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       } catch (err) {
-        console.error('Failed to sync stats for user-stats', err);
+
       }
       return res.status(200).json({ stats });
     } catch (error) {
@@ -5217,7 +5238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       } catch (err) {
-        console.error('Failed to sync stats for profile', err);
+
       }
       // Don't return password
       const { password, verificationToken, verificationOtp, verificationTokenExpiry,
@@ -5482,6 +5503,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register admin user management routes
   const adminUserRoutes = (await import('./routes/admin/user.routes')).default;
   app.use('/api/admin/users', adminUserRoutes);
+  // Register admin system settings routes
+  const adminSettingsRoutes = (await import('./routes/admin/settings.routes')).default;
+  app.use('/api/admin/settings', adminSettingsRoutes);
   // Register admin content management routes
   const adminContentRoutes = (await import('./routes/admin/content.routes')).default;
   app.use('/api/admin/content', adminContentRoutes);

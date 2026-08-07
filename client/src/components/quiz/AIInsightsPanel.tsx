@@ -72,7 +72,7 @@ export function AIInsightsPanel({ userId, onStartQuiz }: AIInsightsPanelProps) {
         }
       }
     } catch (error) {
-      console.error('Error fetching AI insights:', error);
+
     } finally {
       setIsLoading(false);
     }

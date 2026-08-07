@@ -72,13 +72,13 @@ export default function QuizReviewMode({
               answers[question.id] = data.correctAnswer;
             }
           } catch (error) {
-            console.error(`Failed to fetch correct answer for question ${question.id}:`, error);
+
           }
         }
         
         setCorrectAnswers(answers);
       } catch (error) {
-        console.error('Failed to fetch correct answers:', error);
+
       } finally {
         setLoading(false);
       }

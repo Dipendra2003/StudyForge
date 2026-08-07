@@ -49,77 +49,66 @@ export default function Dashboard() {
     }
 
     const fetchUserStats = async () => {
-      try {
-        const response = await apiGet("/api/user-stats");
-        
-        if (!response.ok) {
-          // Silently handle authentication errors
-          if (response.status === 401) {
-            return;
-          }
-          throw new Error("Failed to load user statistics");
-        }
-        
-        const data = await response.json();
-        
-        setStats({
-          documents: data.stats.documentsUploaded || 0,
-          flashcards: data.stats.flashcardsCreated || 0,
-          quizzes: data.stats.quizzesCompleted || 0,
-          codeSnippets: data.stats.codeSnippetsGenerated || 0,
-          studyTime: data.stats.totalStudyTime || 0,
-          streak: data.stats.streakDays || 0,
-          xp: data.stats.xpPoints || 0,
-          level: data.stats.level || 1,
-        });
-      } catch (error) {
-        console.error("Error fetching user stats:", error);
-        // Only show toast for non-auth errors
-        if (error instanceof Error && !error.message.includes('401')) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to load your statistics. Please try again later.",
-          });
-        }
-      } finally {
-        setIsLoading(false);
+      const response = await apiGet("/api/user-stats");
+      
+      if (!response.ok) {
+        if (response.status === 401) return;
+        throw new Error("Failed to load user statistics");
       }
+      
+      const data = await response.json();
+      
+      setStats({
+        documents: data.stats.documentsUploaded || 0,
+        flashcards: data.stats.flashcardsCreated || 0,
+        quizzes: data.stats.quizzesCompleted || 0,
+        codeSnippets: data.stats.codeSnippetsGenerated || 0,
+        studyTime: data.stats.totalStudyTime || 0,
+        streak: data.stats.streakDays || 0,
+        xp: data.stats.xpPoints || 0,
+        level: data.stats.level || 1,
+      });
     };
     
     const fetchDueFlashcards = async () => {
-      try {
-        const response = await apiGet("/api/flashcards/due?limit=5");
-        
-        if (response.ok) {
-          const data = await response.json();
-          setDueFlashcards(data.flashcards || []);
-        }
-      } catch (error) {
-        console.error("Error fetching due flashcards:", error);
-      } finally {
-        setLoadingDueCards(false);
+      const response = await apiGet("/api/flashcards/due?limit=5");
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDueFlashcards(data.flashcards || []);
       }
     };
     
     const fetchRecommendations = async () => {
-      try {
-        const response = await apiGet("/api/recommendations");
-        
-        if (response.ok) {
-          const data = await response.json();
-          setRecommendations(data.recommendations || []);
-        }
-      } catch (error) {
-        console.error("Error fetching recommendations:", error);
-      } finally {
-        setLoadingRecommendations(false);
+      const response = await apiGet("/api/recommendations");
+      
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendations(data.recommendations || []);
       }
     };
     
-    fetchUserStats();
-    fetchDueFlashcards();
-    fetchRecommendations();
+    const loadData = async () => {
+      // Fire fetches independently without Promise.all so fast requests don't wait for slow ones
+      fetchUserStats().catch(err => {
+
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load your statistics. Please try again later.",
+        });
+      }).finally(() => setIsLoading(false));
+
+      fetchDueFlashcards().catch(err => {
+
+      }).finally(() => setLoadingDueCards(false));
+
+      fetchRecommendations().catch(err => {
+
+      }).finally(() => setLoadingRecommendations(false));
+    };
+
+    loadData();
   }, [toast, isAuthenticated, user]);
 
   // Calculate stats for display

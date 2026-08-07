@@ -57,7 +57,7 @@ export function WeakAreaRecommendations({
         });
       }
     } catch (error) {
-      console.error('Error fetching weak area recommendations:', error);
+
     } finally {
       setIsLoading(false);
     }

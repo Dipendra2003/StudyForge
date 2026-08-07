@@ -25,7 +25,8 @@ export default function AdminRoute({ children }: AdminRouteProps) {
         description: 'Please log in to access the admin panel.',
         variant: 'destructive',
       });
-      setLocation('/');
+      sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+      setLocation('/login');
       return;
     }
 

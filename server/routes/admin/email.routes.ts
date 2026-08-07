@@ -11,8 +11,10 @@ import { requireRole } from '../../middleware/role.middleware';
 import { Logger, LogCategory } from '../../utils/logger';
 import { z } from 'zod';
 import { db } from '../../db';
-import { contactMessages } from '../../../shared/schema';
+import { contactMessages, users } from '../../../shared/schema';
 import { eq, desc, asc, and, sql } from 'drizzle-orm';
+import { emailService } from '../../services/email.service';
+import { auditLogService } from '../../services/audit-log.service';
 
 const router = Router();
 
@@ -224,6 +226,93 @@ router.patch('/:id/status', async (req: Request, res: Response): Promise<void> =
       message: 'Failed to update message status',
       code: 'UPDATE_STATUS_ERROR',
     });
+  }
+});
+
+/**
+ * POST /api/admin/messages/broadcast
+ * Broadcast a system-wide announcement newsletter to active users
+ */
+router.post('/broadcast', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { subject, message, targetGroup = 'all' } = req.body;
+
+    if (!subject || !message || !subject.trim() || !message.trim()) {
+      res.status(400).json({ success: false, message: 'Subject and announcement text are required' });
+      return;
+    }
+
+    const activeUsers = await db
+      .select({ email: users.email, id: users.id })
+      .from(users)
+      .where(eq(users.isActive, true))
+      .limit(200);
+
+    let sentCount = 0;
+    for (const user of activeUsers) {
+      if (user.email) {
+        await emailService.sendBroadcastEmail(user.email, subject, message);
+        sentCount++;
+      }
+    }
+
+    await auditLogService.logAdminAction({
+      adminId: req.user!.id,
+      action: 'broadcast_announcement',
+      targetType: 'system',
+      targetId: 0,
+      details: { adminId: req.user!.id, targetType: 'system' as const, adminUsername: req.user!.username, subject, recipientCount: sentCount, targetGroup },
+    });
+
+    Logger.info(LogCategory.ADMIN, `Admin broadcasted announcement "${subject}" to ${sentCount} users`);
+    res.json({ success: true, message: `Broadcast successfully dispatched to ${sentCount} user(s).`, count: sentCount });
+  } catch (error) {
+    Logger.error(LogCategory.ADMIN, 'Failed to execute announcement broadcast', error as Error);
+    res.status(500).json({ success: false, message: 'Failed to dispatch broadcast announcement' });
+  }
+});
+
+/**
+ * POST /api/admin/messages/:id/reply
+ * Send direct reply to a student contact message and mark ticket as responded
+ */
+router.post('/:id/reply', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const messageId = parseInt(req.params.id);
+    const { replyMessage } = req.body;
+
+    if (isNaN(messageId) || !replyMessage || !replyMessage.trim()) {
+      res.status(400).json({ success: false, message: 'Message ID and reply text are required' });
+      return;
+    }
+
+    const [message] = await db.select().from(contactMessages).where(eq(contactMessages.id, messageId)).limit(1);
+    if (!message) {
+      res.status(404).json({ success: false, message: 'Contact ticket not found' });
+      return;
+    }
+
+    await emailService.sendAdminDirectReply(
+      message.email,
+      `Re: ${message.subject || 'Your Support Request - StudyForge'}`,
+      replyMessage
+    );
+
+    await db.update(contactMessages).set({ status: 'responded', updatedAt: new Date() }).where(eq(contactMessages.id, messageId));
+
+    await auditLogService.logAdminAction({
+      adminId: req.user!.id,
+      action: 'ticket_reply',
+      targetType: 'content',
+      targetId: messageId,
+      details: { adminId: req.user!.id, targetType: 'content' as const, adminUsername: req.user!.username, targetEmail: message.email, replyLength: replyMessage.length },
+    });
+
+    Logger.info(LogCategory.ADMIN, `Admin replied to contact ticket #${messageId}`);
+    res.json({ success: true, message: 'Reply sent successfully and ticket marked as responded.' });
+  } catch (error) {
+    Logger.error(LogCategory.ADMIN, 'Failed to send reply to message', error as Error);
+    res.status(500).json({ success: false, message: 'Failed to send reply' });
   }
 });
 
