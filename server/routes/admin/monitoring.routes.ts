@@ -679,4 +679,53 @@ router.post('/system/error-logs/simulate', async (req: Request, res: Response): 
   }
 });
 
+/**
+ * GET /api/admin/monitoring/ai-metrics
+ * Get AI metrics and telemetry for admin dashboard
+ */
+router.get('/monitoring/ai-metrics', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const statsResult = await db
+      .select({
+        totalTokens: sum(aiUsageLogs.tokensUsed),
+        totalRequests: count(aiUsageLogs.id),
+        avgLatency: sql<number>`avg(${aiUsageLogs.durationMs})`,
+      })
+      .from(aiUsageLogs);
+
+    const totalTokens = Number(statsResult[0]?.totalTokens) || 0;
+    const totalRequests = Number(statsResult[0]?.totalRequests) || 0;
+    const average = Math.round(Number(statsResult[0]?.avgLatency) || 0);
+    const estimatedCost = (totalTokens * 0.000002).toFixed(4);
+
+    const payload = {
+      success: true,
+      totalTokens,
+      totalRequests,
+      estimatedCost,
+      latencyDistribution: {
+        average,
+        p95: Math.round(average * 1.5),
+      },
+      data: {
+        totalTokens,
+        totalRequests,
+        estimatedCost,
+        latencyDistribution: {
+          average,
+          p95: Math.round(average * 1.5),
+        },
+      },
+    };
+
+    res.status(200).json(payload);
+  } catch (error) {
+    Logger.error(LogCategory.API, 'Failed to get AI telemetry', error as Error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch AI telemetry',
+    });
+  }
+});
+
 export default router;

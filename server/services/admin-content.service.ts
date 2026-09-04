@@ -935,7 +935,7 @@ class AdminContentService {
       // Fetch existing pending flags to avoid duplicate flagging on consecutive scans
       const existingFlags = await db.select().from(contentFlags).where(eq(contentFlags.status, 'pending'));
       const isAlreadyFlagged = (type: string, id: number) => 
-        existingFlags.some(f => f.contentType === type && f.contentId === id);
+        existingFlags.some((f: any) => f.contentType === type && f.contentId === id);
 
       // Check flashcards
       const recentCards = await db.select().from(flashcards).orderBy(desc(flashcards.id)).limit(sampleLimit);
@@ -1011,6 +1011,69 @@ class AdminContentService {
     } catch (error) {
       Logger.error(LogCategory.ADMIN, 'Failed during content toxicity scan', error as Error);
       throw new Error('Toxicity scan failed');
+    }
+  }
+
+  /**
+   * Get global content counts and moderation statistics
+   */
+  async getContentStats(): Promise<{
+    totalContent: number;
+    flaggedItems: number;
+    byType: {
+      flashcards: number;
+      quizzes: number;
+      documents: number;
+      questions: number;
+      studyPlans: number;
+      codeSnippets: number;
+    };
+  }> {
+    try {
+      const [cardCount] = await db.select({ count: count(flashcards.id) }).from(flashcards);
+      const [quizCount] = await db.select({ count: count(savedQuizzes.id) }).from(savedQuizzes);
+      const [docCount] = await db.select({ count: count(documents.id) }).from(documents);
+      const [qCount] = await db.select({ count: count(questions.id) }).from(questions);
+      const [planCount] = await db.select({ count: count(studyPlans.id) }).from(studyPlans);
+      const [snippetCount] = await db.select({ count: count(codeSnippets.id) }).from(codeSnippets);
+      const [flagCount] = await db.select({ count: count(contentFlags.id) }).from(contentFlags).where(eq(contentFlags.status, 'pending'));
+
+      const flashcardsNum = Number(cardCount?.count) || 0;
+      const quizzesNum = Number(quizCount?.count) || 0;
+      const docsNum = Number(docCount?.count) || 0;
+      const questionsNum = Number(qCount?.count) || 0;
+      const plansNum = Number(planCount?.count) || 0;
+      const snippetsNum = Number(snippetCount?.count) || 0;
+      const flaggedItems = Number(flagCount?.count) || 0;
+
+      const totalContent = flashcardsNum + quizzesNum + docsNum + questionsNum + plansNum + snippetsNum;
+
+      return {
+        totalContent,
+        flaggedItems,
+        byType: {
+          flashcards: flashcardsNum,
+          quizzes: quizzesNum,
+          documents: docsNum,
+          questions: questionsNum,
+          studyPlans: plansNum,
+          codeSnippets: snippetsNum,
+        },
+      };
+    } catch (error) {
+      Logger.error(LogCategory.ADMIN, 'Failed to fetch content stats', error as Error);
+      return {
+        totalContent: 0,
+        flaggedItems: 0,
+        byType: {
+          flashcards: 0,
+          quizzes: 0,
+          documents: 0,
+          questions: 0,
+          studyPlans: 0,
+          codeSnippets: 0,
+        },
+      };
     }
   }
 }

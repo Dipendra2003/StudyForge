@@ -332,7 +332,33 @@ export class QuizCacheService {
     });
 
     // STEP 2: Check cache (Requirement 3.1)
-    const cachedEntry = this.getCacheEntry(cacheKey);
+    let cachedEntry = this.getCacheEntry(cacheKey);
+    
+    // If not in local memory, check Redis distributed cache
+    if (!cachedEntry) {
+      try {
+        const { isRedisAvailable, redisClient } = await import('../db/index');
+        if (isRedisAvailable() && redisClient) {
+          const raw = await redisClient.get(`quiz_cache:${cacheKey}`);
+          if (raw) {
+            const questions = JSON.parse(raw);
+            if (Array.isArray(questions) && questions.length > 0) {
+              cachedEntry = {
+                questions,
+                createdAt: Date.now(),
+                lastAccessedAt: Date.now(),
+                ttlMs: this.config.ttlMs,
+              };
+              // Mirror into local cache for ultra-fast subsequent reads
+              this.setCacheEntry(cacheKey, questions);
+              this.hits++;
+            }
+          }
+        }
+      } catch (err) {
+        Logger.warn(LogCategory.CACHE, 'Redis quiz cache read failed', { error: (err as Error).message });
+      }
+    }
     
     if (cachedEntry) {
       // Cache hit - return cached questions immediately (Requirements 3.2, 6.1)
@@ -358,6 +384,19 @@ export class QuizCacheService {
     // STEP 4: Only cache AI-generated questions, not database fallback (Requirements 5.1, 5.2, 6.3)
     if (result.source === 'ai') {
       this.setCacheEntry(cacheKey, result.questions);
+      
+      // Write through to Redis for distributed availability
+      try {
+        const { isRedisAvailable, redisClient } = await import('../db/index');
+        if (isRedisAvailable() && redisClient) {
+          await redisClient.set(`quiz_cache:${cacheKey}`, JSON.stringify(result.questions), {
+            PX: this.config.ttlMs,
+          });
+        }
+      } catch (err) {
+        Logger.warn(LogCategory.CACHE, 'Redis quiz cache write failed', { error: (err as Error).message });
+      }
+
       Logger.info(LogCategory.CACHE, 'Cache entry created', { 
         cacheKey, 
         ttlMs: this.config.ttlMs,
@@ -519,16 +558,33 @@ export class QuizCacheService {
    * @returns True if an entry was deleted
    */
   delete(key: string): boolean {
-    return this.cache.delete(key);
+    const deleted = this.cache.delete(key);
+    import('../db/index').then(({ isRedisAvailable, redisClient }) => {
+      if (isRedisAvailable() && redisClient) {
+        redisClient.del(`quiz_cache:${key}`).catch(() => {});
+      }
+    }).catch(() => {});
+    return deleted;
   }
 
   /**
-   * Clear all entries from the cache
+   * Clear all entries from the cache (both in-memory and Redis)
    */
-  clear(): void {
+  async clear(): Promise<void> {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
+    try {
+      const { isRedisAvailable, redisClient } = await import('../db/index');
+      if (isRedisAvailable() && redisClient) {
+        const keys = await redisClient.keys('quiz_cache:*');
+        if (keys && keys.length > 0) {
+          await redisClient.del(keys);
+        }
+      }
+    } catch (err) {
+      Logger.warn(LogCategory.CACHE, 'Redis quiz cache clear failed', { error: (err as Error).message });
+    }
   }
 
   /**

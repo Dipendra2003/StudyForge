@@ -11,6 +11,30 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test-and-lint:
+    name: Test & Type Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run TypeScript Type Check
+        run: npm run check
+
+      - name: Run Automated Test Suite
+        run: npm test
+
   trivy-security-scan:
     name: Source Code Security Scan
     runs-on: ubuntu-latest
@@ -30,7 +54,7 @@ jobs:
 
   call-build:
     name: Build Image
-    needs: trivy-security-scan
+    needs: [test-and-lint, trivy-security-scan]
     uses: ./.github/workflows/reusable-build.yml
     with:
       image-name: ${{ github.repository }}

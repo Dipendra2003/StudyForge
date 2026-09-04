@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, User, Mail, Key, Lock, CheckCircle2, AlertTriangle, Activity, Sparkles, Server, Terminal } from "lucide-react";
 import { motion } from "framer-motion";
+import { apiPost } from "@/lib/api";
 
 export default function AdminProfile() {
   const { user, updateUser } = useAuth();
@@ -20,6 +21,7 @@ export default function AdminProfile() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isRotatingPassword, setIsRotatingPassword] = useState(false);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +48,14 @@ export default function AdminProfile() {
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentPassword) {
+      toast({
+        title: "Current Password Required",
+        description: "Please enter your current administrator password.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast({
         title: "Password Mismatch",
@@ -54,14 +64,44 @@ export default function AdminProfile() {
       });
       return;
     }
-    toast({
-      title: "Security Policy Updated",
-      description: "Administrator password rotated successfully. Active refresh JWTs re-signed.",
-      variant: "default",
-    });
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    if (newPassword.length < 8) {
+      toast({
+        title: "Weak Password",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRotatingPassword(true);
+    try {
+      const response = await apiPost("/api/profile/change-password", {
+        currentPassword,
+        newPassword,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update administrator password");
+      }
+
+      toast({
+        title: "Security Policy Updated",
+        description: "Administrator password rotated successfully. Active refresh JWTs re-signed.",
+        variant: "default",
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast({
+        title: "Password Rotation Failed",
+        description: error.message || "Unable to rotate administrator password.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRotatingPassword(false);
+    }
   };
 
   return (
@@ -267,8 +307,13 @@ export default function AdminProfile() {
               </CardContent>
 
               <CardFooter className="bg-muted/20 border-t border-border/40 py-4 px-6 flex justify-end">
-                <Button type="submit" variant="destructive" className="font-extrabold px-6 rounded-xl shadow-md h-11 bg-indigo-600 hover:bg-indigo-700 text-white">
-                  Rotate Master Credential & Re-sign JWTs
+                <Button 
+                  type="submit" 
+                  disabled={isRotatingPassword} 
+                  variant="destructive" 
+                  className="font-extrabold px-6 rounded-xl shadow-md h-11 bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  {isRotatingPassword ? "Rotating Password..." : "Rotate Master Credential & Re-sign JWTs"}
                 </Button>
               </CardFooter>
             </form>

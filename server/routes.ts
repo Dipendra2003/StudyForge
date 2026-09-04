@@ -32,6 +32,7 @@ import mammoth from "mammoth";
 import { createRequire } from "module";
 import { jwtService } from "./services/jwt.service";
 import { requireAuth as jwtAuth } from "./middleware/auth.middleware";
+import { requireRole } from "./middleware/role.middleware";
 import bcrypt from "bcrypt";
 import { EmailService } from "./services/email.service";
 import rateLimit from "express-rate-limit";
@@ -215,13 +216,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const verificationToken = TokenGenerator.generateToken();
       const verificationOtp = TokenGenerator.generateOTP();
       const verificationTokenExpiry = TokenGenerator.generateExpiry(24); // 24 hours
+      // Determine if email verification is required
+      const shouldRequireVerification = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false' && (process.env.NODE_ENV === 'production' ? true : emailService.isReady());
+      const initialEmailVerified = !shouldRequireVerification;
       // Create user with hashed password and verification credentials
       const user = await storage.createUser({
         username: userData.username,
         email: userData.email,
         fullName: userData.fullName,
         password: hashedPassword,
-        emailVerified: false,
+        emailVerified: initialEmailVerified,
         verificationToken,
         verificationOtp,
         verificationTokenExpiry,
@@ -231,7 +235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: user.id,
         username: user.username,
         email: user.email,
-        emailVerified: false,
+        emailVerified: initialEmailVerified,
       });
       // Generate verification link for development mode
       const verificationLink = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
@@ -311,8 +315,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      // Check if email is verified
-      if (!user.emailVerified) {
+      // Check if email is verified (can be disabled via REQUIRE_EMAIL_VERIFICATION=false)
+      const requireVerification = process.env.REQUIRE_EMAIL_VERIFICATION !== 'false';
+      if (requireVerification && !user.emailVerified) {
         Logger.security('Login failed - email not verified', {
           action: 'login',
           userId: user.id,
@@ -3661,25 +3666,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/questions/count', jwtAuth, async (req: Request, res: Response) => {
     try {
       const { category, difficulty, types } = req.query;
-      // For now, return a mock count since the questions table might not be fully populated
-      // In production, this would query the database with filters
-      const questionTypes = types ? (types as string).split(',') : ['mcq'];
-      // Mock data - replace with actual database query
-      const mockCounts: Record<string, Record<string, number>> = {
-        'tech': { 'easy': 25, 'medium': 30, 'hard': 20 },
-        'science': { 'easy': 20, 'medium': 25, 'hard': 15 },
-        'general knowledge': { 'easy': 30, 'medium': 35, 'hard': 25 },
-        'coding': { 'easy': 15, 'medium': 20, 'hard': 18 },
-        'math': { 'easy': 22, 'medium': 28, 'hard': 20 },
-        'history': { 'easy': 18, 'medium': 22, 'hard': 16 },
-        'literature': { 'easy': 16, 'medium': 20, 'hard': 14 },
-      };
-      const categoryKey = (category as string || 'tech').toLowerCase();
-      const difficultyKey = (difficulty as string || 'medium').toLowerCase();
-      const baseCount = mockCounts[categoryKey]?.[difficultyKey] || 10;
-      // Adjust count based on number of question types selected
-      const adjustedCount = Math.floor(baseCount * questionTypes.length / 5);
-      return res.status(200).json({ count: adjustedCount });
+      const conditions: any[] = [];
+
+      if (category && typeof category === 'string' && category !== 'all') {
+        conditions.push(eq(questions.category, category));
+      }
+      if (difficulty && typeof difficulty === 'string' && difficulty !== 'all') {
+        conditions.push(eq(questions.difficulty, difficulty));
+      }
+      if (types && typeof types === 'string') {
+        const typeList = types.split(',').map(t => t.trim()).filter(Boolean);
+        if (typeList.length > 0) {
+          conditions.push(inArray(questions.type, typeList));
+        }
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const [result] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(questions)
+        .where(whereClause);
+
+      return res.status(200).json({ count: result?.count || 0 });
     } catch (error) {
       return handleApiError(error, res);
     }
@@ -5527,14 +5535,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register user security routes (email change, login history, account recovery)
   const userSecurityRoutes = (await import('./routes/user/security.routes')).default;
   app.use('/api/user/security', userSecurityRoutes);
-  // Admin endpoint to clear quiz cache
-  app.post('/api/admin/clear-cache', jwtAuth, async (req: Request, res: Response) => {
+  // Admin endpoint to clear quiz cache (protected by admin role)
+  app.post('/api/admin/clear-cache', jwtAuth, requireRole('admin'), async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.id!;
-      // Only allow admin users (you can add role check here)
-      // For now, any authenticated user can clear cache
       const { quizCacheService } = require('./services/quiz-cache-service');
-      quizCacheService.clear();
+      await quizCacheService.clear();
       return res.status(200).json({
         success: true,
         message: 'Quiz cache cleared successfully',

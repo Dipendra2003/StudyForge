@@ -2,10 +2,18 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
-import { log } from '../vite';
-
 // Load environment variables
 dotenv.config();
+
+const log = (message: string, source = "database") => {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+};
 
 // PostgreSQL Connection
 const connectPostgres = async () => {
@@ -116,11 +124,21 @@ export const verifyIndexes = async () => {
 
 
 // Redis Connection (for caching)
+export let redisClient: any = null;
+
+export const isRedisAvailable = (): boolean => {
+  try {
+    return !!(redisClient && redisClient.isOpen);
+  } catch {
+    return false;
+  }
+};
+
 export const connectRedis = async () => {
   try {
     const isProduction = process.env.NODE_ENV === 'production';
     
-    const redisClient = createClient({
+    const client = createClient({
       url: `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
       password: process.env.REDIS_PASSWORD || undefined,
       socket: {
@@ -131,17 +149,19 @@ export const connectRedis = async () => {
       }
     });
 
-    redisClient.on('error', (err) => {
+    client.on('error', (err) => {
       if (isProduction) {
         log(`Redis error: ${err.message}`, 'database');
       }
     });
 
-    await redisClient.connect();
+    await client.connect();
     log('Redis connection established', 'database');
-    return redisClient;
+    redisClient = client;
+    return client;
   } catch (error) {
     log(`Redis connection failed, continuing without caching`, 'database');
+    redisClient = null;
     return null;
   }
 };
@@ -149,8 +169,6 @@ export const connectRedis = async () => {
 
 // Initialize all database connections
 export const initializeDatabases = async () => {
-  let redisClient = null;
-  
   try {
     log('Initializing database connections...', 'database');
     
@@ -169,8 +187,8 @@ export const initializeDatabases = async () => {
     
     // Connect to Redis
     try {
-      redisClient = await connectRedis();
-      if (redisClient) log('Redis connection established successfully', 'database');
+      const client = await connectRedis();
+      if (client) log('Redis connection established successfully', 'database');
     } catch (error) {
       log(`Redis connection error: ${error}, continuing without caching`, 'database');
     }

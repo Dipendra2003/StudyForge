@@ -16,11 +16,12 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "migrate": "tsx --env-file=.env server/migrations/run-migration.ts",
-    "migrate:security": "tsx --env-file=.env server/db/migrations/run-migration.ts",
-    "migrate:security:rollback": "tsx --env-file=.env server/db/migrations/run-migration.ts --rollback",
+    "migrate": "drizzle-kit migrate",
+    "migrate:push": "drizzle-kit push",
     "create-admin": "tsx --env-file=.env scripts/create-admin.ts",
-    "test:e2e": "tsx --env-file=.env tests/e2e/auth.e2e.test.ts",
+    "db:backup": "bash ./scripts/backup-db.sh",
+    "db:restore": "bash ./scripts/restore-db.sh",
+    "test": "vitest run",
     "postinstall": "npm run check"
   },
   "dependencies": {

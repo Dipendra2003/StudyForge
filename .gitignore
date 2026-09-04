@@ -45,3 +45,7 @@ vite.config.ts.*
 
 # Nginx certs
 nginx/certs/
+
+# Database backups
+backups/
+*.sql.gz

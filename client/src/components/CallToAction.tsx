@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
 import AnimatedCTA from './AnimatedCTA';
 
 interface CallToActionProps {
@@ -9,58 +9,46 @@ interface CallToActionProps {
 
 export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) {
   return (
-    <section className="py-20 relative overflow-hidden bg-gradient-to-br from-background via-background/95 to-background">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full opacity-20 bg-gradient-to-r from-primary to-purple-500"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              width: `${Math.random() * 200 + 50}px`,
-              height: `${Math.random() * 200 + 50}px`,
-            }}
-            animate={{
-              scale: [1, 1.2, 1],
-              opacity: [0.1, 0.3, 0.1],
-              x: [0, Math.random() * 100 - 50, 0],
-              y: [0, Math.random() * 100 - 50, 0],
-            }}
-            transition={{
-              duration: 10 + Math.random() * 10,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
+    <section className="py-10 relative overflow-hidden bg-gray-50/50 dark:bg-gray-950">
+      {/* Intense Glowing Backdrop */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-[800px] h-[500px] bg-primary/20 rounded-full blur-[120px] opacity-60"></div>
+        <div className="w-[600px] h-[400px] bg-emerald-500/15 rounded-full blur-[100px] opacity-40 absolute translate-x-1/3"></div>
       </div>
       
-      <div className="max-w-5xl mx-auto px-4 relative z-10">
-        <div className="text-center">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          viewport={{ once: true }}
+          className="relative rounded-[2.5rem] overflow-hidden bg-white/60 dark:bg-gray-900/40 backdrop-blur-2xl border border-white dark:border-gray-800/50 shadow-2xl shadow-primary/5 p-10 md:p-20 text-center"
+        >
+          {/* Inner ambient glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-1/2 bg-gradient-to-b from-primary/10 to-transparent blur-2xl pointer-events-none"></div>
+
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
             viewport={{ once: true }}
-            className="inline-block mb-4"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm mb-8"
           >
-            <div className="bg-primary/10 text-primary rounded-full px-4 sm:px-6 py-2 flex items-center gap-1 sm:gap-2 text-sm sm:text-base font-medium">
-              <Sparkles size={16} className="text-primary hidden xs:block" />
-              <span>Boost your learning efficiency today</span>
-            </div>
+            <Zap size={16} className="text-amber-500 fill-amber-500" />
+            <span className="text-xs sm:text-sm font-bold bg-gradient-to-r from-gray-800 to-gray-500 dark:from-gray-200 dark:to-gray-400 bg-clip-text text-transparent uppercase tracking-wider">
+              Boost your learning efficiency
+            </span>
           </motion.div>
           
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.1 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
             viewport={{ once: true }}
-            className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 tracking-tight"
+            className="text-4xl sm:text-5xl md:text-7xl font-extrabold mb-6 tracking-tight text-gray-900 dark:text-white"
           >
-            Ready to Transform Your{' '}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500 font-extrabold block sm:inline">
+            Ready to Transform Your <br className="hidden md:block" />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-500 to-emerald-500 pb-2">
               Study Experience?
             </span>
           </motion.h2>
@@ -68,65 +56,57 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
             viewport={{ once: true }}
-            className="text-muted-foreground text-base sm:text-lg md:text-xl max-w-2xl mx-auto mb-6 sm:mb-8 px-2 sm:px-0"
+            className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-10 leading-relaxed font-medium"
           >
-            Join thousands of students using Jadoo 2.0 to learn faster, retain more, and achieve better results in their studies.
+            Join thousands of students using Jadoo 2.0 to learn faster, retain more, and achieve better results in their studies without the burnout.
           </motion.p>
           
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
             viewport={{ once: true }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-14"
           >
-            <AnimatedCTA
-              text="Get Started Free"
-              onClick={onScrollToWaitlist}
-              size="lg"
-              className="px-8"
-            />
+            <div className="shadow-xl shadow-primary/20 rounded-full">
+              <AnimatedCTA
+                text="Get Started Free"
+                onClick={onScrollToWaitlist}
+                size="lg"
+                className="px-10 py-6 text-lg font-bold"
+              />
+            </div>
             
             <button
               onClick={() => window.location.href = '/about'}
-              className="flex items-center gap-2 font-medium text-primary hover:text-primary/80 transition-colors"
+              className="group flex items-center gap-2 font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors px-6 py-4 rounded-xl hover:bg-white/50 dark:hover:bg-gray-800/50"
             >
               Learn more about features
-              <ArrowRight size={18} />
+              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </motion.div>
           
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.8 }}
             viewport={{ once: true }}
-            className="mt-8 sm:mt-12 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-muted-foreground"
+            className="flex flex-wrap justify-center gap-3 sm:gap-6 text-sm font-semibold text-gray-700 dark:text-gray-300"
           >
-            <div className="flex items-center gap-1 sm:gap-2">
-              <svg className="h-4 w-4 sm:h-5 sm:w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>No credit card required</span>
-            </div>
-            
-            <div className="flex items-center gap-1 sm:gap-2">
-              <svg className="h-4 w-4 sm:h-5 sm:w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>Free plan available</span>
-            </div>
-            
-            <div className="flex items-center gap-1 sm:gap-2">
-              <svg className="h-4 w-4 sm:h-5 sm:w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>Cancel anytime</span>
-            </div>
+            {[
+              "No credit card required",
+              "Free plan available",
+              "Cancel anytime"
+            ].map((text, i) => (
+              <div key={i} className="flex items-center gap-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md px-4 py-2 rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+                <CheckCircle2 size={16} className="text-emerald-500" />
+                <span>{text}</span>
+              </div>
+            ))}
           </motion.div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

@@ -19,6 +19,30 @@ router.use(requireAuth);
 router.use(requireRole('admin'));
 
 /**
+ * GET /api/admin/content/stats
+ * Get high-level content statistics and moderation counts
+ */
+router.get('/stats', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const stats = await adminContentService.getContentStats();
+    res.json({
+      success: true,
+      totalContent: stats.totalContent,
+      flaggedItems: stats.flaggedItems,
+      byType: stats.byType,
+      data: stats,
+    });
+  } catch (error) {
+    Logger.error(LogCategory.ADMIN, 'Failed to get content stats', error as Error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve content statistics',
+      code: 'GET_CONTENT_STATS_ERROR',
+    });
+  }
+});
+
+/**
  * GET /api/admin/content/quizzes
  * Get all quizzes with pagination and filtering
  * Requirements: 5.1, 18.1

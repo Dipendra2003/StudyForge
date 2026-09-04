@@ -239,5 +239,131 @@ export class InMemoryQuotaStore implements QuotaStore {
   }
 }
 
-// Export singleton instance
-export const quotaStore = new InMemoryQuotaStore();
+/**
+ * Redis-backed implementation of QuotaStore for distributed multi-container deployments
+ */
+export class RedisQuotaStore implements QuotaStore {
+  async get(key: string): Promise<QuotaEntry | null> {
+    const { isRedisAvailable, redisClient } = await import('../db/index');
+    if (!isRedisAvailable() || !redisClient) return null;
+    const raw = await redisClient.get(key);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as QuotaEntry;
+    } catch {
+      return null;
+    }
+  }
+
+  async set(key: string, entry: QuotaEntry, ttlMs: number): Promise<void> {
+    const { isRedisAvailable, redisClient } = await import('../db/index');
+    if (!isRedisAvailable() || !redisClient) return;
+    await redisClient.set(key, JSON.stringify(entry), {
+      PX: ttlMs
+    });
+  }
+
+  async increment(key: string, ttlMs: number): Promise<number> {
+    const { isRedisAvailable, redisClient } = await import('../db/index');
+    if (!isRedisAvailable() || !redisClient) return 1;
+    const current = await this.get(key);
+    if (!current) {
+      const newEntry: QuotaEntry = {
+        count: 1,
+        windowStart: Date.now(),
+      };
+      await this.set(key, newEntry, ttlMs);
+      return 1;
+    }
+    current.count += 1;
+    await this.set(key, current, ttlMs);
+    return current.count;
+  }
+
+  async delete(key: string): Promise<void> {
+    const { isRedisAvailable, redisClient } = await import('../db/index');
+    if (!isRedisAvailable() || !redisClient) return;
+    await redisClient.del(key);
+  }
+}
+
+/**
+ * Dynamic Quota Store
+ * Uses Redis when connected; transparently falls back to in-memory store if Redis is unavailable.
+ */
+export class DynamicQuotaStore implements QuotaStore {
+  private inMemory: InMemoryQuotaStore;
+  private redis: RedisQuotaStore;
+
+  constructor() {
+    this.inMemory = new InMemoryQuotaStore();
+    this.redis = new RedisQuotaStore();
+  }
+
+  static generateKey(userId: number): string {
+    return InMemoryQuotaStore.generateKey(userId);
+  }
+
+  async get(key: string): Promise<QuotaEntry | null> {
+    try {
+      const { isRedisAvailable } = await import('../db/index');
+      if (isRedisAvailable()) {
+        const entry = await this.redis.get(key);
+        if (entry) return entry;
+      }
+    } catch (err) {
+      Logger.warn(LogCategory.CACHE, 'Redis quota get failed, falling back to in-memory', { error: (err as Error).message });
+    }
+    return this.inMemory.get(key);
+  }
+
+  async set(key: string, entry: QuotaEntry, ttlMs: number): Promise<void> {
+    try {
+      const { isRedisAvailable } = await import('../db/index');
+      if (isRedisAvailable()) {
+        await this.redis.set(key, entry, ttlMs);
+      }
+    } catch (err) {
+      Logger.warn(LogCategory.CACHE, 'Redis quota set failed, falling back to in-memory', { error: (err as Error).message });
+    }
+    // Always mirror to in-memory as safety fallback
+    await this.inMemory.set(key, entry, ttlMs);
+  }
+
+  async increment(key: string, ttlMs: number): Promise<number> {
+    try {
+      const { isRedisAvailable } = await import('../db/index');
+      if (isRedisAvailable()) {
+        const val = await this.redis.increment(key, ttlMs);
+        await this.inMemory.set(key, { count: val, windowStart: Date.now() }, ttlMs);
+        return val;
+      }
+    } catch (err) {
+      Logger.warn(LogCategory.CACHE, 'Redis quota increment failed, falling back to in-memory', { error: (err as Error).message });
+    }
+    return this.inMemory.increment(key, ttlMs);
+  }
+
+  async delete(key: string): Promise<void> {
+    try {
+      const { isRedisAvailable } = await import('../db/index');
+      if (isRedisAvailable()) {
+        await this.redis.delete(key);
+      }
+    } catch (err) {
+      Logger.warn(LogCategory.CACHE, 'Redis quota delete failed', { error: (err as Error).message });
+    }
+    await this.inMemory.delete(key);
+  }
+
+  clear(): void {
+    this.inMemory.clear();
+  }
+
+  get size(): number {
+    return this.inMemory.size;
+  }
+}
+
+// Export singleton instance with Redis + in-memory fallback
+export const quotaStore = new DynamicQuotaStore();

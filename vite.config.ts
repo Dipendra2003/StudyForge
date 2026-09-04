@@ -52,18 +52,32 @@ export default defineConfig({
     // Bundle size optimizations
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Separate vendor chunks for better caching
-          'react-vendor': ['react', 'react-dom', 'react-hook-form'],
-          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs'],
-          'query-vendor': ['@tanstack/react-query'],
-          'animation-vendor': ['framer-motion', 'canvas-confetti'],
-          'chart-vendor': ['recharts'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'chart-vendor';
+            }
+            if (id.includes('framer-motion') || id.includes('canvas-confetti')) {
+              return 'animation-vendor';
+            }
+            if (id.includes('jspdf') || id.includes('docx') || id.includes('html2canvas')) {
+              return 'doc-vendor';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons-vendor';
+            }
+            if (id.includes('@radix-ui')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('@tanstack/react-query')) {
+              return 'query-vendor';
+            }
+          }
         },
       },
     },
     // Optimize chunk size
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1500,
     // Enable minification
     minify: 'terser',
     terserOptions: {

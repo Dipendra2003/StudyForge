@@ -155,9 +155,9 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
     serveStatic(app);
   }
 
-  // Determine port from environment (API_PORT) with default 5000
-  // This lets us run multiple instances on different ports if needed.
-  const port = parseInt(process.env.API_PORT || '5000', 10);
+  // Determine port from environment (PORT or API_PORT) with default 5000
+  // Standard cloud PaaS (Railway/Render) inject PORT, while docker-compose uses API_PORT.
+  const port = parseInt(process.env.PORT || process.env.API_PORT || '5000', 10);
   // On some platforms (notably Windows) the `reusePort` option is not
   // supported and will throw ENOTSUP. Avoid passing it on those platforms.
   const listenOpts: any = {
