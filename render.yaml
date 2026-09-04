@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: studyforge
+    env: node
+    # The build command runs every time you deploy
+    buildCommand: npm install && npm run build
+    # The start command runs to start your application
+    startCommand: npm run start
+    plan: free # You can change this to 'starter' or higher based on your needs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Security Keys (Render will auto-generate these secure 256-bit strings)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      # You MUST set these environment variables in the Render Dashboard after creation:
+      - key: DATABASE_URL
+        sync: false # e.g., your Neon PostgreSQL connection string
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false # Set this to your Render app URL, e.g., https://studyforge.onrender.com
+      # (Optional) Add other keys like CLOUDINARY_CLOUD_NAME, SMTP_USER, etc. in the dashboard as needed.
