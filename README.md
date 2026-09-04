@@ -194,14 +194,21 @@ SMTP_PASSWORD=your-app-password
 ### Step 4: Database Setup
 
 ```bash
-# Generate database migrations
-npm run db:generate
+# Push schema directly to PostgreSQL (Drizzle)
+npm run db:push
 
-# Run migrations
+# (Optional) Generate and run migrations
+npm run db:generate
 npm run db:migrate
 
-# Or push schema directly (for development)
-npm run db:push
+# Create initial admin account
+npm run create-admin
+
+# Database Backup (compressed gzip)
+npm run db:backup
+
+# Database Restore
+npm run db:restore backups/<backup-file.sql.gz>
 ```
 
 ### Step 5: Start the Development Server
@@ -213,6 +220,7 @@ npm run dev
 The application will be available at `http://localhost:5000`
 
 ---
+
 
 ## 🐳 Docker Setup (Alternative)
 
@@ -272,6 +280,26 @@ This adds an **Nginx reverse proxy** on port 80 with gzip compression, rate limi
 | `npm run docker:logs` | Follow application logs |
 
 ---
+
+## 🚀 Production Deployment
+
+StudyForge is a unified fullstack monolith. Express directly serves the compiled Vite React frontend from `dist/public`, eliminating separate deployments and cross-origin CORS hurdles.
+
+For complete, step-by-step setup walkthroughs, see:
+👉 **[Deployment Guide (docs/DEPLOYMENT_GUIDE.md)](docs/DEPLOYMENT_GUIDE.md)**  
+👉 **[CI/CD & DevSecOps Architecture (DEPLOYMENT.md)](DEPLOYMENT.md)**
+
+### Supported Platforms:
+1. **Render + Neon DB (Recommended Free Tier):**
+   - Free permanent serverless PostgreSQL on [Neon.tech](https://neon.tech).
+   - Docker Web Service on [Render](https://render.com).
+2. **Railway:**
+   - 1-click fullstack container deployment with auto-provisioned PostgreSQL and Redis.
+3. **VPS with Docker Compose & GitHub Actions:**
+   - Automated DevSecOps pipeline (`.github/workflows/main-ci-cd.yml`) with automated test gate, container build, Trivy vulnerability scan, and auto-rollback.
+
+---
+
 
 ## 🎮 Usage
 
@@ -345,8 +373,16 @@ studyforge/
 │   ├── schema.ts            # Database schema (Drizzle)
 │   └── quiz-types.ts        # Shared TypeScript types
 │
-├── db/                      # Database migrations
-│   └── migrations/
+├── migrations/              # Drizzle PostgreSQL migrations
+│   └── 0000_gray_iceman.sql
+│
+├── scripts/                 # Utility, backup, and health check scripts
+│   ├── backup-db.sh
+│   ├── restore-db.sh
+│   └── create-admin.ts
+│
+├── tests/                   # Automated Vitest integration tests
+│   └── core.test.ts
 │
 ├── .env.example             # Environment variables template
 ├── package.json             # Dependencies and scripts

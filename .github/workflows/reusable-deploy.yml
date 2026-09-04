@@ -38,7 +38,18 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Verify VPS Deployment Configuration
+        id: check_config
+        run: |
+          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice ::SERVER_HOST secret is not configured. Skipping SSH VPS deployment step. (Normal if deploying via Render or Railway)."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: SSH Deploy & Health Check with Auto-Rollback
+        if: steps.check_config.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -103,14 +114,14 @@ jobs:
             docker image prune -f
 
       - name: Send Notification on Success
-        if: success() && env.WEBHOOK_URL != ''
+        if: success() && steps.check_config.outputs.skip != 'true' && env.WEBHOOK_URL != ''
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
           curl -H "Content-Type: application/json" -d '{"content": "✅ **Deployment Successful:** `${{ inputs.image-name }}:${{ inputs.image_tag }}` successfully deployed to **${{ inputs.environment }}**."}' $WEBHOOK_URL
 
       - name: Send Notification on Failure
-        if: failure() && env.WEBHOOK_URL != ''
+        if: failure() && steps.check_config.outputs.skip != 'true' && env.WEBHOOK_URL != ''
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
