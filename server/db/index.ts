@@ -144,7 +144,10 @@ export const connectRedis = async () => {
       socket: {
         connectTimeout: 5000,
         reconnectStrategy: isProduction 
-          ? (retries) => Math.min(retries * 50, 500)
+          ? (retries) => {
+              if (retries > 3) return new Error('Max retries reached, failing over to in-memory cache');
+              return Math.min(retries * 50, 500);
+            }
           : false
       }
     });
