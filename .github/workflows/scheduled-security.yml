@@ -11,10 +11,13 @@ jobs:
     name: Scan Production Image
     runs-on: ubuntu-latest
     steps:
-      - name: Run Trivy vulnerability scanner on GHCR Image
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ github.repository }}:latest'
+          scan-type: 'fs'
           format: 'table'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
