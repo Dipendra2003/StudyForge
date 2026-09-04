@@ -94,7 +94,7 @@
     "multer": "^2.0.2",
     "nanoid": "^6.0.0",
     "node-cron": "^4.2.1",
-    "nodemailer": "^7.0.10",
+    "nodemailer": "^9.0.3",
     "openai": "^4.89.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
