@@ -9,6 +9,7 @@ on:
 
 env:
   IMAGE_NAME: ${{ github.repository }}
+  GEMINI_API_KEY: "dummy_test_key_for_github_actions"
 
 jobs:
   test-and-lint:

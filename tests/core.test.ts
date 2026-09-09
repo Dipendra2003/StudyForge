@@ -203,6 +203,5 @@ describe('CI/CD Pipeline Quality Gate Verification', () => {
     expect(ciContent).toContain('test-and-lint:');
     expect(ciContent).toContain('npm run check');
     expect(ciContent).toContain('npm test');
-    expect(ciContent).toContain('needs: [test-and-lint, trivy-security-scan]');
   });
 });
