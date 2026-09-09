@@ -70,13 +70,14 @@ export function validateEnvironmentVariables(): EnvValidationResult {
   }
 
   // Check for email configuration (Optional but recommended)
+  const hasResend = !!process.env.RESEND_API_KEY;
   const emailVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'];
   const missingEmailVars = emailVars.filter(key => !process.env[key]);
   
-  if (missingEmailVars.length > 0) {
+  if (!hasResend && missingEmailVars.length > 0) {
     warnings.push(
       '⚠️  Email service not fully configured. Email features will be disabled.\n' +
-      '  Missing: ' + missingEmailVars.join(', ') + '\n' +
+      '  Missing: ' + missingEmailVars.join(', ') + ' (or set RESEND_API_KEY)\n' +
       '  Email is required for:\n' +
       '    - Email verification during registration\n' +
       '    - Password reset functionality\n' +

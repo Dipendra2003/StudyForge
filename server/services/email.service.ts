@@ -62,6 +62,9 @@ export class EmailService {
    * @returns true if all required variables are present, false otherwise
    */
   public validateConfiguration(): boolean {
+    if (process.env.RESEND_API_KEY) {
+      return true;
+    }
     const requiredVars = [
       'SMTP_HOST',
       'SMTP_PORT',
@@ -83,6 +86,9 @@ export class EmailService {
    * @returns true if service is configured, false otherwise
    */
   public isReady(): boolean {
+    if (process.env.RESEND_API_KEY) {
+      return true;
+    }
     return this.isConfigured && this.transporter !== null;
   }
   /**
@@ -220,6 +226,35 @@ export class EmailService {
     if (!this.isReady()) {
       throw new Error('Email service is not configured');
     }
+
+    if (process.env.RESEND_API_KEY) {
+      const from = process.env.RESEND_FROM ||
+        (process.env.SMTP_FROM_EMAIL && process.env.SMTP_FROM_NAME
+          ? `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`
+          : 'StudyForge <onboarding@resend.dev>');
+
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to: [to],
+          subject,
+          html,
+          text,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Resend API failed with status ${response.status}`);
+      }
+      return;
+    }
+
     try {
       await this.transporter!.sendMail({
         from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,

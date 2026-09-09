@@ -52,23 +52,4 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
 
-  call-build:
-    name: Build Image
-    needs: [test-and-lint, trivy-security-scan]
-    uses: ./.github/workflows/reusable-build.yml
-    with:
-      image-name: ${{ github.repository }}
-      push: ${{ github.event_name != 'pull_request' }}
-    secrets: inherit
 
-  call-deploy-production:
-    name: Deploy to Production
-    needs: call-build
-    # Only deploy on pushes to main, not on PRs
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/reusable-deploy.yml
-    with:
-      environment: production
-      image-name: ${{ github.repository }}
-      image_tag: ${{ needs.call-build.outputs.image_tag }}
-    secrets: inherit
