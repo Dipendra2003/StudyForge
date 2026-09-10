@@ -82,6 +82,10 @@
     @apply border-[var(--border)];
   }
 
+  html, body {
+    overflow-x: clip;
+  }
+
   body {
     @apply antialiased bg-white dark:bg-slate-950 text-foreground;
     font-family: 'Poppins', 'Inter', system-ui, -apple-system, sans-serif;

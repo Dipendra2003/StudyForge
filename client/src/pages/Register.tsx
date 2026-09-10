@@ -158,39 +158,38 @@ export default function Register() {
               </Alert>
             )}
 
-            <div className="space-y-1">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                name="fullName"
-                type="text"
-                placeholder="StudyForge"
-                value={formData.fullName}
-                onChange={handleChange}
-                required
-                disabled={isLoading}
-                autoComplete="name"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  type="text"
+                  placeholder="John Doe"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                  autoComplete="name"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="StudyForge"
-                value={formData.username}
-                onChange={handleChange}
-                required
-                disabled={isLoading}
-                autoComplete="username"
-                pattern="[a-zA-Z0-9_\-]{3,30}"
-                title="Username must be 3-30 characters and can only contain letters, numbers, underscores, and hyphens"
-              />
-              <p className="text-xs text-muted-foreground">
-                3-30 characters, letters, numbers, underscores, and hyphens only
-              </p>
+              <div className="space-y-1">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="johndoe123"
+                  value={formData.username}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                  autoComplete="username"
+                  pattern="[a-zA-Z0-9_\-]{3,30}"
+                  title="Username must be 3-30 characters and can only contain letters, numbers, underscores, and hyphens"
+                />
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -199,7 +198,7 @@ export default function Register() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="StudyForge@example.com"
+                placeholder="john@example.com"
                 value={formData.email}
                 onChange={handleChange}
                 required
@@ -208,66 +207,68 @@ export default function Register() {
               />
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Create a strong password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Strong password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                At least 8 characters with uppercase, lowercase, number, and special character
-              </p>
-            </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
+              <div className="space-y-1">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Confirm password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground text-center pt-1">
+              Password must be 8+ chars with uppercase, lowercase, number & special char.
+            </p>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-3 pt-2 pb-4">
