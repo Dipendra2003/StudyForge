@@ -55,6 +55,8 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUsernameOrEmail(username: string, email: string): Promise<User | undefined>;
+  getUserByIdentifier(identifier: string): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
   getUserByVerificationOtp(otp: string): Promise<User | undefined>;
   getUserByResetToken(token: string): Promise<User | undefined>;
@@ -292,6 +294,22 @@ export class MemStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
       (user) => user.email.toLowerCase() === email.toLowerCase(),
+    );
+  }
+
+  async getUserByUsernameOrEmail(username: string, email: string): Promise<User | undefined> {
+    const lowerUsername = username.toLowerCase();
+    const lowerEmail = email.toLowerCase();
+    return Array.from(this.users.values()).find(
+      (user) => user.username.toLowerCase() === lowerUsername || user.email.toLowerCase() === lowerEmail,
+    );
+  }
+
+  async getUserByIdentifier(identifier: string): Promise<User | undefined> {
+    const clean = identifier.trim().toLowerCase();
+    const stripped = clean.replace(/^@+/, '');
+    return Array.from(this.users.values()).find(
+      (user) => user.username.toLowerCase() === clean || user.username.toLowerCase() === stripped || user.email.toLowerCase() === clean
     );
   }
 
@@ -1134,7 +1152,7 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-
+      console.error('[DatabaseStorage] Error fetching user by username:', error);
       throw new Error('Failed to fetch user by username');
     }
   }
@@ -1148,8 +1166,38 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       return user;
     } catch (error) {
-
+      console.error('[DatabaseStorage] Error fetching user by email:', error);
       throw new Error('Failed to fetch user by email');
+    }
+  }
+
+  async getUserByUsernameOrEmail(username: string, email: string): Promise<User | undefined> {
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(or(eq(users.username, username), eq(users.email, email)))
+        .limit(1);
+      return user;
+    } catch (error) {
+      console.error('[DatabaseStorage] Error fetching user by username or email:', error);
+      throw new Error('Failed to fetch user by username or email');
+    }
+  }
+
+  async getUserByIdentifier(identifier: string): Promise<User | undefined> {
+    try {
+      const clean = identifier.trim();
+      const stripped = clean.replace(/^@+/, '');
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(or(eq(users.username, clean), eq(users.username, stripped), eq(users.email, clean)))
+        .limit(1);
+      return user;
+    } catch (error) {
+      console.error('[DatabaseStorage] Error fetching user by identifier:', error);
+      throw new Error('Failed to fetch user by identifier');
     }
   }
 
@@ -1221,10 +1269,9 @@ export class DatabaseStorage implements IStorage {
         })
         .returning();
       
-      // Fetch the created user
-      return await this.getUser(toNumberId(user.id)) as User;
+      return user as User;
     } catch (error) {
-
+      console.error('[DatabaseStorage] Error creating user:', error);
       throw new Error('Failed to create user');
     }
   }
@@ -1232,17 +1279,18 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
     try {
       const now = new Date();
-      await db
+      const [updatedUser] = await db
         .update(users)
         .set({
           ...userData,
           updatedAt: now,
         })
-        .where(eq(users.id, id));
+        .where(eq(users.id, id))
+        .returning();
       
-      return await this.getUser(id);
+      return updatedUser as User | undefined;
     } catch (error) {
-
+      console.error('[DatabaseStorage] Error updating user:', error);
       throw new Error('Failed to update user');
     }
   }

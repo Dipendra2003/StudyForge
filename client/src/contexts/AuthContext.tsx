@@ -45,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = data.data?.user;
         if (userData) {
           setUser(userData);
+          localStorage.setItem('sf_has_session', 'true');
         } else {
           // Fallback: fetch user data separately if not included in refresh response
           const userResponse = await fetch('/api/auth/me', {
@@ -53,22 +54,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (userResponse.ok) {
             const meData = await userResponse.json();
             setUser(meData.user || null);
+            if (meData.user) {
+              localStorage.setItem('sf_has_session', 'true');
+            } else {
+              localStorage.removeItem('sf_has_session');
+            }
           } else {
             setUser(null);
+            localStorage.removeItem('sf_has_session');
           }
         }
       } else {
         setUser(null);
+        localStorage.removeItem('sf_has_session');
       }
     } catch (error) {
-
       setUser(null);
+      localStorage.removeItem('sf_has_session');
     }
   };
 
   const checkAuth = async () => {
     // Prevent multiple simultaneous auth checks
     if (isCheckingAuth) {
+      return;
+    }
+
+    // Skip unnecessary 401 calls on public pages if there is no session hint
+    const hasSessionHint = typeof window !== 'undefined' && localStorage.getItem('sf_has_session') === 'true';
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+    const isPublicPath = ['/', '', '/about', '/pricing', '/help', '/contact', '/privacy-policy', '/terms', '/login', '/register', '/forgot-password', '/reset-password', '/verify-email'].includes(currentPath);
+
+    if (!hasSessionHint && isPublicPath) {
+      setUser(null);
+      setIsLoading(false);
       return;
     }
 
@@ -85,16 +104,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (userData) {
           setUser(userData);
+          localStorage.setItem('sf_has_session', 'true');
         } else {
           setUser(null);
+          localStorage.removeItem('sf_has_session');
         }
       } else {
         // Token invalid, try to refresh
         await refreshAuth();
       }
     } catch (error) {
-
       setUser(null);
+      localStorage.removeItem('sf_has_session');
     } finally {
       setIsLoading(false);
       setIsCheckingAuth(false);
@@ -102,8 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (identifier: string, password: string) => {
-
-    
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: {
@@ -115,9 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const result = await response.json();
 
-
     if (!response.ok) {
-
       throw new Error(result.message || 'Login failed');
     }
 
@@ -125,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userData = result.data?.user || result.user;
 
     setUser(userData);
+    localStorage.setItem('sf_has_session', 'true');
   };
 
   const register = async (username: string, email: string, password: string, fullName: string) => {
@@ -162,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     } finally {
       setUser(null);
+      localStorage.removeItem('sf_has_session');
       // Clear all session storage items related to navigation
       sessionStorage.removeItem('lastVisitedPage');
       sessionStorage.removeItem('redirectAfterLogin');

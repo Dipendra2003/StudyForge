@@ -177,13 +177,12 @@ export class JWTService {
    * Generate token pair (access + refresh tokens)
    */
   async generateTokenPair(
-    userData: { userId: number; username: string; email: string; emailVerified: boolean },
+    userData: { userId: number; username: string; email: string; emailVerified: boolean; role?: string },
     ipAddress?: string,
     userAgent?: string
   ): Promise<TokenPair> {
     try {
-      const user = await storage.getUser(userData.userId);
-      const role = user?.role || 'user';
+      const role = userData.role || (await storage.getUser(userData.userId))?.role || 'user';
 
       const accessToken = this.generateAccessToken(userData.userId, role);
       const refreshToken = this.generateRefreshToken(userData.userId, role);
@@ -327,7 +326,7 @@ export const jwtService = {
   },
 
   async generateTokenPair(
-    userData: { userId: number; username: string; email: string; emailVerified: boolean },
+    userData: { userId: number; username: string; email: string; emailVerified: boolean; role?: string },
     ipAddress?: string,
     userAgent?: string
   ): Promise<TokenPair> {

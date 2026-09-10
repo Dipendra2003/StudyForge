@@ -27,8 +27,8 @@ const connectPostgres = async () => {
     // Create postgres connection client
     const queryClient = postgres(databaseUrl, { 
       max: process.env.DB_CONNECTION_LIMIT ? parseInt(process.env.DB_CONNECTION_LIMIT) : (process.env.NODE_ENV === 'production' ? 50 : 10),
-      idle_timeout: process.env.DB_IDLE_TIMEOUT_SECONDS ? parseInt(process.env.DB_IDLE_TIMEOUT_SECONDS) : 60,
-      connect_timeout: process.env.DB_CONNECT_TIMEOUT_SECONDS ? parseInt(process.env.DB_CONNECT_TIMEOUT_SECONDS) : 10,
+      idle_timeout: process.env.DB_IDLE_TIMEOUT_SECONDS ? parseInt(process.env.DB_IDLE_TIMEOUT_SECONDS) : 300,
+      connect_timeout: process.env.DB_CONNECT_TIMEOUT_SECONDS ? parseInt(process.env.DB_CONNECT_TIMEOUT_SECONDS) : 30,
       onnotice: () => {} // Suppress noisy postgres schema verification notices
     });
     

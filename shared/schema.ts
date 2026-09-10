@@ -955,9 +955,9 @@ export const codeGenerationSchema = z.object({
 // Registration schema
 export const registerSchema = z.object({
   username: z.string()
-    .min(3, "Username must be at least 3 characters")
+    .min(2, "Username must be at least 2 characters")
     .max(30, "Username must not exceed 30 characters")
-    .regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, "Username must start with a letter and contain only letters, numbers, underscores, and hyphens"),
+    .regex(/^[a-zA-Z0-9._-]+$/, "Username can only contain letters, numbers, dots, underscores, and hyphens"),
   email: z.string()
     .email("Invalid email format")
     .max(100, "Email must not exceed 100 characters"),

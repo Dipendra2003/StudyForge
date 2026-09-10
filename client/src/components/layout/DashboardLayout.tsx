@@ -78,7 +78,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-screen h-[100dvh] bg-background flex overflow-hidden">
       {/* Sidebar for desktop - Fixed position */}
       <motion.aside
         initial={false}
@@ -86,7 +86,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           width: isSidebarCollapsed ? "80px" : "256px",
         }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="hidden md:flex flex-col border-r bg-card relative h-screen"
+        className="hidden md:flex flex-col border-r bg-card relative h-screen h-[100dvh]"
       >
         {/* Toggle Button */}
         <Button
@@ -241,9 +241,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </motion.aside>
 
       {/* Main content area - Takes remaining space */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen h-[100dvh] overflow-hidden min-w-0">
         {/* Header for mobile - Fixed at top */}
-        <header className="md:hidden border-b px-4 py-3 bg-card flex-shrink-0 sticky top-0 z-40">
+        <header className="md:hidden border-b px-4 py-3 bg-card/95 backdrop-blur-md flex-shrink-0 sticky top-0 z-40">
           <div className="flex items-center justify-between">
             <Link href="/">
               <div className="flex items-center space-x-2 cursor-pointer">
@@ -301,11 +301,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </ul>
                   </nav>
                   
-                  {/* Fixed user menu at bottom */}
-                  <div className="px-3 py-4 border-t flex-shrink-0 space-y-1 bg-card">
-                    <div className="flex items-center px-3 py-2 mb-2 bg-accent/50 rounded-md">
-                      <User className="mr-2 h-4 w-4 text-primary" />
-                      <span className="font-medium truncate text-sm">{user?.fullName || user?.username || "User"}</span>
+                  {/* Fixed footer at bottom of drawer */}
+                  <div className="p-4 border-t bg-muted/30 flex-shrink-0 space-y-2">
+                    <div className="flex items-center justify-between px-2 mb-2">
+                      <span className="text-xs text-muted-foreground font-medium">Appearance</span>
+                      <ThemeToggle />
                     </div>
                     <SheetClose asChild>
                       <Link href="/profile">
@@ -341,7 +341,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Main content - Scrollable area */}
-        <main id="main-content" className="flex-1 overflow-y-auto overflow-x-hidden bg-background" role="main">
+        <main id="main-content" className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden bg-background" role="main">
           {children}
         </main>
       </div>

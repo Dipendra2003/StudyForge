@@ -185,30 +185,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User registration - PROTECTED with email rate limiting to prevent spam
   app.post('/api/auth/register', emailRateLimiter, async (req: Request, res: Response) => {
     try {
+      if (req.body && req.body.username) {
+        req.body.username = String(req.body.username).replace(/^@+/, '').trim();
+      }
       const userData = registerSchema.parse(req.body);
       Logger.auth('Registration attempt started', {
         action: 'register',
         username: userData.username,
         email: userData.email,
       });
-      // Check if username or email already exists
-      const existingUserByUsername = await storage.getUserByUsername(userData.username);
-      if (existingUserByUsername) {
-        Logger.security('Registration failed - username already exists', {
-          action: 'register',
-          username: userData.username,
-          reason: 'duplicate_username',
-        });
-        return res.status(409).json({ message: "Username already exists" });
-      }
-      const existingUserByEmail = await storage.getUserByEmail(userData.email);
-      if (existingUserByEmail) {
-        Logger.security('Registration failed - email already in use', {
-          action: 'register',
-          email: userData.email,
-          reason: 'duplicate_email',
-        });
-        return res.status(409).json({ message: "Email address already in use" });
+      // Fast single-query check if username or email already exists
+      const existingUser = await storage.getUserByUsernameOrEmail(userData.username, userData.email);
+      if (existingUser) {
+        if (existingUser.username.toLowerCase() === userData.username.toLowerCase()) {
+          Logger.security('Registration failed - username already exists', {
+            action: 'register',
+            username: userData.username,
+            reason: 'duplicate_username',
+          });
+          return res.status(409).json({ message: "Username already exists" });
+        } else {
+          Logger.security('Registration failed - email already in use', {
+            action: 'register',
+            email: userData.email,
+            reason: 'duplicate_email',
+          });
+          return res.status(409).json({ message: "Email address already in use" });
+        }
       }
       // Hash password with bcrypt (salt rounds = 10)
       const hashedPassword = await bcrypt.hash(userData.password, 10);
@@ -239,18 +242,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       // Generate verification link for development mode
       const verificationLink = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
-      // Send verification email with link and OTP
-      try {
-        await emailService.sendVerificationEmail(
-          user.id,
-          user.email,
-          user.username,
-          verificationToken,
-          verificationOtp
-        );
-      } catch (emailError) {
-        // Email service already logs the error
-      }
+      // Send verification email in background without blocking response
+      emailService.sendVerificationEmail(
+        user.id,
+        user.email,
+        user.username,
+        verificationToken,
+        verificationOtp
+      ).catch((emailError) => {
+        Logger.error(LogCategory.SYSTEM, 'Verification email dispatch failed in background', emailError as Error);
+      });
       Logger.auth('Registration completed successfully', {
         action: 'register',
         userId: user.id,
@@ -290,11 +291,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.status(400).json({ message: "Username/Email and password are required" });
       }
-      // Try to find user by username first, then by email
-      let user = await storage.getUserByUsername(identifier);
-      if (!user) {
-        user = await storage.getUserByEmail(identifier);
-      }
+      // Fast single-query user lookup by username, @handle, or email
+      const user = await storage.getUserByIdentifier(identifier);
       // Return 401 for invalid credentials (user not found or password mismatch)
       if (!user) {
         Logger.security('Login failed - user not found', {
@@ -335,13 +333,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() 
         || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
-      // Generate JWT token pair with session tracking
+      // Generate JWT token pair with session tracking (passing role to avoid extra DB query)
       const tokenPair = await jwtService.generateTokenPair(
         {
           userId: user.id,
           username: user.username,
           email: user.email,
           emailVerified: user.emailVerified ?? false,
+          role: user.role || 'user',
         },
         ipAddress,
         userAgent
@@ -928,6 +927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: user.username,
           email: user.email,
           emailVerified: user.emailVerified ?? false,
+          role: user.role || 'user',
         },
         ipAddress,
         userAgent

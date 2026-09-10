@@ -700,12 +700,12 @@ export default function Chat() {
 
   return (
     <DashboardLayout>
-      <div className="h-full flex bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="flex-1 flex min-w-0 h-full overflow-hidden bg-gradient-to-br from-background via-background to-primary/5">
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full overflow-hidden">
         {/* Header */}
-        <div className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="border-b bg-card/80 backdrop-blur-md flex-shrink-0 z-10">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="relative">
@@ -848,7 +848,7 @@ export default function Chat() {
         </div>
 
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto relative" ref={messagesContainerRef}>
+        <div className="flex-1 min-h-0 overflow-y-auto relative scroll-smooth" ref={messagesContainerRef}>
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-4xl">
             {/* Welcome Screen - Show when only system message exists */}
             {messages.length === 1 && messages[0].role === 'system' && (
@@ -1155,9 +1155,9 @@ export default function Chat() {
           </AnimatePresence>
         </div>
 
-        {/* Input Area */}
-        <div className="border-t bg-card/50 backdrop-blur-sm sticky bottom-0">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2 max-w-4xl">
+        {/* Input Area - Fixed at bottom */}
+        <div className="border-t bg-card/80 backdrop-blur-md flex-shrink-0 z-10">
+          <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 max-w-4xl">
             {/* Quick Actions - Show when input is empty */}
             {!input && messages.length > 1 && showQuickActions && (
               <div className="mb-2">
@@ -1216,7 +1216,7 @@ export default function Chat() {
               {/* File Preview */}
               <FilePreviewChips files={files} onRemove={(index) => setFiles(prev => prev.filter((_, i) => i !== index))} />
 
-              <div className="relative flex items-end gap-2 p-1.5 rounded-xl border border-border bg-background hover:border-primary/50 transition-colors focus-within:border-primary">
+              <div className="relative flex items-end gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-border bg-background shadow-xs hover:border-primary/50 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
                 <AttachmentMenu 
                   onSelectFiles={(selectedFiles) => {
                     if (selectedFiles) {
@@ -1232,35 +1232,35 @@ export default function Chat() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Ask any study question... (Shift + Enter for new line)"
-                  className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[40px] max-h-[200px] text-sm"
+                  placeholder="Ask any study question..."
+                  className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[38px] max-h-[160px] py-2 px-2 text-sm leading-relaxed overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                   rows={1}
                   maxLength={10000}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
                     target.style.height = 'auto';
-                    target.style.height = Math.min(target.scrollHeight, 200) + 'px';
+                    target.style.height = `${Math.min(target.scrollHeight, 160)}px`;
                   }}
                 />
                 <Button 
                   type="submit" 
                   size="icon"
-                  className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all flex-shrink-0"
+                  className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all flex-shrink-0 mb-0.5 shadow-xs flex items-center justify-center"
                   disabled={isStreaming || isTyping || isSubmitting || (!input.trim() && files.length === 0)}
                 >
                   {isStreaming || isTyping || isSubmitting ? (
-                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Send className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Send className="h-4 w-4" />
                   )}
                 </Button>
               </div>
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-xs text-muted-foreground">
+              <div className="flex items-center justify-between mt-1.5 px-1">
+                <p className="text-[11px] sm:text-xs text-muted-foreground">
                   {input.length}/10000 characters
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Press <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">Shift</kbd> + <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">Enter</kbd> for new line
+                <p className="hidden sm:block text-[11px] sm:text-xs text-muted-foreground">
+                  Press <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted rounded border border-border">Shift</kbd> + <kbd className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted rounded border border-border">Enter</kbd> for new line
                 </p>
               </div>
             </form>

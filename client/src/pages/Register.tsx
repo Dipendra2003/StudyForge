@@ -27,9 +27,14 @@ export default function Register() {
   const { toast } = useToast();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    if (e.target.name === 'username') {
+      // Auto-strip leading @ if the user types or pastes @username
+      value = value.replace(/^@+/, '');
+    }
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: value,
     });
   };
 
@@ -165,7 +170,7 @@ export default function Register() {
                   id="fullName"
                   name="fullName"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Study Forge"
                   value={formData.fullName}
                   onChange={handleChange}
                   required
@@ -176,19 +181,25 @@ export default function Register() {
 
               <div className="space-y-1">
                 <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder="johndoe123"
-                  value={formData.username}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                  autoComplete="username"
-                  pattern="[a-zA-Z0-9_\-]{3,30}"
-                  title="Username must be 3-30 characters and can only contain letters, numbers, underscores, and hyphens"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm select-none">
+                    @
+                  </span>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="yourhandle"
+                    value={formData.username}
+                    onChange={handleChange}
+                    required
+                    disabled={isLoading}
+                    autoComplete="username"
+                    className="pl-7"
+                    pattern="[a-zA-Z0-9._\-]{2,30}"
+                    title="Username can contain letters, numbers, dots (.), hyphens (-), and underscores (_) (2-30 characters)"
+                  />
+                </div>
               </div>
             </div>
 

@@ -60,8 +60,8 @@ export const SANITIZATION_CONFIG = {
   
   // Patterns for validation
   patterns: {
-    // Username: 3-30 alphanumeric characters, underscores, hyphens, not starting with number
-    username: /^[a-zA-Z_][a-zA-Z0-9_-]{2,29}$/,
+    // Username: 2-30 characters (letters, numbers, dots, underscores, hyphens)
+    username: /^[a-zA-Z0-9._-]{2,30}$/,
     
     // Email: standard email format
     email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -78,12 +78,22 @@ export const SECURITY_HEADERS = {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Note: unsafe-eval needed for Vite in dev
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+        "https://cdnjs.cloudflare.com",
+      ],
       imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'", "https:", "wss:", "ws:"],
+      fontSrc: [
+        "'self'",
+        "data:",
+        "https://fonts.gstatic.com",
+        "https://cdnjs.cloudflare.com",
+      ],
       objectSrc: ["'self'"], // Required for browser native PDF viewer plugins
-      mediaSrc: ["'self'"],
+      mediaSrc: ["'self'", "https:"],
       frameSrc: ["'self'"],
     },
   },

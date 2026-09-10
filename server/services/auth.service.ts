@@ -221,25 +221,21 @@ export class AuthService {
    * Validate username
    */
   validateUsername(username: string): { valid: boolean; error?: string } {
-    if (username.length < 3) {
-      return { valid: false, error: 'Username must be at least 3 characters long' };
+    const clean = username.replace(/^@+/, '').trim();
+    if (clean.length < 2) {
+      return { valid: false, error: 'Username must be at least 2 characters long' };
     }
 
-    if (username.length > 30) {
+    if (clean.length > 30) {
       return { valid: false, error: 'Username must not exceed 30 characters' };
     }
 
-    // Only allow alphanumeric characters, underscores, and hyphens
-    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+    // Allow alphanumeric characters, periods, underscores, and hyphens (like Instagram & modern platforms)
+    if (!/^[a-zA-Z0-9._-]+$/.test(clean)) {
       return {
         valid: false,
-        error: 'Username can only contain letters, numbers, underscores, and hyphens'
+        error: 'Username can only contain letters, numbers, periods, underscores, and hyphens'
       };
-    }
-
-    // Username cannot start with a number
-    if (/^\d/.test(username)) {
-      return { valid: false, error: 'Username cannot start with a number' };
     }
 
     return { valid: true };

@@ -84,7 +84,7 @@ const CODE_TEMPLATES = {
   typescript: {
     "Modern Features": 'interface User {\n  id: number;\n  name: string;\n  role?: "admin" | "user";\n}\n\n// Nullish Coalescing & Optional Chaining\nconst processUser = (user?: User) => {\n  const role = user?.role ?? "guest";\n  console.log(`User role is: ${role}`);\n};\n\n// Record Utility Type\nconst users: Record<number, User> = {\n  1: { id: 1, name: "Alice", role: "admin" }\n};\n\nprocessUser(users[1]);\nprocessUser(undefined);',
     "Hello World": 'const message: string = "Hello, World!";\nconsole.log(message);',
-    "Interface Example": 'interface User {\n  id: number;\n  name: string;\n  email: string;\n  age?: number;\n}\n\nconst user: User = {\n  id: 1,\n  name: "John Doe",\n  email: "john@example.com"\n};\n\nconsole.log(user);',
+    "Interface Example": 'interface User {\n  id: number;\n  name: string;\n  email: string;\n  age?: number;\n}\n\nconst user: User = {\n  id: 1,\n  name: "Study Forge",\n  email: "john@example.com"\n};\n\nconsole.log(user);',
     "Generic Function": 'function identity<T>(arg: T): T {\n  return arg;\n}\n\nconst num = identity<number>(42);\nconst str = identity<string>("Hello");\n\nconsole.log(num, str);',
     "Class with Types": 'class Calculator {\n  add(a: number, b: number): number {\n    return a + b;\n  }\n  \n  subtract(a: number, b: number): number {\n    return a - b;\n  }\n  \n  multiply(a: number, b: number): number {\n    return a * b;\n  }\n}\n\nconst calc = new Calculator();\nconsole.log(calc.add(5, 3));',
     "Enum Example": 'enum Color {\n  Red = "RED",\n  Green = "GREEN",\n  Blue = "BLUE"\n}\n\nfunction getColorMessage(color: Color): string {\n  switch(color) {\n    case Color.Red:\n      return "Stop!";\n    case Color.Green:\n      return "Go!";\n    case Color.Blue:\n      return "Caution!";\n  }\n}\n\nconsole.log(getColorMessage(Color.Red));',
@@ -122,7 +122,7 @@ const CODE_TEMPLATES = {
   sql: {
     "Select Query": 'SELECT * FROM users\nWHERE age > 18\nORDER BY name ASC\nLIMIT 10;',
     "Join Query": 'SELECT u.name, o.order_date, o.total\nFROM users u\nINNER JOIN orders o ON u.id = o.user_id\nWHERE o.total > 100\nORDER BY o.order_date DESC;',
-    "Insert Data": 'INSERT INTO users (name, email, age)\nVALUES \n  (\'John Doe\', \'john@example.com\', 30),\n  (\'Jane Smith\', \'jane@example.com\', 25);',
+    "Insert Data": 'INSERT INTO users (name, email, age)\nVALUES \n  (\'Study Forge\', \'john@example.com\', 30),\n  (\'Jane Smith\', \'jane@example.com\', 25);',
     "Update Data": 'UPDATE users\nSET age = age + 1,\n    updated_at = CURRENT_TIMESTAMP\nWHERE id = 1;',
     "Create Table": 'CREATE TABLE users (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(100) NOT NULL,\n  email VARCHAR(100) UNIQUE NOT NULL,\n  age INT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);',
     "Aggregate Functions": 'SELECT \n  COUNT(*) as total_users,\n  AVG(age) as average_age,\n  MIN(age) as youngest,\n  MAX(age) as oldest\nFROM users\nWHERE active = 1;',
