@@ -123,9 +123,7 @@ export default function WelcomeModal({ onClose }: WelcomeModalProps) {
               {currentStep < steps.length - 1 ? (
                 <Button onClick={handleNext}>Next</Button>
               ) : (
-                <Link href="/register">
-                  <Button onClick={onClose}>Get Started</Button>
-                </Link>
+                <Button onClick={onClose}>Get Started</Button>
               )}
             </div>
           </div>
