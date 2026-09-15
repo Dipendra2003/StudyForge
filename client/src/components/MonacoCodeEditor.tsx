@@ -1,26 +1,14 @@
 import { useRef, useState, useEffect } from "react";
 import Editor, { OnMount, Monaco, loader } from "@monaco-editor/react";
 
-import * as monaco from "monaco-editor";
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker.js?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker.js?worker";
-import cssWorker from "monaco-editor/esm/vs/language/css/css.worker.js?worker";
-import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker.js?worker";
-import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker.js?worker";
-
-// Completely bypass CDNs and bundle Monaco locally using Vite workers.
-// This guarantees it loads regardless of ISP blocks or network issues.
-self.MonacoEnvironment = {
-  getWorker(_, label) {
-    if (label === "json") return new jsonWorker();
-    if (label === "css" || label === "scss" || label === "less") return new cssWorker();
-    if (label === "html" || label === "handlebars" || label === "razor") return new htmlWorker();
-    if (label === "typescript" || label === "javascript") return new tsWorker();
-    return new editorWorker();
+// Configure Monaco Editor to use unpkg CDN instead of the default jsdelivr.
+// jsdelivr is frequently blocked by ISPs in certain regions (like India), which causes the editor to hang on "Loading editor..."
+// We use unpkg as it perfectly mirrors the NPM package structure required by Monaco's loader.
+loader.config({
+  paths: {
+    vs: "https://unpkg.com/monaco-editor@0.43.0/min/vs",
   },
-};
-
-loader.config({ monaco });
+});
 import { editor } from "monaco-editor";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/ui/icons";
