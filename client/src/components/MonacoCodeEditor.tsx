@@ -1,11 +1,12 @@
 import { useRef, useState, useEffect } from "react";
 import Editor, { OnMount, Monaco, loader } from "@monaco-editor/react";
 
-// Configure Monaco Editor to use Cloudflare CDN instead of the default jsdelivr.
+// Configure Monaco Editor to use unpkg CDN instead of the default jsdelivr.
 // jsdelivr is frequently blocked by ISPs in certain regions (like India), which causes the editor to hang on "Loading editor..."
+// We use unpkg as it perfectly mirrors the NPM package structure required by Monaco's loader.
 loader.config({
   paths: {
-    vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.43.0/min/vs",
+    vs: "https://unpkg.com/monaco-editor@0.43.0/min/vs",
   },
 });
 import { editor } from "monaco-editor";
