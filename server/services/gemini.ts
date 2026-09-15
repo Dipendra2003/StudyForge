@@ -62,10 +62,23 @@ export interface StudyPlanData {
   title: string;
   description: string;
   scheduleData: Array<{
-    day: number;
+    id?: string;
+    day?: number;
+    dayNumber?: number;
     title: string;
-    tasks: string[];
+    description?: string;
+    tasks?: string[];
+    duration?: number;
+    completed?: boolean;
+    difficulty?: string;
+    type?: string;
+    prerequisites?: string[];
     resources?: string[];
+    reviewDay?: boolean;
+    actionType?: "quiz" | "flashcards" | "read";
+    actionQuery?: string;
+    scheduledDate?: string | null;
+    reminderSent?: boolean;
   }>;
 }
 
@@ -1592,6 +1605,61 @@ IMPORTANT: Provide ONLY the JSON object. Do not wrap the response in markdown co
    * Generate a study plan with intelligent scheduling
    * Enhanced with spaced repetition, difficulty progression, and realistic time estimates
    */
+  /**
+   * Intelligently build structured study items from syllabus topics when AI is unavailable
+   */
+  createFallbackStudyPlan(
+    subject: string,
+    durationDays: number,
+    goal: string,
+    dailyTime: number = 60
+  ): StudyPlanData {
+    const rawTopics = (goal || subject || 'Core Fundamentals')
+      .split(/[\n;•]+|(?:\d+\.\s+)|(?:\s*-\s*)/)
+      .map(t => t.trim().replace(/^[:,\s]+/, ''))
+      .filter(t => t.length > 3);
+    
+    const count = Math.max(3, Math.min(durationDays || 7, 14));
+    const scheduleData: any[] = [];
+    
+    for (let i = 0; i < count; i++) {
+      const topic = rawTopics[i % Math.max(1, rawTopics.length)] || `${subject || 'Study'} - Module ${i + 1}`;
+      const isReview = (i > 0 && (i + 1) % 4 === 0) || i === count - 1;
+      const difficulty = i < count * 0.3 ? 'easy' : i < count * 0.7 ? 'medium' : 'hard';
+      const type = isReview ? 'review' : i === count - 1 ? 'assessment' : 'learning';
+      
+      scheduleData.push({
+        id: String(i + 1),
+        title: isReview ? `Day ${i + 1}: Review & Self-Assessment` : `Day ${i + 1}: ${topic.slice(0, 50)}`,
+        description: isReview 
+          ? `Review key concepts, test active recall, and consolidate knowledge learned so far.`
+          : `Study ${topic.slice(0, 80)}. Practice problem solving and master core principles.`,
+        duration: dailyTime,
+        completed: false,
+        dayNumber: i + 1,
+        difficulty,
+        type,
+        prerequisites: i > 0 ? [String(i)] : [],
+        resources: ['Textbook & Official Docs', 'Practice Problems', 'Video Lectures'],
+        reviewDay: isReview,
+        actionType: 'quiz' as const,
+        actionQuery: topic.slice(0, 40),
+        scheduledDate: null,
+        reminderSent: false,
+      });
+    }
+
+    return {
+      title: subject ? `${subject} Study Plan` : 'Comprehensive Study Plan',
+      description: goal || `Targeted study roadmap for ${subject}`,
+      scheduleData,
+    };
+  }
+
+  /**
+   * Generate a study plan with intelligent scheduling
+   * Enhanced with spaced repetition, difficulty progression, and realistic time estimates
+   */
   async generateStudyPlan(
     subject: string,
     durationDays: number,
@@ -1608,28 +1676,23 @@ IMPORTANT: Provide ONLY the JSON object. Do not wrap the response in markdown co
     const level = preferences?.currentLevel || 'beginner';
     const timeOfDay = preferences?.preferredTimeOfDay || 'flexible';
     const learningStyle = preferences?.learningStyle || 'reading';
+    const effectiveDuration = (!durationDays || isNaN(durationDays) || durationDays <= 0) ? 7 : Math.min(durationDays, 14);
 
-    const prompt = `Create an intelligent ${durationDays}-day study plan for: "${subject}"
+    try {
+      const prompt = `Create an intelligent ${effectiveDuration}-day study plan for: "${subject}"
 
-Goal: ${goal}
+Goal: ${goal.slice(0, 1000)}
 Current Level: ${level}
 Daily Time Available: ${dailyTime} minutes
 Preferred Study Time: ${timeOfDay}
 Learning Style: ${learningStyle}
 
 LEARNING SCIENCE PRINCIPLES TO APPLY:
-1. Spaced Repetition: Review previous concepts at increasing intervals (Day 1, Day 3, Day 7, etc.)
+1. Spaced Repetition: Review previous concepts at increasing intervals
 2. Difficulty Progression: Start with fundamentals, gradually increase complexity
 3. Active Recall: Include practice exercises and self-testing
 4. Interleaving: Mix different topics to improve retention
 5. Realistic Time Estimates: Account for breaks and cognitive load
-
-SCHEDULE STRUCTURE:
-- Days 1-3: Foundation building (easier, shorter sessions)
-- Days 4-7: Core concepts (moderate difficulty)
-- Days 8+: Advanced topics + review sessions
-- Include review days every 3-4 days
-- Final day: Comprehensive review and assessment
 
 Return the response in the following JSON format:
 {
@@ -1640,7 +1703,7 @@ Return the response in the following JSON format:
       "id": "1",
       "title": "Day 1: Foundation - [Topic]",
       "description": "Specific learning objectives and activities",
-      "duration": 60,
+      "duration": ${dailyTime},
       "completed": false,
       "dayNumber": 1,
       "difficulty": "easy",
@@ -1655,80 +1718,67 @@ Return the response in the following JSON format:
 }
 
 IMPORTANT:
-- Generate exactly ${durationDays} items in the scheduleData array
+- Generate exactly ${effectiveDuration} items in the scheduleData array
 - Each item must have: id, title, description, duration, completed, dayNumber, difficulty, type, prerequisites, resources, reviewDay, actionType, actionQuery
-- Duration should respect the ${dailyTime} minute daily limit (can be 30-${dailyTime} minutes)
-- Include at least ${Math.floor(durationDays / 4)} review days (reviewDay: true)
-- Difficulty progression: easy → medium → hard
-- Types: "learning", "practice", "review", "assessment"
 - actionType MUST be exactly one of: "quiz", "flashcards", or "read"
-- actionQuery MUST be a short, specific search term or topic related to the item (e.g. "React Hooks basics")
-- Prerequisites: array of item IDs that should be completed first
-- Resources: array of recommended resource types (videos, articles, exercises, etc.)
-- Keep descriptions actionable and specific (what to learn, what to practice)
-- Provide ONLY valid JSON without any markdown formatting, code blocks, or additional text`;
+- actionQuery MUST be a short specific search term (e.g. "Software Testing basics")
+- Provide ONLY valid JSON`;
 
-    const response = await this.generateContent(
-      prompt,
-      { temperature: 0.7, maxOutputTokens: 4096 },
-      userId
-    );
+      const response = await this.generateContent(
+        prompt,
+        { temperature: 0.7, maxOutputTokens: 4096, responseMimeType: 'application/json' },
+        userId
+      );
 
-    try {
-      // Extract JSON from response
       let jsonStr = response.trim();
-      
-      // Remove markdown code blocks if present
       jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
       
-      // Find JSON object
       const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON object found in response');
       }
       
-      let data;
+      let data: any;
       try {
         data = JSON.parse(jsonMatch[0]);
       } catch (parseError) {
-        // Try to repair common JSON issues
-        let repairedJson = jsonMatch[0];
-        
-        // Remove trailing commas before closing brackets
-        repairedJson = repairedJson.replace(/,(\s*[}\]])/g, '$1');
-        
-        // Try parsing again
+        let repairedJson = jsonMatch[0].replace(/,(\s*[}\]])/g, '$1');
         data = JSON.parse(repairedJson);
       }
-      
-      if (!data.title || !data.scheduleData || !Array.isArray(data.scheduleData)) {
-        throw new Error('Invalid study plan data: missing title or scheduleData');
+
+      const rawItems = data.scheduleData || data.schedule || data.items || data.plan || [];
+      const itemsList = Array.isArray(rawItems) ? rawItems : (typeof rawItems === 'object' ? Object.values(rawItems) : []);
+
+      if (itemsList.length === 0) {
+        throw new Error('Empty scheduleData generated by model');
       }
 
-      // Ensure each item has required fields with enhanced metadata
-      const scheduleData = data.scheduleData.map((item: any, index: number) => ({
-        id: item.id || String(index + 1),
-        title: item.title || `Day ${index + 1}`,
-        description: item.description || '',
-        duration: typeof item.duration === 'number' ? item.duration : 60,
+      const scheduleData = itemsList.map((item: any, index: number) => ({
+        id: String(item.id || index + 1),
+        title: item.title || `Day ${index + 1}: Study Session`,
+        description: item.description || `Study session covering key principles.`,
+        duration: typeof item.duration === 'number' ? item.duration : dailyTime,
         completed: false,
         dayNumber: item.dayNumber || index + 1,
-        difficulty: item.difficulty || 'medium',
+        difficulty: item.difficulty || (index === 0 ? 'easy' : index < itemsList.length - 1 ? 'medium' : 'hard'),
         type: item.type || 'learning',
         prerequisites: Array.isArray(item.prerequisites) ? item.prerequisites : [],
-        resources: Array.isArray(item.resources) ? item.resources : [],
-        reviewDay: item.reviewDay || false,
-        scheduledDate: null, // Will be set when plan is created
+        resources: Array.isArray(item.resources) && item.resources.length > 0 ? item.resources : ['Course Notes', 'Practice Problems'],
+        reviewDay: Boolean(item.reviewDay),
+        actionType: (['quiz', 'flashcards', 'read'].includes(item.actionType) ? item.actionType : 'quiz') as 'quiz' | 'flashcards' | 'read',
+        actionQuery: item.actionQuery || (item.title ? item.title.replace(/^Day\s*\d+:\s*/i, '').slice(0, 40) : subject),
+        scheduledDate: null,
         reminderSent: false,
       }));
 
       return {
-        title: data.title,
-        description: data.description || '',
-        scheduleData: scheduleData,
+        title: data.title || subject || 'Study Plan',
+        description: data.description || goal || '',
+        scheduleData,
       };
     } catch (error) {
-      throw new Error('Failed to parse study plan response: ' + (error as Error).message);
+      console.warn('[GEMINI_STUDY_PLAN_WARN] Gemini generation failed, using intelligent fallback:', (error as Error).message);
+      return this.createFallbackStudyPlan(subject, effectiveDuration, goal, dailyTime);
     }
   }
 

@@ -4551,7 +4551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!topic) {
         return res.status(400).json({ message: "Topic is required" });
       }
-      const duration = durationDays || 7;
+      const duration = (!durationDays || isNaN(durationDays) || durationDays <= 0) ? 7 : Math.min(durationDays, 14);
       const studyGoal = goal || `Learn ${topic}`;
       // Import and use the Gemini service with enhanced preferences
       const { geminiService } = await import('./services/gemini');
@@ -4565,20 +4565,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preferences // Pass user preferences for intelligent scheduling
         );
       } catch (error) {
-
-        return res.status(500).json({ message: "Failed to generate study plan" });
+        console.error('[STUDY_PLAN_GENERATE_ERROR]', error);
+        planData = geminiService.createFallbackStudyPlan(
+          topic,
+          duration,
+          studyGoal,
+          preferences?.dailyTimeAvailable || 60
+        );
       }
       // Calculate scheduled dates for each item
       const startDate = new Date();
-      const scheduleDataWithDates = planData.scheduleData.map((item: any, index: number) => {
+      const scheduleDataWithDates = (planData.scheduleData || []).map((item: any, index: number) => {
         const scheduledDate = new Date(startDate);
-        scheduledDate.setDate(startDate.getDate() + index);
+        scheduledDate.setDate(startDate.getDate() + (item.dayNumber ? item.dayNumber - 1 : index));
         // Set time based on preferences or default to 9:00 AM
         const preferredTime = preferences?.preferredTimeOfDay || 'morning';
         const hour = preferredTime === 'morning' ? 9 : preferredTime === 'afternoon' ? 14 : 18;
         scheduledDate.setHours(hour, 0, 0, 0);
         return {
           ...item,
+          id: item.id || String(index + 1),
           scheduledDate: scheduledDate.toISOString(),
           reminderSent: false,
         };
@@ -4609,10 +4615,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (plan.userId !== req.user?.id!) {
         return res.status(403).json({ message: "Access denied" });
       }
-      // Calculate duration in days
+      // Calculate duration in days safely
       const startDate = plan.startDate ? new Date(plan.startDate) : new Date();
       const endDate = plan.endDate ? new Date(plan.endDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      let durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (!durationDays || isNaN(durationDays) || durationDays <= 0) {
+        durationDays = 7;
+      }
+      durationDays = Math.min(durationDays, 14);
+
       // Import and use the Gemini service
       const { geminiService } = await import('./services/gemini');
       let planData;
@@ -4624,12 +4635,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.user?.id
         );
       } catch (error) {
-
-        return res.status(500).json({ message: "Failed to generate study items" });
+        console.error('[STUDY_PLAN_GENERATE_ITEMS_ERROR]', error);
+        planData = geminiService.createFallbackStudyPlan(
+          plan.title,
+          durationDays,
+          plan.description || `Learn ${plan.title}`,
+          60
+        );
       }
+
+      // Calculate scheduled dates for each item
+      const baseDate = plan.startDate ? new Date(plan.startDate) : new Date();
+      const scheduleDataWithDates = (planData.scheduleData || []).map((item: any, index: number) => {
+        const scheduledDate = new Date(baseDate);
+        scheduledDate.setDate(baseDate.getDate() + (item.dayNumber ? item.dayNumber - 1 : index));
+        scheduledDate.setHours(9, 0, 0, 0);
+        return {
+          ...item,
+          id: item.id || String(index + 1),
+          scheduledDate: item.scheduledDate || scheduledDate.toISOString(),
+          reminderSent: false,
+        };
+      });
+
       // Update the plan with the generated items
       const updatedPlan = await storage.updateStudyPlan(planId, { 
-        scheduleData: planData.scheduleData 
+        scheduleData: scheduleDataWithDates 
       });
       return res.status(200).json({
         message: "Study items generated successfully",
