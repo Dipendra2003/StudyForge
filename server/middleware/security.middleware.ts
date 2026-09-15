@@ -44,6 +44,9 @@ export const securityHeaders = helmet({
   
   // Download options for IE8+
   ieNoOpen: true,
+
+  // Disable crossOriginEmbedderPolicy so cross-origin editor scripts & workers can run
+  crossOriginEmbedderPolicy: false,
 });
 
 /**

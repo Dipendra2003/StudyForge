@@ -135,6 +135,20 @@ export default function MonacoCodeEditor({
     }
   }, [value, language]);
 
+  // Loading resilience: Detect if Monaco fails or takes too long to mount
+  const [isEditorMounted, setIsEditorMounted] = useState(false);
+  const [loadTimeoutReached, setLoadTimeoutReached] = useState(false);
+  const [useSimpleEditor, setUseSimpleEditor] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isEditorMounted) {
+        setLoadTimeoutReached(true);
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isEditorMounted]);
+
   // Define custom themes
   useEffect(() => {
     if (monacoRef.current) {
@@ -225,6 +239,7 @@ export default function MonacoCodeEditor({
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    setIsEditorMounted(true);
 
     // Accurately adjust container height to fit Monaco's exact content size
     const updateHeight = () => {
@@ -530,6 +545,27 @@ export default function MonacoCodeEditor({
 
         <div className="flex-1 min-w-[10px]"></div>
 
+        {useSimpleEditor ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setUseSimpleEditor(false)}
+            className="h-8 px-2.5 rounded-full text-xs font-medium text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/10 shrink-0"
+          >
+            Switch to Monaco
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setUseSimpleEditor(true)}
+            className="hidden sm:inline-flex h-8 px-2.5 rounded-full text-xs font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 shrink-0"
+            title="Switch to lightweight plain editor"
+          >
+            Plain Editor
+          </Button>
+        )}
+
         <Button
           variant="ghost"
           size="icon"
@@ -554,38 +590,69 @@ export default function MonacoCodeEditor({
         }}
       >
         <div className="absolute inset-0">
-          <Editor
-            height="100%"
-            width="100%"
-          language={monacoLanguage}
-          value={editorValue}
-          onChange={(value) => onChange(value || "")}
-          theme={theme}
-          onMount={handleEditorDidMount}
-          loading={
-            <div 
-              className="flex items-center justify-center h-full transition-colors duration-200"
-              style={{ backgroundColor: theme === 'light' ? '#fffffe' : theme === 'dracula' ? '#282A36' : theme === 'github-dark' ? '#0D1117' : '#1e1e1e' }}
-            >
-              <div className="flex flex-col items-center gap-3">
-                <Icons.spinner className="h-8 w-8 animate-spin text-purple-600" />
-                <p className={`text-sm ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Loading editor...</p>
-              </div>
-            </div>
-          }
-          options={{
-            selectOnLineNumbers: true,
-            roundedSelection: false,
-            readOnly: readOnly,
-            automaticLayout: true,
-            scrollBeyondLastLine: false,
-            scrollbar: {
-              alwaysConsumeMouseWheel: false,
-            }
-          }}
-        />
+          {useSimpleEditor ? (
+            <textarea
+              value={editorValue}
+              onChange={(e) => onChange(e.target.value)}
+              readOnly={readOnly}
+              className="w-full h-full p-4 font-mono text-sm resize-none outline-none border-0"
+              style={{
+                backgroundColor: theme === 'light' ? '#ffffff' : theme === 'dracula' ? '#282A36' : theme === 'github-dark' ? '#0D1117' : '#1e1e1e',
+                color: theme === 'light' ? '#1e293b' : '#f8fafc',
+                lineHeight: '1.6',
+                tabSize: 2,
+              }}
+              placeholder="// Write your code here..."
+              spellCheck={false}
+            />
+          ) : (
+            <Editor
+              height="100%"
+              width="100%"
+              language={monacoLanguage}
+              value={editorValue}
+              onChange={(value) => onChange(value || "")}
+              theme={theme}
+              onMount={handleEditorDidMount}
+              loading={
+                <div 
+                  className="flex items-center justify-center h-full transition-colors duration-200"
+                  style={{ backgroundColor: theme === 'light' ? '#fffffe' : theme === 'dracula' ? '#282A36' : theme === 'github-dark' ? '#0D1117' : '#1e1e1e' }}
+                >
+                  <div className="flex flex-col items-center gap-3 p-4 text-center max-w-sm">
+                    <Icons.spinner className="h-8 w-8 animate-spin text-purple-600" />
+                    <p className={`text-sm ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Loading editor...</p>
+                    {loadTimeoutReached && (
+                      <div className="flex flex-col items-center gap-2 mt-2">
+                        <span className="text-xs text-amber-500 font-medium">Taking longer than usual?</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setUseSimpleEditor(true)}
+                          className="text-xs h-7 px-3 bg-purple-600/10 hover:bg-purple-600/20 text-purple-500 border-purple-500/30"
+                        >
+                          Switch to Plain Editor
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              }
+              options={{
+                selectOnLineNumbers: true,
+                roundedSelection: false,
+                readOnly: readOnly,
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                scrollbar: {
+                  alwaysConsumeMouseWheel: false,
+                }
+              }}
+            />
+          )}
+        </div>
       </div>
-    </div>
 
       {/* Input Panel - Only show if onStdinChange is provided */}
       {onStdinChange && (

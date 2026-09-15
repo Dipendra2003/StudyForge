@@ -77,21 +77,45 @@ export const SECURITY_HEADERS = {
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Note: unsafe-eval needed for Vite in dev
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "blob:",
+        "https://unpkg.com",
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+      ],
       styleSrc: [
         "'self'",
         "'unsafe-inline'",
         "https://fonts.googleapis.com",
         "https://cdnjs.cloudflare.com",
+        "https://unpkg.com",
+        "https://cdn.jsdelivr.net",
       ],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", "https:", "wss:", "ws:"],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      connectSrc: [
+        "'self'",
+        "https:",
+        "wss:",
+        "ws:",
+        "blob:",
+        "data:",
+        "https://unpkg.com",
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+      ],
       fontSrc: [
         "'self'",
         "data:",
         "https://fonts.gstatic.com",
         "https://cdnjs.cloudflare.com",
+        "https://unpkg.com",
+        "https://cdn.jsdelivr.net",
       ],
+      workerSrc: ["'self'", "blob:", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+      childSrc: ["'self'", "blob:"],
       objectSrc: ["'self'"], // Required for browser native PDF viewer plugins
       mediaSrc: ["'self'", "https:"],
       frameSrc: ["'self'"],
