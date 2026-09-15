@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import SEOHead from "@/components/SEOHead";
+import StructuredData, { POLICY_PAGE_STRUCTURED_DATA } from "@/components/StructuredData";
 
 export default function Policy() {
   const [, setLocation] = useLocation();
@@ -23,8 +24,10 @@ export default function Policy() {
       <SEOHead
         title="Privacy Policy — Jadoo 2.0"
         description="Read the Jadoo 2.0 Privacy Policy to learn how we protect your personal data, ensure privacy, and handle your information securely."
+        keywords="Jadoo 2.0 privacy policy, StudyForge data privacy, AI study app privacy, student data protection, GDPR compliant study app, how Jadoo uses data, education app privacy policy, personal data security AI, data retention study platform, delete my account Jadoo"
         path="/privacy-policy"
       />
+      <StructuredData data={POLICY_PAGE_STRUCTURED_DATA} />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

@@ -1,5 +1,5 @@
 # Jadoo 2.0 — robots.txt
-# https://jadoo2.com/robots.txt
+# https://studyforge-rk4r.onrender.com/robots.txt
 
 User-agent: *
 Allow: /
@@ -40,4 +40,4 @@ Allow: /quiz/shared/
 Disallow: /api/
 
 # Sitemap location
-Sitemap: https://jadoo2.com/sitemap.xml
+Sitemap: https://studyforge-rk4r.onrender.com/sitemap.xml

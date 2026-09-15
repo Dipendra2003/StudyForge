@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import SEOHead from "@/components/SEOHead";
+import StructuredData, { CONTACT_PAGE_STRUCTURED_DATA } from "@/components/StructuredData";
 
 export default function Contact() {
   const { toast } = useToast();
@@ -72,10 +73,12 @@ export default function Contact() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <SEOHead
-        title="Contact Us — Jadoo 2.0"
-        description="Have questions or feedback about Jadoo 2.0? Reach out to our team for support, feature requests, or partnership inquiries."
+        title="Contact Us — Jadoo 2.0 Support & Feedback"
+        description="Get in touch with the Jadoo 2.0 team for support, bug reports, feature requests, or partnership inquiries. We respond within 24 hours."
+        keywords="contact Jadoo 2.0, StudyForge support, AI study tool help, report a bug Jadoo, feature request StudyForge, student feedback, edtech support, Jadoo customer service, contact AI learning platform, partnership inquiry Jadoo, email Jadoo support, Dipendra Kumar contact"
         path="/contact"
       />
+      <StructuredData data={CONTACT_PAGE_STRUCTURED_DATA} />
       <Header onNavigate={() => {}} />
 
       <main className="flex-grow pt-20">

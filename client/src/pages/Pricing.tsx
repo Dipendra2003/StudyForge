@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import SEOHead from "@/components/SEOHead";
+import StructuredData, { PRICING_PAGE_STRUCTURED_DATA } from "@/components/StructuredData";
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
@@ -24,10 +25,12 @@ export default function Pricing() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <SEOHead
-        title="Pricing — Jadoo 2.0 Plans & Features"
-        description="Choose the right study plan for your goals. Explore Jadoo 2.0 pricing options with free and premium features for AI flashcards, quizzes, and summaries."
+        title="Pricing Plans — Free & Premium AI Study Assistant | Jadoo 2.0"
+        description="Affordable AI study tools starting at ₹0. Upgrade to Plus (₹99/mo) or Pro (₹199/mo) for unlimited AI flashcards, quizzes, PDF summarization, and priority support. 20% student discount available."
+        keywords="AI study tool pricing, affordable student study app, free flashcard app, Quizlet alternative pricing, cheap AI tutor, student discounts edtech, Jadoo 2.0 plus pro plan, unlimited AI document summarizer price, cheap study app India"
         path="/pricing"
       />
+      <StructuredData data={PRICING_PAGE_STRUCTURED_DATA} />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

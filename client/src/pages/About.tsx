@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { FaDiscord, FaXTwitter } from "react-icons/fa6";
 import SEOHead from "@/components/SEOHead";
+import StructuredData, { ABOUT_PAGE_STRUCTURED_DATA } from "@/components/StructuredData";
 
 export default function About() {
   const [, setLocation] = useLocation();
@@ -22,10 +23,12 @@ export default function About() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <SEOHead
-        title="About Jadoo 2.0 — AI-Powered Study Platform"
-        description="Learn about Jadoo 2.0, the AI-powered study assistant built to help students learn faster, understand deeper, and achieve academic success with personalized AI tools."
+        title="About Us — Jadoo 2.0 (StudyForge) AI Study Platform"
+        description="Discover the story behind Jadoo 2.0 (StudyForge). Built by Dipendra Kumar with Google Gemini AI to help students learn faster through smart flashcards, summaries, and adaptive quizzes."
+        keywords="about Jadoo 2.0, StudyForge story, Dipendra Kumar developer, AI education platform mission, Google Gemini AI study tool, edtech startup India, smart learning vision, AI flashcards company"
         path="/about"
       />
+      <StructuredData data={ABOUT_PAGE_STRUCTURED_DATA} />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

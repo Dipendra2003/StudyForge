@@ -1,22 +1,29 @@
 import { useEffect } from "react";
 
 const SITE_NAME = "Jadoo 2.0";
+const SITE_BRAND = "Jadoo 2.0 (StudyForge)";
 const DEFAULT_DESCRIPTION =
-  "Jadoo 2.0 is an AI-powered study assistant that helps you learn smarter with flashcards, quizzes, document summarization, AI chat, and personalized study plans.";
-const DEFAULT_OG_IMAGE = "/og-image.png";
-const SITE_URL = "https://jadoo2.com";
+  "Ace your exams with Jadoo 2.0 (StudyForge) — the #1 free AI study assistant. Generate smart flashcards from PDFs, create adaptive quizzes, summarize notes, and learn faster with Gemini AI.";
+const DEFAULT_KEYWORDS =
+  "AI study assistant, AI flashcard generator, AI quiz maker, AI document summarizer, study planner app, AI chat for students, code generator for students, best study app 2026, online study tool, AI learning platform, smart flashcards, spaced repetition app, AI tutor, exam preparation tool, AI homework helper, PDF summarizer AI, AI notes generator, personalized study plan, adaptive learning app, free AI study tool, StudyForge, Jadoo 2.0, Jadoo AI, Quizlet alternative free, Anki alternative AI, Chegg alternative free, active recall app, make flashcards from PDF, generate MCQs from text, college study app, CBSE study app, NEET preparation AI, JEE study assistant, USMLE study assistant";
+const DEFAULT_OG_IMAGE = "/og-image.jpg";
+const SITE_URL = "https://studyforge-rk4r.onrender.com";
 
 interface SEOHeadProps {
   /** Page-specific title — auto-appended with " — Jadoo 2.0" */
   title: string;
-  /** Meta description (aim for 120-155 characters) */
+  /** Meta description (aim for 120-160 characters) */
   description?: string;
+  /** Keywords for search engines (comma separated) */
+  keywords?: string;
   /** Canonical URL path, e.g. "/about" */
   path?: string;
   /** Open Graph type — defaults to "website" */
   ogType?: "website" | "article";
-  /** Open Graph image URL — defaults to /og-image.png */
+  /** Open Graph image URL — defaults to /og-image.jpg */
   ogImage?: string;
+  /** Author name — defaults to "Dipendra Kumar" */
+  author?: string;
   /** Set true for auth/private pages that should NOT be indexed */
   noIndex?: boolean;
 }
@@ -24,17 +31,21 @@ interface SEOHeadProps {
 /**
  * Lightweight SEO head manager.
  * Sets document.title and manages <meta> / <link> tags in <head>
- * without adding a dependency like react-helmet.
+ * without adding heavy dependencies.
  */
 export default function SEOHead({
   title,
   description = DEFAULT_DESCRIPTION,
+  keywords = DEFAULT_KEYWORDS,
   path = "/",
   ogType = "website",
   ogImage = DEFAULT_OG_IMAGE,
+  author = "Dipendra Kumar",
   noIndex = false,
 }: SEOHeadProps) {
-  const fullTitle = title.includes(SITE_NAME) ? title : `${title} — ${SITE_NAME}`;
+  const fullTitle = title.includes(SITE_NAME) || title.includes("StudyForge") 
+    ? title 
+    : `${title} — ${SITE_NAME}`;
   const canonicalUrl = `${SITE_URL}${path}`;
   const ogImageUrl = ogImage.startsWith("http") ? ogImage : `${SITE_URL}${ogImage}`;
 
@@ -70,10 +81,12 @@ export default function SEOHead({
 
     // --- Standard meta tags ---
     setMeta("name", "description", description);
+    setMeta("name", "keywords", keywords);
+    setMeta("name", "author", author);
     setMeta(
       "name",
       "robots",
-      noIndex ? "noindex, nofollow" : "index, follow, max-snippet:-1, max-image-preview:large"
+      noIndex ? "noindex, nofollow" : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
     );
 
     // --- Canonical ---
@@ -85,24 +98,27 @@ export default function SEOHead({
     setMeta("property", "og:type", ogType);
     setMeta("property", "og:url", canonicalUrl);
     setMeta("property", "og:image", ogImageUrl);
+    setMeta("property", "og:image:secure_url", ogImageUrl);
     setMeta("property", "og:image:width", "1200");
     setMeta("property", "og:image:height", "630");
     setMeta("property", "og:image:alt", fullTitle);
-    setMeta("property", "og:site_name", SITE_NAME);
+    setMeta("property", "og:site_name", SITE_BRAND);
     setMeta("property", "og:locale", "en_US");
 
     // --- Twitter Card ---
     setMeta("name", "twitter:card", "summary_large_image");
+    setMeta("name", "twitter:site", "@Dipendrasah76");
+    setMeta("name", "twitter:creator", "@Dipendrasah76");
     setMeta("name", "twitter:title", fullTitle);
     setMeta("name", "twitter:description", description);
     setMeta("name", "twitter:image", ogImageUrl);
     setMeta("name", "twitter:image:alt", fullTitle);
 
-    // Cleanup: reset to defaults on unmount so next page can set its own
+    // Cleanup: reset to defaults on unmount
     return () => {
-      document.title = SITE_NAME;
+      document.title = `${SITE_BRAND} — #1 Free AI Study Assistant`;
     };
-  }, [fullTitle, description, canonicalUrl, ogType, ogImageUrl, noIndex]);
+  }, [fullTitle, description, keywords, canonicalUrl, ogType, ogImageUrl, author, noIndex]);
 
   // This component renders nothing to the DOM
   return null;

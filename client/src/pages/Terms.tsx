@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import SEOHead from "@/components/SEOHead";
+import StructuredData, { TERMS_PAGE_STRUCTURED_DATA } from "@/components/StructuredData";
 
 export default function Terms() {
   const [, setLocation] = useLocation();
@@ -23,8 +24,10 @@ export default function Terms() {
       <SEOHead
         title="Terms of Service — Jadoo 2.0"
         description="Review the Jadoo 2.0 Terms of Service, outlining user agreements, acceptable use policies, and terms of service for our AI study platform."
+        keywords="Jadoo 2.0 terms of service, StudyForge user agreement, AI study platform terms, acceptable use policy, free account terms, student tool terms and conditions, intellectual property AI content, AI generated content ownership, edtech terms of service, user content policy"
         path="/terms"
       />
+      <StructuredData data={TERMS_PAGE_STRUCTURED_DATA} />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">
