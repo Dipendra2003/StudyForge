@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import SEOHead from "@/components/SEOHead";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +153,11 @@ export default function Help() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      <SEOHead
+        title="Help Center — Jadoo 2.0 Support & FAQs"
+        description="Find answers to common questions about Jadoo 2.0 AI features, study tools, account settings, and troubleshooting in our Help Center."
+        path="/help"
+      />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

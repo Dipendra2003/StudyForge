@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import SEOHead from "@/components/SEOHead";
 
 export default function Pricing() {
   const [, setLocation] = useLocation();
@@ -22,6 +23,11 @@ export default function Pricing() {
   
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <SEOHead
+        title="Pricing — Jadoo 2.0 Plans & Features"
+        description="Choose the right study plan for your goals. Explore Jadoo 2.0 pricing options with free and premium features for AI flashcards, quizzes, and summaries."
+        path="/pricing"
+      />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

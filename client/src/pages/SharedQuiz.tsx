@@ -8,6 +8,7 @@ import { SharedQuizComparison } from "@/components/quiz/SharedQuizComparison";
 import type { Question } from "@/../../shared/quiz-types";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
+import SEOHead from "@/components/SEOHead";
 
 interface SharedQuizData {
   id: number;
@@ -213,6 +214,11 @@ export default function SharedQuiz() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+      <SEOHead
+        title={`Quiz Challenge: ${sharedQuiz.category}`}
+        description={`Take the ${sharedQuiz.category} quiz challenge on Jadoo 2.0 and test your knowledge!`}
+        path={`/quiz/shared/${linkId}`}
+      />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

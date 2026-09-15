@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Loader2, UserPlus, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import SEOHead from '@/components/SEOHead';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -143,6 +144,12 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-2 sm:p-4">
+      <SEOHead
+        title="Create Account — Jadoo 2.0"
+        description="Create your free Jadoo 2.0 account to access AI study flashcards, document summarization, quizzes, and personalized learning plans."
+        path="/register"
+        noIndex={true}
+      />
       <Card className="w-full max-w-md max-h-[98vh] flex flex-col">
         <CardHeader className="space-y-1 pb-2 pt-4">
           <div className="flex items-center justify-center mb-2">
@@ -152,7 +159,7 @@ export default function Register() {
           </div>
           <CardTitle className="text-xl font-bold text-center">Create an account</CardTitle>
           <CardDescription className="text-center">
-            Join StudyForge and start learning smarter
+            Join Jadoo 2.0 and start learning smarter
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto flex flex-col">

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Loader2, KeyRound, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SEOHead from '@/components/SEOHead';
 
 export default function ResetPassword() {
   const [token, setToken] = useState('');
@@ -157,6 +158,12 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <SEOHead
+        title="Reset Password — Jadoo 2.0"
+        description="Choose a new password for your Jadoo 2.0 account."
+        path="/reset-password"
+        noIndex={true}
+      />
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">

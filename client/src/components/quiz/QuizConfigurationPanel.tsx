@@ -349,8 +349,8 @@ export default function QuizConfigurationPanel({
           transition={{ delay: 0.7, duration: 0.4 }}
           className="space-y-3"
         >
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
+          <div className="flex items-center justify-between gap-4 py-1">
+            <div className="space-y-0.5 flex-1 min-w-0 pr-2">
               <Label htmlFor="timedMode" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
                 Timed Mode
@@ -364,6 +364,7 @@ export default function QuizConfigurationPanel({
               checked={config.timedMode}
               onCheckedChange={(checked) => updateConfig('timedMode', checked)}
               disabled={disabled}
+              className="shrink-0"
             />
           </div>
 
@@ -391,9 +392,9 @@ export default function QuizConfigurationPanel({
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.85, duration: 0.4 }}
-          className="flex items-center justify-between"
+          className="flex items-center justify-between gap-4 py-1"
         >
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 flex-1 min-w-0 pr-2">
             <Label htmlFor="aiMode" className="flex items-center gap-2">
               <Settings2 className="h-4 w-4" />
               AI Mode
@@ -407,6 +408,7 @@ export default function QuizConfigurationPanel({
             checked={config.aiMode}
             onCheckedChange={(checked) => updateConfig('aiMode', checked)}
             disabled={disabled}
+            className="shrink-0"
           />
         </motion.div>
 
@@ -415,9 +417,9 @@ export default function QuizConfigurationPanel({
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.9, duration: 0.4 }}
-          className="flex items-center justify-between"
+          className="flex items-center justify-between gap-4 py-1"
         >
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 flex-1 min-w-0 pr-2">
             <Label htmlFor="fullscreenMode" className="flex items-center gap-2">
               <Maximize className="h-4 w-4" />
               Fullscreen Mode
@@ -431,6 +433,7 @@ export default function QuizConfigurationPanel({
             checked={config.fullscreenMode || false}
             onCheckedChange={(checked) => updateConfig('fullscreenMode', checked)}
             disabled={disabled}
+            className="shrink-0"
           />
         </motion.div>
 

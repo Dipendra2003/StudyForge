@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import SEOHead from '@/components/SEOHead';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -100,6 +101,12 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <SEOHead
+        title="Sign In — Jadoo 2.0"
+        description="Sign in to your Jadoo 2.0 account to access your AI study tools, flashcards, quizzes, and personalized study plans."
+        path="/login"
+        noIndex={true}
+      />
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -109,7 +116,7 @@ export default function Login() {
           </div>
           <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
           <CardDescription className="text-center">
-            Sign in to your StudyForge account
+            Sign in to your Jadoo 2.0 account
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import SEOHead from "@/components/SEOHead";
 
 export default function Contact() {
   const { toast } = useToast();
@@ -70,6 +71,11 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <SEOHead
+        title="Contact Us — Jadoo 2.0"
+        description="Have questions or feedback about Jadoo 2.0? Reach out to our team for support, feature requests, or partnership inquiries."
+        path="/contact"
+      />
       <Header onNavigate={() => {}} />
 
       <main className="flex-grow pt-20">

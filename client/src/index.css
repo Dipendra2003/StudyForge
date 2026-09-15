@@ -791,22 +791,24 @@
 
   /* Ensure minimum touch target size of 48x48px for mobile (WCAG 2.1 Level AAA) */
   @media (max-width: 768px) {
-    button,
-    a,
-    input[type="button"],
-    input[type="submit"],
+    button:not([role="switch"]):not(.inline-touch),
+    a:not(.inline-touch),
+    input[type="button"]:not(.inline-touch),
+    input[type="submit"]:not(.inline-touch),
     input[type="checkbox"],
     input[type="radio"],
     select,
-    [role="button"] {
+    [role="button"]:not([role="switch"]):not(.inline-touch) {
       min-height: 48px;
       min-width: 48px;
     }
 
-    /* Exception for inline elements that don't need full touch target */
+    /* Exception for switches and inline elements that don't need 48x48 box */
+    button[role="switch"],
+    [role="switch"],
     .inline-touch {
-      min-height: auto;
-      min-width: auto;
+      min-height: unset;
+      min-width: unset;
     }
   }
 

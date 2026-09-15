@@ -1,0 +1,43 @@
+# Jadoo 2.0 — robots.txt
+# https://jadoo2.com/robots.txt
+
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /pricing
+Allow: /contact
+Allow: /help
+Allow: /privacy-policy
+Allow: /terms
+
+# Auth pages — no indexing
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+
+# Private user pages — no indexing
+Disallow: /dashboard
+Disallow: /chat
+Disallow: /document-summarization
+Disallow: /summary/
+Disallow: /flashcards
+Disallow: /quiz-mode
+Disallow: /code-generator
+Disallow: /study-planner
+Disallow: /profile
+Disallow: /settings
+Disallow: /media
+
+# Admin — no indexing
+Disallow: /admin
+
+# Shared quiz pages (user-generated, allow selectively)
+Allow: /quiz/shared/
+
+# API endpoints
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://jadoo2.com/sitemap.xml

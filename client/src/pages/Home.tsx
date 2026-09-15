@@ -6,6 +6,8 @@ import CallToAction from "@/components/CallToAction";
 import FAQSection from "@/components/FAQSection";
 import TestimonialCarousel from "@/components/TestimonialCarousel";
 import Footer from "@/components/Footer";
+import SEOHead from "@/components/SEOHead";
+import StructuredData, { HOME_PAGE_STRUCTURED_DATA } from "@/components/StructuredData";
 import { useRef } from "react";
 
 export default function Home() {
@@ -28,6 +30,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground overflow-x-hidden w-full">
+      <SEOHead
+        title="Jadoo 2.0 — AI Study Assistant for Smarter Learning"
+        description="Jadoo 2.0 combines advanced AI to help you learn faster with flashcards, quizzes, document summarization, AI chat, code generation, and personalized study plans."
+        path="/"
+      />
+      <StructuredData data={HOME_PAGE_STRUCTURED_DATA} />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow">
@@ -54,3 +62,4 @@ export default function Home() {
     </div>
   );
 }
+

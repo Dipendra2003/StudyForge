@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Mail, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import SEOHead from '@/components/SEOHead';
 
 export default function VerifyEmail() {
   const [otp, setOtp] = useState('');
@@ -187,6 +188,12 @@ export default function VerifyEmail() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <SEOHead
+        title="Verify Email — Jadoo 2.0"
+        description="Verify your email address for your Jadoo 2.0 account."
+        path="/verify-email"
+        noIndex={true}
+      />
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">

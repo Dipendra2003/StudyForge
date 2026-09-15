@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import SEOHead from "@/components/SEOHead";
 
 export default function Policy() {
   const [, setLocation] = useLocation();
@@ -19,6 +20,11 @@ export default function Policy() {
   
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <SEOHead
+        title="Privacy Policy — Jadoo 2.0"
+        description="Read the Jadoo 2.0 Privacy Policy to learn how we protect your personal data, ensure privacy, and handle your information securely."
+        path="/privacy-policy"
+      />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

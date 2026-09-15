@@ -1,0 +1,21 @@
+{
+  "name": "Jadoo 2.0 — AI Study Assistant",
+  "short_name": "Jadoo 2.0",
+  "description": "AI-powered study assistant that helps you learn smarter with flashcards, quizzes, document summarization, AI chat, and personalized study plans.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7c3aed",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

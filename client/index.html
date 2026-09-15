@@ -2,16 +2,84 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>StudyForge</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Primary Meta Tags -->
+    <title>Jadoo 2.0 — AI Study Assistant for Smarter Learning</title>
+    <meta name="title" content="Jadoo 2.0 — AI Study Assistant for Smarter Learning" />
+    <meta name="description" content="Jadoo 2.0 is an AI-powered study assistant that helps you learn smarter with flashcards, quizzes, document summarization, AI chat, and personalized study plans." />
+    <meta name="keywords" content="AI study assistant, flashcards, quiz generator, document summarization, AI chat, study planner, code generator, education, learning, Jadoo 2.0" />
+    <meta name="author" content="Dipendra Kumar" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="theme-color" content="#7c3aed" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://jadoo2.com/" />
+
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://jadoo2.com/" />
+    <meta property="og:title" content="Jadoo 2.0 — AI Study Assistant for Smarter Learning" />
+    <meta property="og:description" content="Jadoo 2.0 is an AI-powered study assistant that helps you learn smarter with flashcards, quizzes, document summarization, AI chat, and personalized study plans." />
+    <meta property="og:image" content="https://jadoo2.com/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Jadoo 2.0 — AI-Powered Study Assistant" />
+    <meta property="og:site_name" content="Jadoo 2.0" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://jadoo2.com/" />
+    <meta name="twitter:title" content="Jadoo 2.0 — AI Study Assistant for Smarter Learning" />
+    <meta name="twitter:description" content="Jadoo 2.0 is an AI-powered study assistant that helps you learn smarter with flashcards, quizzes, document summarization, AI chat, and personalized study plans." />
+    <meta name="twitter:image" content="https://jadoo2.com/og-image.jpg" />
+    <meta name="twitter:image:alt" content="Jadoo 2.0 — AI-Powered Study Assistant" />
+    <meta name="twitter:creator" content="@Dipendrasah76" />
+
+    <!-- Performance: Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
+
+    <!-- Google Fonts (preloaded for faster rendering) -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap" as="style" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!-- Font Awesome (loaded with media="print" trick for non-blocking) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Noscript fallback for search engine crawlers and JS-disabled browsers -->
+    <noscript>
+      <div style="padding: 2rem; text-align: center; font-family: 'Inter', sans-serif;">
+        <h1>Jadoo 2.0 — AI Study Assistant</h1>
+        <p>Jadoo 2.0 is an AI-powered study assistant that helps you learn smarter with flashcards, quizzes, document summarization, AI chat, and personalized study plans.</p>
+        <p>Please enable JavaScript to use this application.</p>
+        <nav>
+          <a href="/about">About</a> |
+          <a href="/pricing">Pricing</a> |
+          <a href="/contact">Contact</a> |
+          <a href="/help">Help</a> |
+          <a href="/privacy-policy">Privacy Policy</a> |
+          <a href="/terms">Terms of Service</a>
+        </nav>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

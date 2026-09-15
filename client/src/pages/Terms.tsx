@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import SEOHead from "@/components/SEOHead";
 
 export default function Terms() {
   const [, setLocation] = useLocation();
@@ -19,6 +20,11 @@ export default function Terms() {
   
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <SEOHead
+        title="Terms of Service — Jadoo 2.0"
+        description="Review the Jadoo 2.0 Terms of Service, outlining user agreements, acceptable use policies, and terms of service for our AI study platform."
+        path="/terms"
+      />
       <Header onNavigate={scrollToSection} />
       
       <main className="flex-grow pt-24">

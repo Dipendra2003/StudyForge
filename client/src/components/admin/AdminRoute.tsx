@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import SEOHead from '@/components/SEOHead';
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -57,5 +58,10 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   }
 
   // Render children if user is admin
-  return <>{children}</>;
+  return (
+    <>
+      <SEOHead title="Admin Dashboard" noIndex={true} />
+      {children}
+    </>
+  );
 }

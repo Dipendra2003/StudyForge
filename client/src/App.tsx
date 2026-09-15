@@ -10,6 +10,7 @@ import WelcomeModal from "@/components/WelcomeModal";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminProvider } from "@/contexts/AdminContext";
+import SEOHead from "@/components/SEOHead";
 
 // Pages - Eagerly loaded for instant navigation (0ms delay when switching pages)
 import Login from "@/pages/Login";
@@ -67,6 +68,19 @@ function HomePage() {
   return <Home />;
 }
 
+const PRIVATE_ROUTE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/code-generator': 'Code Generator',
+  '/chat': 'AI Chat Assistant',
+  '/document-summarization': 'Document Summarization',
+  '/flashcards': 'Flashcards',
+  '/study-planner': 'Study Planner',
+  '/quiz-mode': 'Quiz Mode',
+  '/profile': 'My Profile',
+  '/settings': 'Account Settings',
+  '/media': 'Media Gallery',
+};
+
 function PrivateRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
@@ -94,7 +108,14 @@ function PrivateRoute({ component: Component, ...rest }: { component: React.Comp
     return null;
   }
 
-  return <Component {...rest} />;
+  const pageTitle = PRIVATE_ROUTE_TITLES[rest.path] || (rest.path?.startsWith('/summary') ? 'Summary Details' : 'Study App');
+
+  return (
+    <>
+      <SEOHead title={pageTitle} path={rest.path} noIndex={true} />
+      <Component {...rest} />
+    </>
+  );
 }
 
 function Router() {
