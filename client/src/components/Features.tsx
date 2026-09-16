@@ -82,7 +82,7 @@ export default function Features() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
             <Brain size={16} />
-            <span className="text-sm font-bold uppercase tracking-wider">Supercharged Toolkit</span>
+            <span className="text-sm font-bold tracking-wide">Supercharged Toolkit</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight text-gray-900 dark:text-white">
             Next-Gen <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-indigo-500">AI Study Tools</span>

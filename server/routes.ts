@@ -5247,23 +5247,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      // Get user stats
-      let stats = await storage.getUserStats(userId);
-      if (!stats) {
-        stats = await storage.updateUserStats(userId, {});
-      }
-      // Override quizzesCompleted with actual undeleted quiz attempts count
+      
+      // Run independent queries in parallel to significantly reduce latency
+      const [userStatsResult, quizStats, summaries] = await Promise.all([
+        storage.getUserStats(userId).then(s => s || storage.updateUserStats(userId, {})),
+        storage.getQuizStatsByUserId(userId).catch(() => null),
+        storage.getSummariesByUserId(userId).catch(() => null)
+      ]);
+      
+      let stats = userStatsResult;
+
       try {
-        const quizStats = await storage.getQuizStatsByUserId(userId);
         if (quizStats && quizStats.totalAttempts !== undefined) {
           stats.quizzesCompleted = quizStats.totalAttempts;
         }
-        // Sync study time from quiz time spent (convert seconds to minutes)
         if (quizStats && quizStats.totalTimeSpent !== undefined) {
           stats.totalStudyTime = Math.round(quizStats.totalTimeSpent / 60);
         }
-        // Override documentsUploaded with actual summaries count
-        const summaries = await storage.getSummariesByUserId(userId);
         if (summaries) {
           stats.documentsUploaded = summaries.length;
         }

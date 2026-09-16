@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
+import { ArrowRight } from "lucide-react";
 
 interface HeroProps {
   onScrollToFeatures?: () => void;
@@ -33,44 +34,43 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/login">
                 <Button 
-                  className="bg-gradient-to-r from-primary to-emerald-500 text-white font-bold py-6 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 text-center"
+                  className="bg-gradient-to-r from-primary to-indigo-500 text-white font-bold py-6 px-8 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 text-center"
                   size="lg"
                 >
                   Get Started
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
-                className="bg-white dark:bg-gray-800 text-primary border border-primary font-bold py-6 px-8 rounded-full hover:bg-primary/5 transition-all text-center"
+              <button 
+                className="group flex items-center justify-center gap-2 font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors py-6 px-8 rounded-xl hover:bg-white/50 dark:hover:bg-gray-800/50"
                 onClick={() => {
                   document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                size="lg"
               >
                 Learn More
-              </Button>
+                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </button>
             </div>
             
             <div className="mt-8 flex items-center text-gray-500 dark:text-gray-400">
               <div className="flex -space-x-2">
                 {/* We use SVG avatars instead of images */}
-                <svg className="h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 bg-primary/20" viewBox="0 0 40 40">
+                <svg className="h-10 w-10 rounded-full border-2 border-white dark:border-gray-800 bg-primary/20" viewBox="0 0 40 40">
                   <circle cx="20" cy="20" r="20" fill="currentColor" fillOpacity="0.2" />
                   <path d="M20 11C17.7909 11 16 12.7909 16 15V17C16 19.2091 17.7909 21 20 21C22.2091 21 24 19.2091 24 17V15C24 12.7909 22.2091 11 20 11Z" fill="currentColor" />
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 25.5C12 24.1193 13.1193 23 14.5 23H25.5C26.8807 23 28 24.1193 28 25.5V27C28 28.1046 27.1046 29 26 29H14C12.8954 29 12 28.1046 12 27V25.5Z" fill="currentColor" />
                 </svg>
-                <svg className="h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 bg-emerald-500/20" viewBox="0 0 40 40">
+                <svg className="h-10 w-10 rounded-full border-2 border-white dark:border-gray-800 bg-emerald-500/20" viewBox="0 0 40 40">
                   <circle cx="20" cy="20" r="20" fill="currentColor" fillOpacity="0.2" />
                   <path d="M20 11C17.7909 11 16 12.7909 16 15V17C16 19.2091 17.7909 21 20 21C22.2091 21 24 19.2091 24 17V15C24 12.7909 22.2091 11 20 11Z" fill="currentColor" />
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 25.5C12 24.1193 13.1193 23 14.5 23H25.5C26.8807 23 28 24.1193 28 25.5V27C28 28.1046 27.1046 29 26 29H14C12.8954 29 12 28.1046 12 27V25.5Z" fill="currentColor" />
                 </svg>
-                <svg className="h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 bg-amber-500/20" viewBox="0 0 40 40">
+                <svg className="h-10 w-10 rounded-full border-2 border-white dark:border-gray-800 bg-amber-500/20" viewBox="0 0 40 40">
                   <circle cx="20" cy="20" r="20" fill="currentColor" fillOpacity="0.2" />
                   <path d="M20 11C17.7909 11 16 12.7909 16 15V17C16 19.2091 17.7909 21 20 21C22.2091 21 24 19.2091 24 17V15C24 12.7909 22.2091 11 20 11Z" fill="currentColor" />
                   <path fillRule="evenodd" clipRule="evenodd" d="M12 25.5C12 24.1193 13.1193 23 14.5 23H25.5C26.8807 23 28 24.1193 28 25.5V27C28 28.1046 27.1046 29 26 29H14C12.8954 29 12 28.1046 12 27V25.5Z" fill="currentColor" />
                 </svg>
               </div>
-              <p className="ml-4 text-sm">
+              <p className="ml-4 text-base font-medium">
                 <span className="font-semibold">500+</span> students improving their grades with Jadoo 2.0
               </p>
             </div>
@@ -121,7 +121,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                       <div className="text-sm font-bold text-primary z-10 tracking-wide">Neural Core Active</div>
                       <div className="flex items-center gap-1 mt-1 z-10">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <span className="text-[10px] text-primary/60 font-medium uppercase">Processing</span>
+                        <span className="text-[10px] text-primary/60 font-medium">Processing</span>
                       </div>
                     </motion.div>
 
@@ -135,7 +135,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                         <path d="m19 9-5 5-4-4-3 3"/>
                       </svg>
                       <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">+85%</div>
-                      <div className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 font-semibold uppercase">Retention</div>
+                      <div className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 font-semibold">Retention</div>
                     </motion.div>
                   </div>
 
@@ -152,11 +152,11 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                       </div>
                       <div className="space-y-1.5">
                         <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full w-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-primary to-emerald-500 w-[78%] rounded-full relative">
+                          <div className="h-full bg-gradient-to-r from-primary to-indigo-500 w-[78%] rounded-full relative">
                             <div className="absolute top-0 right-0 bottom-0 w-4 bg-white/30 rounded-full animate-pulse"></div>
                           </div>
                         </div>
-                        <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">
+                        <div className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400 font-semibold tracking-wider">
                           <span>Syllabus Covered</span>
                           <span className="text-primary font-bold">78%</span>
                         </div>
@@ -176,7 +176,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                         <path d="M3 5h4"/>
                         <path d="M17 19h4"/>
                       </svg>
-                      <div className="text-[10px] font-bold text-amber-600 dark:text-amber-500 tracking-wide uppercase">Generate</div>
+                      <div className="text-[10px] font-bold text-amber-600 dark:text-amber-500 tracking-wide">Generate</div>
                     </motion.div>
                   </div>
                   
@@ -191,7 +191,7 @@ export default function Hero({ onScrollToFeatures }: HeroProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.8, type: 'spring' }}
-                className="absolute -bottom-6 -right-6 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-20 flex items-center gap-3"
+                className="absolute -bottom-8 -right-12 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-20 flex items-center gap-3"
               >
                 <div className="relative flex h-4 w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

@@ -76,8 +76,25 @@ export async function requireAuth(
       return;
     }
 
-    // Get user from database to ensure they still exist and are active
-    const user = await storage.getUser(payload.userId);
+    // Cache authenticated user briefly to prevent DB overwhelming on burst requests (like dashboard loading)
+    // Cache for 5 seconds locally
+    const cacheKey = `auth_user_${payload.userId}`;
+    let user;
+    
+    // Simple fast memory cache for auth
+    const globalAny = global as any;
+    if (!globalAny.authCache) globalAny.authCache = new Map();
+    const cachedEntry = globalAny.authCache.get(cacheKey);
+    
+    if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+      user = cachedEntry.user;
+    } else {
+      // Get user from database to ensure they still exist and are active
+      user = await storage.getUser(payload.userId);
+      if (user) {
+        globalAny.authCache.set(cacheKey, { user, expiresAt: Date.now() + 5000 });
+      }
+    }
 
     if (!user) {
       Logger.security('Authentication failed - user not found', {

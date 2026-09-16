@@ -77,7 +77,7 @@ export class CloudinaryService {
             { fetch_format: 'auto' }, // Auto format (WebP when supported)
           ],
           resource_type: 'image',
-          timeout: 60000, // 60 second timeout
+          timeout: 15000, // 15 second timeout to prevent backend lockups
         });
 
         Logger.info(LogCategory.SYSTEM, 'Image uploaded to Cloudinary', {

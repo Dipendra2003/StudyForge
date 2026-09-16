@@ -117,7 +117,7 @@ export default function TestimonialCarousel() {
               className="bg-card border rounded-2xl shadow-lg p-6 md:p-8 lg:p-10 flex flex-col md:flex-row gap-6 md:gap-8 items-center"
             >
               <div className="flex-shrink-0 mx-auto md:mx-0 mb-4 md:mb-0">
-                <div className="h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 lg:h-40 lg:w-40 rounded-full overflow-hidden border-4 border-primary/20 shadow-xl">
+                <div className="aspect-square h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 lg:h-40 lg:w-40 rounded-full overflow-hidden border-4 border-primary/20 shadow-xl">
                   <img 
                     src={testimonials[currentIndex].image} 
                     alt={testimonials[currentIndex].name}
@@ -136,7 +136,7 @@ export default function TestimonialCarousel() {
                   ))}
                 </div>
                 
-                <p className="text-base sm:text-lg md:text-xl italic mb-4 md:mb-6">"{testimonials[currentIndex].message}"</p>
+                <p className="text-base sm:text-lg md:text-xl italic mb-4 md:mb-6 leading-relaxed">"{testimonials[currentIndex].message}"</p>
                 
                 <div>
                   <h3 className="font-bold text-base sm:text-lg md:text-xl">{testimonials[currentIndex].name}</h3>
@@ -146,11 +146,11 @@ export default function TestimonialCarousel() {
             </motion.div>
           </AnimatePresence>
           
-          <div className="flex justify-center gap-2 mt-8">
+          <div className="flex justify-center items-center gap-3 md:gap-4 mt-6">
             <Button 
               variant="outline" 
               size="icon" 
-              className="rounded-full" 
+              className="rounded-full h-10 w-10" 
               onClick={prevTestimonial}
             >
               <ArrowLeft size={18} />
@@ -161,7 +161,7 @@ export default function TestimonialCarousel() {
                 key={index}
                 variant="ghost"
                 size="icon"
-                className={`w-3 h-3 rounded-full p-0 min-w-0 ${
+                className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded-full p-0 min-w-0 ${
                   currentIndex === index 
                     ? "bg-primary" 
                     : "bg-primary/20"
@@ -176,7 +176,7 @@ export default function TestimonialCarousel() {
             <Button 
               variant="outline" 
               size="icon" 
-              className="rounded-full" 
+              className="rounded-full h-10 w-10" 
               onClick={nextTestimonial}
             >
               <ArrowRight size={18} />

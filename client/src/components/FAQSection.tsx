@@ -8,23 +8,23 @@ import { motion } from "framer-motion";
 
 const faqs = [
   {
-    question: "What subjects does StudyForge support?",
-    answer: "StudyForge supports a wide range of academic subjects including Mathematics, Science (Physics, Chemistry, Biology), Computer Science, History, Literature, Languages, and more. The AI adapts to understand context across all these domains."
+    question: "What subjects does Jadoo 2.0 support?",
+    answer: "Jadoo 2.0 supports a wide range of academic subjects including Mathematics, Science (Physics, Chemistry, Biology), Computer Science, History, Literature, Languages, and more. The AI adapts to understand context across all these domains."
   },
   {
-    question: "How accurate are the answers provided by StudyForge?",
-    answer: "StudyForge uses advanced AI models to provide highly accurate information. However, for critical academic work, we always recommend verifying important facts with authoritative sources or your instructors."
+    question: "How accurate are the answers provided by Jadoo 2.0?",
+    answer: "Jadoo 2.0 uses advanced AI models to provide highly accurate information. However, for critical academic work, we always recommend verifying important facts with authoritative sources or your instructors."
   },
   {
-    question: "Can StudyForge help with programming assignments?",
-    answer: "Yes! StudyForge can generate code solutions in multiple programming languages including Python, JavaScript, Java, C++, and more. It provides explanations with each solution to help you understand the concepts."
+    question: "Can Jadoo 2.0 help with programming assignments?",
+    answer: "Yes! Jadoo 2.0 can generate code solutions in multiple programming languages including Python, JavaScript, Java, C++, and more. It provides explanations with each solution to help you understand the concepts."
   },
   {
     question: "Is my study data kept private?",
     answer: "Absolutely. Your study materials, questions, and interactions are kept private and secure. We use industry-standard encryption and do not share your content with third parties."
   },
   {
-    question: "How do I get the most out of StudyForge?",
+    question: "How do I get the most out of Jadoo 2.0?",
     answer: "For best results, ask specific questions, upload relevant study materials, and use the AI to explain concepts you're struggling with. The more context you provide, the more tailored the assistance will be to your needs."
   }
 ];
@@ -42,7 +42,7 @@ export default function FAQSection() {
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Get answers to common questions about StudyForge and how it can help with your studies.
+            Get answers to common questions about Jadoo 2.0 and how it can help with your studies.
           </p>
         </motion.div>
         

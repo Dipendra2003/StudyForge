@@ -39,6 +39,8 @@ export class QuizOfTheDayService {
   private static readonly TRENDING_DAYS_THRESHOLD = 7; // Look at last 7 days for trending
   private static readonly MIN_ATTEMPTS_FOR_TRENDING = 10; // Minimum attempts to be considered trending
   private static readonly QUESTION_COUNT = 10; // Number of questions in Quiz of the Day
+  private static cachedQotd: QuizOfTheDay | null = null;
+  private static cachedDate: string | null = null;
 
   /**
    * Get the Quiz of the Day for a specific date
@@ -51,6 +53,11 @@ export class QuizOfTheDayService {
     try {
       const dateString = this.getDateString(date);
       
+      // Return cached QOTD if available for the requested date
+      if (QuizOfTheDayService.cachedDate === dateString && QuizOfTheDayService.cachedQotd) {
+        return QuizOfTheDayService.cachedQotd;
+      }
+
       Logger.info(LogCategory.BUSINESS, 'Getting Quiz of the Day', { date: dateString });
 
       // Try to get trending category
@@ -61,7 +68,7 @@ export class QuizOfTheDayService {
         
         const capitalizedCategory = trendingCategory.charAt(0).toUpperCase() + trendingCategory.slice(1);
         
-        return {
+        const qotd: QuizOfTheDay = {
           id: `qotd-${dateString}`,
           date: dateString,
           category: trendingCategory,
@@ -72,6 +79,11 @@ export class QuizOfTheDayService {
           isTrending: true,
           bonusPoints: QuizOfTheDayService.BONUS_POINTS,
         };
+        
+        QuizOfTheDayService.cachedDate = dateString;
+        QuizOfTheDayService.cachedQotd = qotd;
+        
+        return qotd;
       }
 
       // Fallback to popular quiz
@@ -79,7 +91,7 @@ export class QuizOfTheDayService {
       const popularCategory = await this.getPopularCategory();
       const capitalizedPopular = popularCategory.charAt(0).toUpperCase() + popularCategory.slice(1);
 
-      return {
+      const qotd: QuizOfTheDay = {
         id: `qotd-${dateString}`,
         date: dateString,
         category: popularCategory,
@@ -90,6 +102,11 @@ export class QuizOfTheDayService {
         isTrending: false,
         bonusPoints: QuizOfTheDayService.BONUS_POINTS,
       };
+
+      QuizOfTheDayService.cachedDate = dateString;
+      QuizOfTheDayService.cachedQotd = qotd;
+
+      return qotd;
     } catch (error) {
       Logger.error(LogCategory.BUSINESS, 'Error getting Quiz of the Day', error as Error);
       throw new Error('Failed to get Quiz of the Day');

@@ -19,7 +19,7 @@ export default function Footer() {
             <p className="text-gray-600 dark:text-gray-400 mb-4 sm:mb-6 max-w-sm mt-2 text-sm leading-relaxed">
               Our AI-powered study assistant is designed to transform how you learn, understand complex topics, and achieve academic success.
             </p>
-            <div className="flex justify-start space-x-3">
+            <div className="flex justify-start space-x-3 -ml-2">
               <a 
                 href="https://x.com/Dipendrasah76" 
                 target="_blank" 
@@ -27,7 +27,7 @@ export default function Footer() {
                 className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full"
                 aria-label="Twitter/X"
               >
-                <FaXTwitter className="w-5 h-5" />
+                <FaXTwitter className="w-6 h-6" />
               </a>
               <a 
                 href="https://www.linkedin.com/in/dipendra-kumar-b077b9286/" 
@@ -36,7 +36,7 @@ export default function Footer() {
                 className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full"
                 aria-label="LinkedIn"
               >
-                <Linkedin className="w-5 h-5" />
+                <Linkedin className="w-6 h-6" />
               </a>
               <a 
                 href="https://github.com/Dipendra2003/StudyForge" 
@@ -45,14 +45,14 @@ export default function Footer() {
                 className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full"
                 aria-label="GitHub"
               >
-                <Github className="w-5 h-5" />
+                <Github className="w-6 h-6" />
               </a>
               <a 
                 href="mailto:dipendrak299@gmail.com"
                 className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full"
                 aria-label="Email"
               >
-                <Mail className="w-5 h-5" />
+                <Mail className="w-6 h-6" />
               </a>
             </div>
           </div>
@@ -126,7 +126,6 @@ export default function Footer() {
                   className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors text-sm inline-flex items-center group"
                 >
                   <span className="group-hover:translate-x-1 transition-transform">GitHub</span>
-                  <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </a>
               </li>
               <li>
@@ -137,7 +136,6 @@ export default function Footer() {
                   className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors text-sm inline-flex items-center group"
                 >
                   <span className="group-hover:translate-x-1 transition-transform">Documentation</span>
-                  <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </a>
               </li>
               <li>
@@ -148,7 +146,6 @@ export default function Footer() {
                   className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors text-sm inline-flex items-center group"
                 >
                   <span className="group-hover:translate-x-1 transition-transform">Developer</span>
-                  <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </a>
               </li>
               <li>
@@ -159,7 +156,6 @@ export default function Footer() {
                   className="text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors text-sm inline-flex items-center group"
                 >
                   <span className="group-hover:translate-x-1 transition-transform">Report Bug</span>
-                  <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </a>
               </li>
             </ul>

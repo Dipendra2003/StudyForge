@@ -44,7 +44,7 @@ interface HeaderProps {
 export default function Header({ onNavigate }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const isHomePage = location === "/" || location === "";
   const { user, isAuthenticated, logout } = useAuth();
   
@@ -113,8 +113,8 @@ export default function Header({ onNavigate }: HeaderProps) {
             <Link
               href="/"
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                isActive('/') ? "text-primary font-semibold" : "text-muted-foreground"
+                "text-sm font-medium transition-colors hover:text-primary relative py-1",
+                isActive('/') ? "text-primary font-semibold after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary after:rounded-full" : "text-muted-foreground"
               )}
             >
               Home
@@ -124,34 +124,34 @@ export default function Header({ onNavigate }: HeaderProps) {
                 <button
                   type="button"
                   onClick={() => handleSectionClick('features')}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer relative py-1"
                 >
                   Features
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSectionClick('benefits')}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer relative py-1"
                 >
                   Benefits
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSectionClick('faq')}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer relative py-1"
                 >
                   FAQ
                 </button>
               </>
             ) : (
               <>
-                <Link href="/#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors relative py-1">
                   Features
                 </Link>
-                <Link href="/#benefits" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/#benefits" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors relative py-1">
                   Benefits
                 </Link>
-                <Link href="/#faq" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/#faq" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors relative py-1">
                   FAQ
                 </Link>
               </>
@@ -159,8 +159,8 @@ export default function Header({ onNavigate }: HeaderProps) {
             <Link
               href="/about"
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                isActive('/about') ? "text-primary font-semibold" : "text-muted-foreground"
+                "text-sm font-medium transition-colors hover:text-primary relative py-1",
+                isActive('/about') ? "text-primary font-semibold after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary after:rounded-full" : "text-muted-foreground"
               )}
             >
               About
@@ -168,8 +168,8 @@ export default function Header({ onNavigate }: HeaderProps) {
             <Link
               href="/pricing"
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                isActive('/pricing') ? "text-primary font-semibold" : "text-muted-foreground"
+                "text-sm font-medium transition-colors hover:text-primary relative py-1",
+                isActive('/pricing') ? "text-primary font-semibold after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary after:rounded-full" : "text-muted-foreground"
               )}
             >
               Pricing
@@ -177,8 +177,8 @@ export default function Header({ onNavigate }: HeaderProps) {
             <Link
               href="/help"
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                isActive('/help') ? "text-primary font-semibold" : "text-muted-foreground"
+                "text-sm font-medium transition-colors hover:text-primary relative py-1",
+                isActive('/help') ? "text-primary font-semibold after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary after:rounded-full" : "text-muted-foreground"
               )}
             >
               Help
@@ -186,8 +186,8 @@ export default function Header({ onNavigate }: HeaderProps) {
             <Link
               href="/contact"
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                isActive('/contact') ? "text-primary font-semibold" : "text-muted-foreground"
+                "text-sm font-medium transition-colors hover:text-primary relative py-1",
+                isActive('/contact') ? "text-primary font-semibold after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary after:rounded-full" : "text-muted-foreground"
               )}
             >
               Contact
@@ -204,15 +204,14 @@ export default function Header({ onNavigate }: HeaderProps) {
             {/* Desktop Auth Controls */}
             {isAuthenticated ? (
               <>
-                <Link href={dashboardPath}>
-                  <Button
-                    size="sm"
-                    className="hidden lg:inline-flex bg-primary hover:bg-primary/90 text-white font-medium rounded-full shadow-xs hover:shadow-md transition-all"
-                  >
-                    <LayoutDashboard className="mr-1.5 h-4 w-4" />
-                    {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
-                  </Button>
-                </Link>
+                <Button
+                  size="sm"
+                  onClick={() => setLocation(dashboardPath)}
+                  className="hidden lg:inline-flex bg-primary hover:bg-primary/90 text-white font-medium rounded-full shadow-xs hover:shadow-md transition-all"
+                >
+                  <LayoutDashboard className="mr-1.5 h-4 w-4" />
+                  {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -259,14 +258,13 @@ export default function Header({ onNavigate }: HeaderProps) {
                 </DropdownMenu>
               </>
             ) : (
-              <Link href="/login">
-                <Button
-                  size="sm"
-                  className="hidden lg:inline-flex bg-primary hover:bg-primary/90 text-white font-medium rounded-full shadow-xs hover:shadow-md transition-all px-4"
-                >
-                  Get Started
-                </Button>
-              </Link>
+              <Button
+                size="sm"
+                onClick={() => setLocation('/login')}
+                className="hidden lg:inline-flex bg-gradient-to-r from-primary to-indigo-500 hover:shadow-lg text-white font-bold rounded-full shadow-md transition-all px-6 py-4"
+              >
+                Get Started
+              </Button>
             )}
 
             {/* Mobile & Tablet Navigation Drawer (Sheet) - Consistent with After-Login Sidebar */}
@@ -397,14 +395,10 @@ export default function Header({ onNavigate }: HeaderProps) {
                           {user?.fullName || user?.username || "User"}
                         </span>
                       </div>
-                      <SheetClose asChild>
-                        <Link href={dashboardPath}>
-                          <Button className="w-full justify-start bg-primary hover:bg-primary/90 text-white font-medium shadow-sm">
-                            <LayoutDashboard className="mr-2 h-4 w-4" />
-                            {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
-                          </Button>
-                        </Link>
-                      </SheetClose>
+                        <Button onClick={() => { setLocation(dashboardPath); setIsOpen(false); }} className="w-full justify-start bg-primary hover:bg-primary/90 text-white font-medium shadow-sm">
+                          <LayoutDashboard className="mr-2 h-4 w-4" />
+                          {(isAdmin && isAdminArea) ? 'Admin Dashboard' : 'Dashboard'}
+                        </Button>
                       <div className="grid grid-cols-2 gap-2">
                         <SheetClose asChild>
                           <Link href="/profile">
@@ -440,20 +434,12 @@ export default function Header({ onNavigate }: HeaderProps) {
                     </div>
                   ) : (
                     <div className="space-y-2 pt-1">
-                      <SheetClose asChild>
-                        <Link href="/login">
-                          <Button className="w-full bg-primary hover:bg-primary/90 text-white font-semibold shadow-md">
-                            Get Started
-                          </Button>
-                        </Link>
-                      </SheetClose>
-                      <SheetClose asChild>
-                        <Link href="/login">
-                          <Button variant="outline" className="w-full font-medium">
-                            Sign In
-                          </Button>
-                        </Link>
-                      </SheetClose>
+                      <Button onClick={() => { setLocation('/login'); setIsOpen(false); }} className="w-full bg-gradient-to-r from-primary to-indigo-500 hover:shadow-lg text-white font-bold shadow-md rounded-full">
+                        Get Started
+                      </Button>
+                      <Button onClick={() => { setLocation('/login'); setIsOpen(false); }} variant="outline" className="w-full font-medium rounded-full">
+                        Sign In
+                      </Button>
                     </div>
                   )}
                 </div>

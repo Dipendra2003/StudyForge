@@ -35,7 +35,7 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm mb-8"
           >
             <Zap size={16} className="text-amber-500 fill-amber-500" />
-            <span className="text-xs sm:text-sm font-bold bg-gradient-to-r from-gray-800 to-gray-500 dark:from-gray-200 dark:to-gray-400 bg-clip-text text-transparent uppercase tracking-wider">
+            <span className="text-xs sm:text-sm font-bold bg-gradient-to-r from-gray-800 to-gray-500 dark:from-gray-200 dark:to-gray-400 bg-clip-text text-transparent tracking-wide">
               Boost your learning efficiency
             </span>
           </motion.div>
@@ -70,7 +70,7 @@ export default function CallToAction({ onScrollToWaitlist }: CallToActionProps) 
             viewport={{ once: true }}
             className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-14"
           >
-            <div className="shadow-xl shadow-primary/20 rounded-full">
+            <div className="shadow-md hover:shadow-lg rounded-full transition-shadow">
               <AnimatedCTA
                 text="Get Started Free"
                 onClick={onScrollToWaitlist}

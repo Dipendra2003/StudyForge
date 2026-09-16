@@ -2,6 +2,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Force IPv4 first to prevent 20-second DNS/TCP timeouts when IPv6 is blackholed
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import compression from "compression";

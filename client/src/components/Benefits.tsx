@@ -1,23 +1,31 @@
 import { motion } from "framer-motion";
+import { Rocket, Gauge, TrendingUp, UserCheck } from "lucide-react";
+
+const iconMap: Record<string, React.ElementType> = {
+  rocket: Rocket,
+  gauge: Gauge,
+  "trending-up": TrendingUp,
+  "user-check": UserCheck,
+};
 
 const benefits = [
   {
-    icon: "graduation-cap",
+    icon: "rocket",
     title: "Accelerated Learning",
     description: "Master complex subjects faster with AI-generated explanations and summaries tailored to your learning style."
   },
   {
-    icon: "tachometer-alt",
+    icon: "gauge",
     title: "Improved Productivity",
     description: "Focus on understanding concepts rather than searching for information. Study smarter, not harder."
   },
   {
-    icon: "chart-line",
+    icon: "trending-up",
     title: "Better Academic Performance",
     description: "Practice with custom-generated exercises and receive personalized feedback to improve your grades."
   },
   {
-    icon: "book-reader",
+    icon: "user-check",
     title: "Personalized Education",
     description: "Enjoy learning adapted to your pace, preferences, and knowledge gaps for a truly personalized experience."
   }
@@ -69,7 +77,7 @@ export default function Benefits() {
                     <span className="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded-full">+200% Spd</span>
                   </div>
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                    <div className="flex justify-between text-xs font-bold text-gray-700 dark:text-gray-200">
                       <span>Course Mastery</span>
                       <span className="text-primary">82%</span>
                     </div>
@@ -87,7 +95,7 @@ export default function Benefits() {
                 {/* Widget 2 - Productivity (Time Saved) */}
                 <motion.div 
                   whileHover={{ scale: 1.02 }}
-                  className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/5 backdrop-blur-sm rounded-xl p-4 border border-emerald-500/20 shadow-sm flex flex-col justify-center"
+                  className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-center"
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -98,7 +106,7 @@ export default function Benefits() {
                   <div className="flex gap-2">
                     <div className="flex-1 bg-white/60 dark:bg-gray-800/60 rounded border border-emerald-100 dark:border-emerald-800/50 p-2 text-center">
                       <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">2h</div>
-                      <div className="text-[8px] font-semibold text-gray-500 dark:text-gray-400 uppercase mt-0.5">Reading</div>
+                      <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mt-0.5">Reading</div>
                     </div>
                     <div className="flex-1 bg-white/60 dark:bg-gray-800/60 rounded border border-emerald-100 dark:border-emerald-800/50 p-2 text-center">
                       <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">1.5h</div>
@@ -142,7 +150,7 @@ export default function Benefits() {
                   <div className="space-y-2.5">
                     {/* Slider 1 */}
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[9px] font-semibold text-gray-500 dark:text-gray-400 w-12 uppercase tracking-wide">Visual</span>
+                      <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 w-12 uppercase tracking-wide">Visual</span>
                       <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div className="w-[85%] h-full bg-indigo-500 rounded-full"></div>
                       </div>
@@ -167,7 +175,7 @@ export default function Benefits() {
             </div>
           </motion.div>
           
-          <div>
+          <div className="flex flex-col justify-center">
             <div className="space-y-10">
               {benefits.map((benefit, index) => (
                 <motion.div 
@@ -176,11 +184,11 @@ export default function Benefits() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="flex gap-5"
+                  className="flex gap-4"
                 >
                   <div className="flex-shrink-0">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-                      <i className={`fas fa-${benefit.icon} text-primary`}></i>
+                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                      {(() => { const Icon = iconMap[benefit.icon]; return Icon ? <Icon className="text-primary" size={24} /> : null; })()}
                     </div>
                   </div>
                   <div>
