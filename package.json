@@ -142,7 +142,7 @@
     "@types/session-file-store": "^1.2.6",
     "@types/supertest": "^7.2.0",
     "@types/ws": "^8.5.13",
-    "@vitejs/plugin-react": "^4.3.2",
+    "@vitejs/plugin-react": "^6.1.1",
     "@vitest/ui": "^4.0.10",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
