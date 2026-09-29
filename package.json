@@ -78,7 +78,7 @@
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
     "express": "^4.21.2",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",
     "file-saver": "^2.0.5",
     "file-type": "^22.0.1",
@@ -90,11 +90,11 @@
     "lucide-react": "^0.453.0",
     "mammoth": "^1.12.0",
     "memorystore": "^1.6.7",
-    "monaco-editor": "^0.56.0",
-    "multer": "^2.0.2",
+    "monaco-editor": "^0.57.0",
+    "multer": "^2.4.0",
     "nanoid": "^6.0.0",
     "node-cron": "^4.2.1",
-    "nodemailer": "^7.0.10",
+    "nodemailer": "^10.0.2",
     "openai": "^4.89.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
@@ -115,7 +115,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
-    "ws": "^8.18.0",
+    "ws": "^8.22.0",
     "zod": "^3.23.8",
     "zod-validation-error": "^5.0.0"
   },
@@ -146,7 +146,7 @@
     "@vitest/ui": "^4.0.10",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.1",
     "fast-check": "^4.9.0",
     "jsdom": "^27.2.0",
     "postcss": "^8.4.47",
@@ -156,8 +156,8 @@
     "ts-morph": "^28.0.0",
     "tsx": "^4.19.1",
     "typescript": "7.0.2",
-    "vite": "^5.4.14",
-    "vitest": "^4.1.10"
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
   },
   "optionalDependencies": {
     "bufferutil": "^4.1.0"
